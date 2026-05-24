@@ -7,10 +7,11 @@ interface CloudSyncModalProps {
 }
 
 export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
-  const { configured, userEmail, syncStatus, lastSyncedAt, authError, signInWithEmail, signOut } = useCloudSync();
+  const { configured, userEmail, syncStatus, lastSyncedAt, authError, signInWithEmail, signOut, refreshFromCloud } = useCloudSync();
   const [email, setEmail] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const statusLabel = useMemo(() => {
     if (!configured) return 'Supabase ayarlanmadi';
@@ -29,6 +30,14 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
     setIsSending(true);
     const result = await signInWithEmail(email.trim());
     setIsSending(false);
+    setFeedback(result.message);
+  };
+
+  const handleRefresh = async () => {
+    setFeedback(null);
+    setIsRefreshing(true);
+    const result = await refreshFromCloud();
+    setIsRefreshing(false);
     setFeedback(result.message);
   };
 
@@ -75,6 +84,13 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
             <p className="text-(--color-text-secondary)">
               Son senkron: <span className="text-(--color-text-primary)">{lastSyncedAt ? new Date(lastSyncedAt).toLocaleString('tr-TR') : 'Henuz yok'}</span>
             </p>
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing || syncStatus === 'syncing'}
+              className="px-4 py-2 rounded-md bg-(--color-accent) hover:bg-(--color-accent-hover) disabled:opacity-60 text-white text-sm"
+            >
+              {isRefreshing || syncStatus === 'syncing' ? 'Yenileniyor...' : 'Buluttan yenile'}
+            </button>
             <button
               onClick={signOut}
               className="px-4 py-2 rounded-md bg-(--color-btn-bg) hover:bg-(--color-btn-hover) text-(--color-text-primary) text-sm"

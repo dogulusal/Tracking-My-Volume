@@ -1,4 +1,4 @@
-import { createContext, useReducer, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useReducer, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import type { User } from '@supabase/supabase-js';
 import type { AppState, AppAction } from '@/types';
 import { appReducer, initialState } from './appReducer';
@@ -9,6 +9,8 @@ const STORAGE_KEY = 'workout-tracker';
 // Increment this when data structure changes that need migration
 const CURRENT_DATA_VERSION = 5;
 const CLOUD_SYNC_DEBOUNCE_MS = 1200;
+const PERIODIC_SYNC_MS = 45000;
+const FOREGROUND_SYNC_THROTTLE_MS = 1500;
 
 type CloudSyncStatus = 'disabled' | 'auth_loading' | 'signed_out' | 'syncing' | 'synced' | 'error';
 
@@ -23,6 +25,7 @@ export interface AppContextValue {
     authError: string | null;
     signInWithEmail: (email: string) => Promise<{ ok: boolean; message: string }>;
     signOut: () => Promise<void>;
+    refreshFromCloud: () => Promise<{ ok: boolean; message: string }>;
   };
 }
 
@@ -147,6 +150,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(isSupabaseConfigured);
   const hydratedUserIdRef = useRef<string | null>(null);
+  const suppressNextUploadRef = useRef(false);
+  const lastCloudTimestampRef = useRef<string | null>(null);
+  const lastForegroundPullRef = useRef(0);
 
   const [state, dispatch] = useReducer(appReducer, undefined, () => {
     try {
@@ -179,10 +185,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   });
 
+  const latestStateRef = useRef<AppState>(state);
+
+  useEffect(() => {
+    latestStateRef.current = state;
+  }, [state]);
+
   // Auto-save to localStorage on every state change
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
+
+  const fetchCloudState = useCallback(async (): Promise<{ ok: boolean; message: string }> => {
+    const client = supabase;
+    if (!isSupabaseConfigured || !client) {
+      return { ok: false, message: 'Supabase baglantisi ayarli degil.' };
+    }
+    if (!user) {
+      return { ok: false, message: 'Bulut verisi icin once giris yapmalisin.' };
+    }
+
+    setSyncStatus('syncing');
+    const { data, error } = await client
+      .from('user_states')
+      .select('data, updated_at')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (error) {
+      setAuthError(error.message);
+      setSyncStatus('error');
+      return { ok: false, message: `Bulut okunamadi: ${error.message}` };
+    }
+
+    const cloudState = data?.data;
+    if (isLikelyAppState(cloudState)) {
+      const migrated = applyMigrations(cloudState);
+      if (JSON.stringify(migrated) !== JSON.stringify(latestStateRef.current)) {
+        suppressNextUploadRef.current = true;
+        dispatch({ type: 'IMPORT_DATA', payload: migrated });
+      }
+    }
+
+    hydratedUserIdRef.current = user.id;
+    const remoteUpdatedAt = data?.updated_at ?? null;
+    setLastSyncedAt(remoteUpdatedAt);
+    lastCloudTimestampRef.current = remoteUpdatedAt;
+    setSyncStatus('synced');
+    setAuthError(null);
+    return { ok: true, message: 'Buluttan en guncel veri alindi.' };
+  }, [user]);
 
   useEffect(() => {
     const client = supabase;
@@ -228,46 +280,74 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    let cancelled = false;
+    void fetchCloudState();
+  }, [authLoading, user, fetchCloudState]);
 
-    const loadCloudState = async () => {
-      setSyncStatus('syncing');
-      const { data, error } = await client
-        .from('user_states')
-        .select('data, updated_at')
-        .eq('user_id', user.id)
-        .maybeSingle();
+  useEffect(() => {
+    const client = supabase;
+    if (!isSupabaseConfigured || !client || authLoading || !user) return;
 
-      if (cancelled) return;
-
-      if (error) {
-        setAuthError(error.message);
-        setSyncStatus('error');
-        return;
-      }
-
-      const cloudState = data?.data;
-      if (isLikelyAppState(cloudState)) {
-        dispatch({ type: 'IMPORT_DATA', payload: applyMigrations(cloudState) });
-      }
-
-      hydratedUserIdRef.current = user.id;
-      setLastSyncedAt(data?.updated_at ?? null);
-      setSyncStatus('synced');
-      setAuthError(null);
-    };
-
-    loadCloudState();
+    const channel = client
+      .channel(`user-state-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_states',
+          filter: `user_id=eq.${user.id}`,
+        },
+        payload => {
+          const incoming = (payload.new as { updated_at?: string } | null)?.updated_at;
+          if (incoming && lastCloudTimestampRef.current && incoming <= lastCloudTimestampRef.current) {
+            return;
+          }
+          void fetchCloudState();
+        }
+      )
+      .subscribe();
 
     return () => {
-      cancelled = true;
+      void client.removeChannel(channel);
     };
-  }, [authLoading, user?.id]);
+  }, [authLoading, user, fetchCloudState]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || authLoading || !user) return;
+
+    const runForegroundPull = () => {
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastForegroundPullRef.current < FOREGROUND_SYNC_THROTTLE_MS) return;
+      lastForegroundPullRef.current = now;
+      void fetchCloudState();
+    };
+
+    window.addEventListener('focus', runForegroundPull);
+    document.addEventListener('visibilitychange', runForegroundPull);
+    return () => {
+      window.removeEventListener('focus', runForegroundPull);
+      document.removeEventListener('visibilitychange', runForegroundPull);
+    };
+  }, [authLoading, user, fetchCloudState]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || authLoading || !user) return;
+    const timer = setInterval(() => {
+      void fetchCloudState();
+    }, PERIODIC_SYNC_MS);
+    return () => clearInterval(timer);
+  }, [authLoading, user, fetchCloudState]);
 
   useEffect(() => {
     const client = supabase;
     if (!isSupabaseConfigured || !client || authLoading || !user) return;
     if (hydratedUserIdRef.current !== user.id) return;
+
+    if (suppressNextUploadRef.current) {
+      suppressNextUploadRef.current = false;
+      return;
+    }
 
     const timer = setTimeout(async () => {
       setSyncStatus('syncing');
@@ -286,6 +366,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       setLastSyncedAt(now);
+      lastCloudTimestampRef.current = now;
       setSyncStatus('synced');
       setAuthError(null);
     }, CLOUD_SYNC_DEBOUNCE_MS);
@@ -323,6 +404,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!isSupabaseConfigured || !client) return;
     await client.auth.signOut();
     setUser(null);
+    setLastSyncedAt(null);
+    lastCloudTimestampRef.current = null;
     setSyncStatus('signed_out');
   };
 
@@ -339,6 +422,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           authError,
           signInWithEmail,
           signOut,
+          refreshFromCloud: fetchCloudState,
         },
       }}
     >

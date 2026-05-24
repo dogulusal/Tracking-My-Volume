@@ -108,3 +108,26 @@ input[type="number"]::-webkit-outer-spin-button {
   opacity: 1;
   height: 24px;
 }
+
+/* Mobile-only UI mode (enabled via runtime device detection) */
+[data-mobile-ui='true'] main {
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+}
+
+[data-mobile-ui='true'] button,
+[data-mobile-ui='true'] a,
+[data-mobile-ui='true'] input,
+[data-mobile-ui='true'] select,
+[data-mobile-ui='true'] textarea {
+  min-height: 44px;
+}
+
+[data-mobile-ui='true'] input,
+[data-mobile-ui='true'] select,
+[data-mobile-ui='true'] textarea {
+  font-size: 16px;
+}
+
+[data-mobile-ui='true'] .mobile-device-ui {
+  letter-spacing: 0.01em;
+}

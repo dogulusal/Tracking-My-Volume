@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 
 const tabs = [
   { to: '/', icon: '🏠', label: 'Ana Sayfa' },
@@ -9,9 +10,12 @@ const tabs = [
 
 export function BottomNav() {
   const location = useLocation();
+  const isMobileDevice = useIsMobileDevice();
+
+  if (!isMobileDevice) return null;
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-(--color-bg-card) border-t border-(--color-border) z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.1)]">
+    <nav className="fixed bottom-0 left-0 right-0 bg-(--color-bg-card) border-t border-(--color-border) z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] pb-[env(safe-area-inset-bottom)]">
       <div className="flex justify-around items-center h-16">
         {tabs.map(tab => {
           const isActive = location.pathname === tab.to ||

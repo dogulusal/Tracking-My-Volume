@@ -9,12 +9,20 @@ import { WorkoutEntry } from '@/pages/WorkoutEntry';
 import { History } from '@/pages/History';
 import { Charts } from '@/pages/Charts';
 import { Export } from '@/pages/Export';
+import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 
 export default function App() {
+  const isMobileDevice = useIsMobileDevice();
+
   return (
     <AppProvider>
       <BrowserRouter>
-        <div className="min-h-screen bg-(--color-bg-primary) text-(--color-text-primary)">
+        <div
+          data-mobile-ui={isMobileDevice ? 'true' : 'false'}
+          className={`min-h-screen bg-(--color-bg-primary) text-(--color-text-primary) ${
+            isMobileDevice ? 'mobile-device-ui' : ''
+          }`}
+        >
           <Header />
           <main>
             <Routes>
