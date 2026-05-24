@@ -287,10 +287,13 @@ export function History() {
 
   const getWeekLog = (weekNumber: number) => programLogs.find(w => w.weekNumber === weekNumber);
 
-  // Get previous week within selected phase
-  const getPrevWeekNumber = (weekNum: number): number => {
-    if (weekNum <= currentPhase.baseWeek) return -1;
-    return weekNum - 1;
+  // Find nearest previous week in the current phase that has data for this exercise.
+  const getPrevExerciseWithinPhase = (weekNum: number, exerciseId: string): { weekNumber: number; log: ExerciseLog } | null => {
+    for (let w = weekNum - 1; w >= currentPhase.baseWeek; w--) {
+      const prev = getExerciseLog(w, exerciseId);
+      if (prev) return { weekNumber: w, log: prev };
+    }
+    return null;
   };
 
   // Collect notes for visible weeks
@@ -583,19 +586,17 @@ export function History() {
                   {visibleWeeks.map(weekNum => {
                     const log = getExerciseLog(weekNum, exerciseId);
                     const weekLog = getWeekLog(weekNum);
-                    const prevWeekNum = getPrevWeekNumber(weekNum);
-                    const prevLog = getExerciseLog(prevWeekNum, exerciseId);
+                    const prevWithinPhase = getPrevExerciseWithinPhase(weekNum, exerciseId);
+                    const prevLog = prevWithinPhase?.log;
 
                     let status: ExerciseStatus = 'same';
                     if (weekLog?.isHoliday) {
                       status = 'holiday';
                     } else if (log) {
-                      if (weekNum === currentPhase.baseWeek) {
-                        status = 'same';
-                      } else {
-                      status = calculateExerciseStatus(log.sets, prevLog?.sets);
-                      }
-                    } else if (weekNum > 0 && prevLog) {
+                      status = prevLog
+                        ? calculateExerciseStatus(log.sets, prevLog.sets)
+                        : 'new';
+                    } else if (prevLog) {
                       status = 'removed';
                     }
 
@@ -612,7 +613,7 @@ export function History() {
                             weekNumber: weekNum,
                             currentSets: log?.sets || [],
                             previousSets: prevLog?.sets,
-                            previousWeek: prevWeekNum >= 0 ? prevWeekNum : undefined,
+                            previousWeek: prevWithinPhase ? getDisplayWeek(prevWithinPhase.weekNumber) : undefined,
                             weekNotes: weekLog?.notes,
                             isEmpty: !log || log.sets.length === 0,
                             autoStatus: status,
