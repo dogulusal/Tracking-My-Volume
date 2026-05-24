@@ -1,10 +1,14 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { toggleTheme, isDarkMode } from '@/utils/theme';
+import { useCloudSync } from '@/hooks/useCloudSync';
+import { CloudSyncModal } from '@/components/shared/CloudSyncModal';
 
 export function Header() {
   const location = useLocation();
   const [dark, setDark] = useState(isDarkMode());
+  const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
+  const { configured, userEmail, syncStatus } = useCloudSync();
 
   useEffect(() => {
     setDark(isDarkMode());
@@ -23,9 +27,16 @@ export function Header() {
     { to: '/export', label: 'Dışa Aktar' },
   ];
 
+  const cloudLabel = !configured
+    ? 'Bulut Kapali'
+    : userEmail
+      ? (syncStatus === 'synced' ? 'Bulut Acik' : 'Senkron')
+      : 'Bulut Giris';
+
   return (
-    <header className="bg-gradient-to-b from-[rgba(16,185,129,0.08)] to-transparent border-b border-(--color-border) sticky top-0 z-50 backdrop-blur-sm">
-      <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
+    <>
+      <header className="bg-gradient-to-b from-[rgba(16,185,129,0.08)] to-transparent border-b border-(--color-border) sticky top-0 z-50 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link to="/" className="text-lg font-extrabold tracking-tight">
           <span className="text-(--color-text-primary)">Tracking</span>
           <span className="text-(--color-accent) neon-glow">My</span>
@@ -49,15 +60,24 @@ export function Header() {
           ))}
         </nav>
 
-        {/* Theme toggle */}
-        <button
-          onClick={handleToggle}
-          className="p-2 rounded-md hover:bg-(--color-btn-bg) transition-colors text-(--color-text-primary)"
-          aria-label="Tema değiştir"
-        >
-          {dark ? '☀️' : '🌙'}
-        </button>
-      </div>
-    </header>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsCloudModalOpen(true)}
+              className="px-3 py-2 rounded-md text-xs md:text-sm font-semibold text-(--color-text-primary) bg-(--color-btn-bg) hover:bg-(--color-btn-hover) transition-colors"
+            >
+              {cloudLabel}
+            </button>
+            <button
+              onClick={handleToggle}
+              className="p-2 rounded-md hover:bg-(--color-btn-bg) transition-colors text-(--color-text-primary)"
+              aria-label="Tema degistir"
+            >
+              {dark ? '☀️' : '🌙'}
+            </button>
+          </div>
+        </div>
+      </header>
+      <CloudSyncModal isOpen={isCloudModalOpen} onClose={() => setIsCloudModalOpen(false)} />
+    </>
   );
 }

@@ -1,15 +1,29 @@
-import { createContext, useReducer, useEffect, type ReactNode } from 'react';
+import { createContext, useReducer, useEffect, useRef, useState, type ReactNode } from 'react';
+import type { User } from '@supabase/supabase-js';
 import type { AppState, AppAction } from '@/types';
 import { appReducer, initialState } from './appReducer';
 import { generatePdfImportData } from '@/data/pdfImportData';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 const STORAGE_KEY = 'workout-tracker';
 // Increment this when data structure changes that need migration
 const CURRENT_DATA_VERSION = 5;
+const CLOUD_SYNC_DEBOUNCE_MS = 1200;
+
+type CloudSyncStatus = 'disabled' | 'auth_loading' | 'signed_out' | 'syncing' | 'synced' | 'error';
 
 export interface AppContextValue {
   state: AppState;
   dispatch: React.Dispatch<AppAction>;
+  cloud: {
+    configured: boolean;
+    userEmail: string | null;
+    syncStatus: CloudSyncStatus;
+    lastSyncedAt: string | null;
+    authError: string | null;
+    signInWithEmail: (email: string) => Promise<{ ok: boolean; message: string }>;
+    signOut: () => Promise<void>;
+  };
 }
 
 export const AppContext = createContext<AppContextValue | null>(null);
@@ -118,7 +132,22 @@ function applyMigrations(state: AppState): AppState {
   return { ...s, dataVersion: CURRENT_DATA_VERSION };
 }
 
+function isLikelyAppState(value: unknown): value is AppState {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<AppState>;
+  return Array.isArray(candidate.programs)
+    && Array.isArray(candidate.weekLogs)
+    && typeof candidate.currentWeek === 'number';
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [syncStatus, setSyncStatus] = useState<CloudSyncStatus>(isSupabaseConfigured ? 'auth_loading' : 'disabled');
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(isSupabaseConfigured);
+  const hydratedUserIdRef = useRef<string | null>(null);
+
   const [state, dispatch] = useReducer(appReducer, undefined, () => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -155,8 +184,164 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
+  useEffect(() => {
+    const client = supabase;
+    if (!isSupabaseConfigured || !client) {
+      setSyncStatus('disabled');
+      setAuthLoading(false);
+      return;
+    }
+
+    let mounted = true;
+
+    client.auth.getSession().then(({ data, error }) => {
+      if (!mounted) return;
+      if (error) {
+        setAuthError(error.message);
+        setSyncStatus('error');
+      }
+      setUser(data.session?.user ?? null);
+      setAuthLoading(false);
+      if (!data.session?.user && !error) setSyncStatus('signed_out');
+    });
+
+    const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+      if (!session?.user) {
+        hydratedUserIdRef.current = null;
+        setSyncStatus('signed_out');
+      }
+    });
+
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    const client = supabase;
+    if (!isSupabaseConfigured || !client || authLoading) return;
+    if (!user) {
+      setSyncStatus('signed_out');
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadCloudState = async () => {
+      setSyncStatus('syncing');
+      const { data, error } = await client
+        .from('user_states')
+        .select('data, updated_at')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (error) {
+        setAuthError(error.message);
+        setSyncStatus('error');
+        return;
+      }
+
+      const cloudState = data?.data;
+      if (isLikelyAppState(cloudState)) {
+        dispatch({ type: 'IMPORT_DATA', payload: applyMigrations(cloudState) });
+      }
+
+      hydratedUserIdRef.current = user.id;
+      setLastSyncedAt(data?.updated_at ?? null);
+      setSyncStatus('synced');
+      setAuthError(null);
+    };
+
+    loadCloudState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user?.id]);
+
+  useEffect(() => {
+    const client = supabase;
+    if (!isSupabaseConfigured || !client || authLoading || !user) return;
+    if (hydratedUserIdRef.current !== user.id) return;
+
+    const timer = setTimeout(async () => {
+      setSyncStatus('syncing');
+      const now = new Date().toISOString();
+      const { error } = await client
+        .from('user_states')
+        .upsert(
+          { user_id: user.id, data: state, updated_at: now },
+          { onConflict: 'user_id' }
+        );
+
+      if (error) {
+        setAuthError(error.message);
+        setSyncStatus('error');
+        return;
+      }
+
+      setLastSyncedAt(now);
+      setSyncStatus('synced');
+      setAuthError(null);
+    }, CLOUD_SYNC_DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [state, authLoading, user?.id]);
+
+  const signInWithEmail = async (email: string): Promise<{ ok: boolean; message: string }> => {
+    const client = supabase;
+    if (!isSupabaseConfigured || !client) {
+      return { ok: false, message: 'Supabase baglantisi henuz ayarlanmadi.' };
+    }
+    if (!email) {
+      return { ok: false, message: 'Lutfen gecerli bir e-posta gir.' };
+    }
+
+    const { error } = await client.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: window.location.href,
+      },
+    });
+
+    if (error) {
+      setAuthError(error.message);
+      return { ok: false, message: `Giris linki gonderilemedi: ${error.message}` };
+    }
+
+    setAuthError(null);
+    return { ok: true, message: 'Giris linki e-postana gonderildi.' };
+  };
+
+  const signOut = async () => {
+    const client = supabase;
+    if (!isSupabaseConfigured || !client) return;
+    await client.auth.signOut();
+    setUser(null);
+    setSyncStatus('signed_out');
+  };
+
   return (
-    <AppContext.Provider value={{ state, dispatch }}>
+    <AppContext.Provider
+      value={{
+        state,
+        dispatch,
+        cloud: {
+          configured: isSupabaseConfigured,
+          userEmail: user?.email ?? null,
+          syncStatus,
+          lastSyncedAt,
+          authError,
+          signInWithEmail,
+          signOut,
+        },
+      }}
+    >
       {children}
     </AppContext.Provider>
   );
