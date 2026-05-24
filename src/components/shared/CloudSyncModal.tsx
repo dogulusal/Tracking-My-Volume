@@ -7,11 +7,9 @@ interface CloudSyncModalProps {
 }
 
 export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
-  const { configured, userEmail, syncStatus, lastSyncedAt, authError, signInWithGoogle, signInWithEmail, signOut, refreshFromCloud } = useCloudSync();
-  const [email, setEmail] = useState('');
+  const { configured, userEmail, syncStatus, lastSyncedAt, authError, signInWithGithub, signOut, refreshFromCloud } = useCloudSync();
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [isSending, setIsSending] = useState(false);
+  const [isGithubLoading, setIsGithubLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const statusLabel = useMemo(() => {
@@ -26,21 +24,13 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
 
   if (!isOpen) return null;
 
-  const handleSendLink = async () => {
+  const handleGithubSignIn = async () => {
     setFeedback(null);
-    setIsSending(true);
-    const result = await signInWithEmail(email.trim());
-    setIsSending(false);
-    setFeedback(result.message);
-  };
-
-  const handleGoogleSignIn = async () => {
-    setFeedback(null);
-    setIsGoogleLoading(true);
-    const result = await signInWithGoogle();
+    setIsGithubLoading(true);
+    const result = await signInWithGithub();
     setFeedback(result.message);
     if (!result.ok) {
-      setIsGoogleLoading(false);
+      setIsGithubLoading(false);
     }
   };
 
@@ -70,30 +60,13 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
         {configured && !userEmail && (
           <div className="space-y-3 mb-4">
             <button
-              onClick={handleGoogleSignIn}
-              disabled={isGoogleLoading || isSending}
+              onClick={handleGithubSignIn}
+              disabled={isGithubLoading}
               className="w-full px-4 py-2 rounded-md bg-(--color-accent) hover:bg-(--color-accent-hover) disabled:opacity-50 text-white text-sm font-medium"
             >
-              {isGoogleLoading ? 'Yonlendiriliyor...' : 'Google ile giris yap'}
+              {isGithubLoading ? 'Yonlendiriliyor...' : 'GitHub ile giris yap'}
             </button>
-
-            <p className="text-xs text-(--color-text-secondary) text-center">veya e-posta linkiyle gir</p>
-
-            <label className="text-sm text-(--color-text-secondary) block">E-posta ile giris</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="ornek@mail.com"
-              className="w-full px-3 py-2 rounded-md border border-(--color-border) bg-(--color-bg-secondary) text-(--color-text-primary)"
-            />
-            <button
-              onClick={handleSendLink}
-              disabled={isSending || !email.trim()}
-              className="w-full px-4 py-2 rounded-md bg-(--color-accent) hover:bg-(--color-accent-hover) disabled:opacity-50 text-white text-sm font-medium"
-            >
-              {isSending ? 'Gonderiliyor...' : 'Giris linki gonder'}
-            </button>
+            <p className="text-xs text-(--color-text-secondary) text-center">Ayni GitHub hesabi ile telefonda ve bilgisayarda giris yap.</p>
           </div>
         )}
 
