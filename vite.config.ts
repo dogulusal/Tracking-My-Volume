@@ -6,7 +6,7 @@ import path from 'path'
 const repoName = 'Tracking-My-Volume'
 
 export default defineConfig({
-  base: process.env.GITHUB_ACTIONS ? `/${repoName}/` : '/',
+  base: process.env.NODE_ENV === 'production' ? `/${repoName}/` : '/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
