@@ -23,6 +23,7 @@ export interface AppContextValue {
     syncStatus: CloudSyncStatus;
     lastSyncedAt: string | null;
     authError: string | null;
+    signInWithGoogle: () => Promise<{ ok: boolean; message: string }>;
     signInWithEmail: (email: string) => Promise<{ ok: boolean; message: string }>;
     signOut: () => Promise<void>;
     refreshFromCloud: () => Promise<{ ok: boolean; message: string }>;
@@ -374,6 +375,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [state, authLoading, user?.id]);
 
+  const signInWithGoogle = async (): Promise<{ ok: boolean; message: string }> => {
+    const client = supabase;
+    if (!isSupabaseConfigured || !client) {
+      return { ok: false, message: 'Supabase baglantisi henuz ayarlanmadi.' };
+    }
+
+    const { error } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.href,
+      },
+    });
+
+    if (error) {
+      setAuthError(error.message);
+      return { ok: false, message: `Google girisi baslatilamadi: ${error.message}` };
+    }
+
+    setAuthError(null);
+    return { ok: true, message: 'Google girisi icin yonlendiriliyorsun.' };
+  };
+
   const signInWithEmail = async (email: string): Promise<{ ok: boolean; message: string }> => {
     const client = supabase;
     if (!isSupabaseConfigured || !client) {
@@ -420,6 +443,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           syncStatus,
           lastSyncedAt,
           authError,
+          signInWithGoogle,
           signInWithEmail,
           signOut,
           refreshFromCloud: fetchCloudState,

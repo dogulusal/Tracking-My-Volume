@@ -7,9 +7,10 @@ interface CloudSyncModalProps {
 }
 
 export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
-  const { configured, userEmail, syncStatus, lastSyncedAt, authError, signInWithEmail, signOut, refreshFromCloud } = useCloudSync();
+  const { configured, userEmail, syncStatus, lastSyncedAt, authError, signInWithGoogle, signInWithEmail, signOut, refreshFromCloud } = useCloudSync();
   const [email, setEmail] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -31,6 +32,16 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
     const result = await signInWithEmail(email.trim());
     setIsSending(false);
     setFeedback(result.message);
+  };
+
+  const handleGoogleSignIn = async () => {
+    setFeedback(null);
+    setIsGoogleLoading(true);
+    const result = await signInWithGoogle();
+    setFeedback(result.message);
+    if (!result.ok) {
+      setIsGoogleLoading(false);
+    }
   };
 
   const handleRefresh = async () => {
@@ -58,6 +69,16 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
 
         {configured && !userEmail && (
           <div className="space-y-3 mb-4">
+            <button
+              onClick={handleGoogleSignIn}
+              disabled={isGoogleLoading || isSending}
+              className="w-full px-4 py-2 rounded-md bg-(--color-accent) hover:bg-(--color-accent-hover) disabled:opacity-50 text-white text-sm font-medium"
+            >
+              {isGoogleLoading ? 'Yonlendiriliyor...' : 'Google ile giris yap'}
+            </button>
+
+            <p className="text-xs text-(--color-text-secondary) text-center">veya e-posta linkiyle gir</p>
+
             <label className="text-sm text-(--color-text-secondary) block">E-posta ile giris</label>
             <input
               type="email"
