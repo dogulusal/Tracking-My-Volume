@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-bg-primary: #050a0a;
+  --color-bg-card: #0a1412;
+  --color-bg-input: #0f1f1a;
+  --color-accent: #10b981;
+  --color-accent-hover: #059669;
+  --color-accent-glow: #10b98133;
+  --color-text-primary: #ecfdf5;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #6ee7b7;
+  --color-border: #10b98126;
+  --color-btn-bg: #10b98119;
+  --color-btn-hover: #10b98133;
+  --color-status-improved: #10b981;
+  --color-status-improved-bg: #064e3b;
+  --color-status-decreased: #f43f5e;
+  --color-status-decreased-bg: #4c0519;
+  --color-status-same: #6b7280;
+  --color-status-same-bg: #1f2937;
+  --color-status-holiday: #991b1b;
+  --color-status-holiday-bg: #78350f;
+  --color-status-removed: #374151;
+  --color-status-removed-bg: #111827;
+  --color-status-new: #3b82f6;
+  --color-status-new-bg: #172554;
+}
+
+/* Light mode overrides */
+:root:not(.dark) {
+  --color-bg-primary: #f0fdf4;
+  --color-bg-card: #ffffff;
+  --color-bg-input: #ecfdf5;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #334155;
+  --color-text-muted: #059669;
+  --color-border: #d1fae5;
+  --color-btn-bg: #d1fae5;
+  --color-btn-hover: #a7f3d0;
+  --color-accent-glow: #10b98119;
+  --color-status-improved: #059669;
+  --color-status-improved-bg: #a7f3d0;
+  --color-status-decreased: #e11d48;
+  --color-status-decreased-bg: #fda4af;
+  --color-status-same: #6b7280;
+  --color-status-same-bg: #d1d5db;
+  --color-status-holiday: #d97706;
+  --color-status-holiday-bg: #fde68a;
+  --color-status-removed: #6b7280;
+  --color-status-removed-bg: #e5e7eb;
+  --color-status-new: #2563eb;
+  --color-status-new-bg: #93c5fd;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+}
+
+/* Monospace for set values */
+.font-set {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sporty card hover */
+.card-hover {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px -5px var(--color-accent-glow), 0 8px 25px -5px rgba(0,0,0,0.3);
+}
+
+/* Neon glow for cards */
+.neon-card {
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.05);
+  transition: box-shadow 0.2s ease;
+}
+.neon-card:hover {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.12);
+}
+
+/* Neon text glow */
+.neon-glow {
+  text-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+}
+
+/* Neon button glow */
+.btn-neon {
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+  transition: box-shadow 0.2s ease, transform 0.1s ease;
+}
+.btn-neon:hover {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
+}
+.btn-neon:active {
+  transform: scale(0.95);
+}
+
+/* Number input arrows */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+  height: 24px;
+}
