@@ -14,10 +14,10 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
 
   const statusLabel = useMemo(() => {
     if (!configured) return 'Supabase ayarlanmadi';
-    if (syncStatus === 'auth_loading') return 'Oturum kontrol ediliyor';
-    if (syncStatus === 'signed_out') return 'Giris gerekli';
-    if (syncStatus === 'syncing') return 'Bulut senkronu suruyor';
-    if (syncStatus === 'synced') return 'Bulut senkronu aktif';
+    if (syncStatus === 'auth_loading') return 'Oturum kontrol ediliyor...';
+    if (syncStatus === 'signed_out') return 'GitHub ile giris yap';
+    if (syncStatus === 'syncing') return 'Senkronize ediliyor...';
+    if (syncStatus === 'synced') return 'Senkron aktif';
     if (syncStatus === 'error') return 'Senkron hatasi';
     return 'Kapali';
   }, [configured, syncStatus]);
@@ -46,7 +46,7 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
       <div className="relative bg-(--color-bg-card) rounded-lg p-6 max-w-md w-full border border-(--color-border) shadow-xl">
-        <h3 className="text-lg font-bold mb-2">Bulut Senkron</h3>
+        <h3 className="text-lg font-bold mb-2">GitHub Senkron</h3>
         <p className="text-sm text-(--color-text-secondary) mb-4">{statusLabel}</p>
 
         {!configured && (

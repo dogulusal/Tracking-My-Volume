@@ -20,6 +20,7 @@ export interface AppContextValue {
   cloud: {
     configured: boolean;
     userEmail: string | null;
+    githubLogin: string | null;
     syncStatus: CloudSyncStatus;
     lastSyncedAt: string | null;
     authError: string | null;
@@ -414,6 +415,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         cloud: {
           configured: isSupabaseConfigured,
           userEmail: user?.email ?? null,
+          githubLogin: (user?.user_metadata?.user_name as string | undefined) ?? null,
           syncStatus,
           lastSyncedAt,
           authError,

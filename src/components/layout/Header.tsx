@@ -8,7 +8,7 @@ export function Header() {
   const location = useLocation();
   const [dark, setDark] = useState(isDarkMode());
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
-  const { configured, userEmail, syncStatus } = useCloudSync();
+  const { configured, userEmail, githubLogin, syncStatus } = useCloudSync();
 
   useEffect(() => {
     setDark(isDarkMode());
@@ -30,8 +30,8 @@ export function Header() {
   const cloudLabel = !configured
     ? 'Bulut Kapali'
     : userEmail
-      ? (syncStatus === 'synced' ? 'Bulut Acik' : 'Senkron')
-      : 'Bulut Giris';
+      ? (syncStatus === 'synced' ? (githubLogin ?? userEmail) : 'Senkron...')
+      : 'Login';
 
   return (
     <>
