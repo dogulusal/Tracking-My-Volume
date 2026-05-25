@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useContext } from 'react';
 import { usePrograms } from '@/hooks/usePrograms';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
 import { useColorSettings } from '@/hooks/useColorSettings';
+import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { WorkoutDetailModal } from '@/components/shared/WorkoutDetailModal';
 import { calculateExerciseStatus } from '@/utils/statusCalculator';
@@ -34,6 +35,7 @@ export function History() {
   const { programs, updateProgram } = usePrograms();
   const { weekLogs, currentWeek, saveWorkout, incrementWeek } = useWeekLogs();
   const { getCellColor, setCellColor, removeCellColor, getCellOverride, resetAllOverrides } = useColorSettings();
+  const isMobile = useIsMobileDevice();
   const ctx = useContext(AppContext);
   const contextPhases = ctx?.state.phases ?? [];
 
@@ -56,6 +58,8 @@ export function History() {
     isEmpty: boolean;
     autoStatus: ExerciseStatus;
   } | null>(null);
+
+  const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
 
   const selectedProgram = programs.find(p => p.id === selectedProgramId);
 
@@ -553,9 +557,77 @@ export function History() {
         </button>
       </div>
 
-      {/* Table */}
+      {/* Table / Accordion */}
       {programs.length === 0 ? (
         <p className="text-(--color-text-muted)">Henüz program yok.</p>
+      ) : isMobile ? (
+        /* ── Mobile: Accordion View ── */
+        <div className="space-y-2">
+          {allExerciseIds.map(exerciseId => {
+            const isOpen = expandedExercise === exerciseId;
+            return (
+              <div key={exerciseId} className="bg-(--color-bg-card) border border-(--color-border) rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setExpandedExercise(isOpen ? null : exerciseId)}
+                  className="w-full flex items-center justify-between px-4 py-3.5 text-left"
+                >
+                  <span className="font-bold text-sm">{getExerciseName(exerciseId)}</span>
+                  <span className={`text-xs text-(--color-text-muted) transition-transform ${isOpen ? 'rotate-180' : ''}`}>▼</span>
+                </button>
+                {isOpen && (
+                  <div className="px-4 pb-4 space-y-2">
+                    {visibleWeeks.map(weekNum => {
+                      const log = getExerciseLog(weekNum, exerciseId);
+                      const weekLog = getWeekLog(weekNum);
+                      const prevWithinPhase = getPrevExerciseWithinPhase(weekNum, exerciseId);
+                      const prevLog = prevWithinPhase?.log;
+
+                      let status: ExerciseStatus = 'same';
+                      if (weekLog?.isHoliday) status = 'holiday';
+                      else if (log) status = prevLog ? calculateExerciseStatus(log.sets, prevLog.sets) : 'new';
+                      else if (prevLog) status = 'removed';
+
+                      const statusBg = status === 'improved' ? 'bg-emerald-900/30' : status === 'decreased' ? 'bg-rose-900/30' : status === 'new' ? 'bg-blue-900/30' : status === 'holiday' ? 'bg-amber-900/30' : 'bg-(--color-bg-input)';
+
+                      return (
+                        <div
+                          key={weekNum}
+                          onClick={() => {
+                            setModalData({
+                              exerciseName: getExerciseName(exerciseId),
+                              exerciseId,
+                              weekNumber: weekNum,
+                              currentSets: log?.sets || [],
+                              previousSets: prevLog?.sets,
+                              previousWeek: prevWithinPhase ? getDisplayWeek(prevWithinPhase.weekNumber) : undefined,
+                              weekNotes: weekLog?.notes,
+                              isEmpty: !log || log.sets.length === 0,
+                              autoStatus: status,
+                            });
+                          }}
+                          className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer active:scale-[0.98] transition-all ${statusBg}`}
+                        >
+                          <span className={`text-xs font-bold px-2 py-1 rounded-md min-w-[36px] text-center ${
+                            status === 'improved' ? 'bg-emerald-800 text-emerald-200' :
+                            status === 'decreased' ? 'bg-rose-800 text-rose-200' :
+                            status === 'new' ? 'bg-blue-800 text-blue-200' :
+                            status === 'holiday' ? 'bg-amber-800 text-amber-200' :
+                            'bg-(--color-bg-card) text-(--color-text-secondary)'
+                          }`}>
+                            H{getDisplayWeek(weekNum)}
+                          </span>
+                          <span className="text-sm font-set font-bold text-(--color-text-primary) flex-1">
+                            {weekLog?.isHoliday ? '🏖️ Tatil' : log ? formatSets(log.sets) : '—'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-(--color-border) shadow-sm [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-(--color-border)">
           <table className="w-full text-sm">

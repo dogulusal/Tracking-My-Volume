@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { SetLog, ExerciseStatus, Intensity } from '@/types';
+import { BottomSheet } from './BottomSheet';
 
 interface WorkoutDetailModalProps {
   isOpen: boolean;
@@ -105,23 +106,7 @@ export function WorkoutDetailModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-(--color-bg-card) rounded-2xl p-6 max-w-md w-full border border-(--color-border) shadow-2xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-5">
-          <div>
-            <h3 className="text-lg font-black text-(--color-text-primary)">{exerciseName}</h3>
-            <span className="text-xs font-bold text-(--color-accent)">Hafta {weekNumber}</span>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 text-(--color-text-muted) hover:text-(--color-text-primary) transition-colors text-xl"
-          >
-            ✕
-          </button>
-        </div>
-
+    <BottomSheet isOpen={isOpen} onClose={onClose} title={`${exerciseName} — H${weekNumber}`}>
         {/* Color Override Section */}
         <div className="mb-4 p-3 rounded-xl bg-(--color-bg-input) border border-(--color-border)">
           <div className="flex items-center justify-between mb-2">
@@ -316,7 +301,6 @@ export function WorkoutDetailModal({
             </p>
           )}
         </div>
-      </div>
-    </div>
+    </BottomSheet>
   );
 }

@@ -4,6 +4,7 @@ import { usePrograms } from '@/hooks/usePrograms';
 import { usePlans } from '@/hooks/usePlans';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
 import { useExportImport } from '@/hooks/useExportImport';
+import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { calculateWeeklyVolume } from '@/utils/volumeCalculator';
 import { samplePrograms } from '@/data/sampleProgram';
@@ -22,6 +23,7 @@ export function Dashboard() {
   const { activePlan, activePlanPrograms } = usePlans();
   const { weekLogs, currentWeek, incrementWeek } = useWeekLogs();
   const { backupMeta, handleWeekTransitionBackup } = useExportImport();
+  const isMobile = useIsMobileDevice();
   const { programs, addProgram } = usePrograms();
 
   const handleIncrementWeek = () => {
@@ -93,8 +95,7 @@ export function Dashboard() {
     <PageContainer>
       {/* Decorative banner */}
       <div className="relative mb-8 rounded-xl overflow-hidden border border-(--color-border) neon-card">
-        <div className="absolute inset-0 bg-gradient-to-br from-[rgba(16,185,129,0.12)] via-transparent to-[rgba(16,185,129,0.05)]" />
-        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 20px, rgba(16,185,129,0.3) 20px, rgba(16,185,129,0.3) 21px), repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(16,185,129,0.3) 20px, rgba(16,185,129,0.3) 21px)' }} />
+        <div className="absolute inset-0 bg-gradient-to-br from-(--color-accent-glow) via-transparent to-transparent" />
         <div className="relative px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-black tracking-tight neon-glow">Hafta {currentWeek}</h1>
@@ -102,7 +103,7 @@ export function Dashboard() {
           </div>
           <button
             onClick={handleIncrementWeek}
-            className="px-5 py-2.5 bg-(--color-accent) hover:bg-(--color-accent-hover) text-[#050a0a] text-sm font-bold rounded-lg btn-neon transition-all hover:scale-105"
+            className="px-5 py-2.5 bg-(--color-accent) hover:bg-(--color-accent-hover) text-white text-sm font-bold rounded-lg btn-neon transition-all hover:scale-105"
           >
             + Yeni Hafta
           </button>
@@ -156,12 +157,17 @@ export function Dashboard() {
             Geçmişe git →
           </Link>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className={isMobile
+          ? 'flex gap-3 overflow-x-auto pb-3 snap-x snap-mandatory -mx-2 px-2 scrollbar-hide'
+          : 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3'
+        }>
           {programStatuses.map(({ program, status }) => (
             <Link
               key={program.id}
               to={`/workout/${program.id}/week/${currentWeek}`}
-              className={`rounded-xl p-4 border transition-all hover:scale-105 group ${
+              className={`rounded-xl p-4 border transition-all hover:scale-105 group snap-start ${
+                isMobile ? 'min-w-[220px] flex-shrink-0' : ''
+              } ${
                 status === 'done'
                   ? 'bg-(--color-status-improved)/10 border-(--color-status-improved)/40'
                   : status === 'holiday'
@@ -190,6 +196,9 @@ export function Dashboard() {
             </Link>
           ))}
         </div>
+        {isMobile && (
+          <p className="text-center text-[11px] text-(--color-text-secondary) mt-2">← Kaydırarak diğer antrenmanları gör →</p>
+        )}
       </div>
     </PageContainer>
   );

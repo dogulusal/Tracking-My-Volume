@@ -3,11 +3,13 @@ import { useState, useEffect } from 'react';
 import { toggleTheme, isDarkMode } from '@/utils/theme';
 import { useCloudSync } from '@/hooks/useCloudSync';
 import { CloudSyncModal } from '@/components/shared/CloudSyncModal';
+import { ColorThemePicker } from '@/components/shared/ColorThemePicker';
 
 export function Header() {
   const location = useLocation();
   const [dark, setDark] = useState(isDarkMode());
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const { configured, userEmail, githubLogin, syncStatus } = useCloudSync();
 
   useEffect(() => {
@@ -35,7 +37,7 @@ export function Header() {
 
   return (
     <>
-      <header className="bg-gradient-to-b from-[rgba(16,185,129,0.08)] to-transparent border-b border-(--color-border) sticky top-0 z-50 backdrop-blur-sm">
+      <header className="bg-gradient-to-b from-(--color-accent-glow) to-transparent border-b border-(--color-border) sticky top-0 z-50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link to="/" className="text-lg font-extrabold tracking-tight">
           <span className="text-(--color-text-primary)">Tracking</span>
@@ -68,6 +70,13 @@ export function Header() {
               {cloudLabel}
             </button>
             <button
+              onClick={() => setIsColorPickerOpen(true)}
+              className="p-2 rounded-md hover:bg-(--color-btn-bg) transition-colors"
+              aria-label="Renk temasi"
+            >
+              🎨
+            </button>
+            <button
               onClick={handleToggle}
               className="p-2 rounded-md hover:bg-(--color-btn-bg) transition-colors text-(--color-text-primary)"
               aria-label="Tema degistir"
@@ -78,6 +87,7 @@ export function Header() {
         </div>
       </header>
       <CloudSyncModal isOpen={isCloudModalOpen} onClose={() => setIsCloudModalOpen(false)} />
+      {isColorPickerOpen && <ColorThemePicker onClose={() => setIsColorPickerOpen(false)} />}
     </>
   );
 }

@@ -3,6 +3,8 @@
  * Priority: localStorage > system preference > default dark
  */
 
+import { initColorTheme, applyColorTheme, getStoredColorTheme } from './colorThemes';
+
 const THEME_KEY = 'theme-preference';
 
 export function initTheme(): void {
@@ -21,6 +23,8 @@ export function initTheme(): void {
       document.documentElement.classList.add('dark');
     }
   }
+  // Apply color theme after dark/light is set
+  initColorTheme();
 }
 
 export function toggleTheme(): void {
@@ -32,6 +36,8 @@ export function toggleTheme(): void {
     document.documentElement.classList.add('dark');
     localStorage.setItem(THEME_KEY, 'dark');
   }
+  // Re-apply color theme for the new light/dark mode
+  applyColorTheme(getStoredColorTheme());
 }
 
 export function isDarkMode(): boolean {

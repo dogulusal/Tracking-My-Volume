@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePrograms } from '@/hooks/usePrograms';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
+import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { formatSet } from '@/utils/formatters';
 import type { SetLog, Intensity, ExerciseLog } from '@/types';
@@ -18,6 +19,7 @@ export function WorkoutEntry() {
   const navigate = useNavigate();
   const { getProgramById } = usePrograms();
   const { getLogForWeek, getPreviousLog, saveWorkout, setHoliday } = useWeekLogs();
+  const isMobile = useIsMobileDevice();
 
   const weekNumber = Number(weekParam) || 0;
   const program = getProgramById(programId || '');
@@ -195,10 +197,78 @@ export function WorkoutEntry() {
               <h3 className="font-extrabold text-lg mb-4">{exercise.exerciseName}</h3>
 
               {/* Sets */}
-              <div className="space-y-2.5">
+              <div className="space-y-2.5 md:space-y-2.5">
                 {exercise.sets.map((set, setIdx) => {
                   const prevSet = getPreviousSetRef(exercise.exerciseId, setIdx);
-                  return (
+                  return isMobile ? (
+                    /* ── Mobile: Card layout ── */
+                    <div key={setIdx} className="bg-(--color-bg-input) rounded-xl p-4 border border-(--color-border) relative">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-extrabold text-(--color-accent)">Set {setIdx + 1}</span>
+                        {prevSet && (
+                          <span className="text-xs text-(--color-text-muted) font-set">
+                            Geçen: {formatSet(prevSet)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-(--color-text-muted) uppercase tracking-wider mb-1 block">Ağırlık</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              value={set.weight}
+                              onChange={e => updateSet(exIdx, setIdx, 'weight', Number(e.target.value))}
+                              step={0.5}
+                              min={0}
+                              className="w-full px-3 py-3 bg-(--color-bg-card) border border-(--color-border) rounded-xl text-lg font-set font-bold focus:outline-none focus:border-(--color-accent) focus:ring-1 focus:ring-(--color-accent)"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-(--color-text-muted)">kg</span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-(--color-text-muted) uppercase tracking-wider mb-1 block">Tekrar</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              value={set.reps}
+                              onChange={e => updateSet(exIdx, setIdx, 'reps', Number(e.target.value))}
+                              min={0}
+                              className="w-full px-3 py-3 bg-(--color-bg-card) border border-(--color-border) rounded-xl text-lg font-set font-bold focus:outline-none focus:border-(--color-accent) focus:ring-1 focus:ring-(--color-accent)"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-(--color-text-muted)">rep</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-(--color-text-muted) uppercase mr-1">RIR</span>
+                        {INTENSITY_OPTIONS.map(opt => (
+                          <button
+                            key={opt.value}
+                            onClick={() => updateSet(exIdx, setIdx, 'intensity', opt.value)}
+                            className={`w-11 h-11 rounded-xl text-sm font-black transition-all ${
+                              set.intensity === opt.value
+                                ? 'bg-(--color-accent) text-white scale-110 shadow-md shadow-(--color-accent-glow)'
+                                : 'bg-(--color-btn-bg) text-(--color-text-secondary) hover:bg-(--color-btn-hover)'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                        {exercise.sets.length > 1 && (
+                          <button
+                            onClick={() => removeSet(exIdx, setIdx)}
+                            className="ml-auto w-9 h-9 rounded-full bg-red-500/10 text-red-400 text-sm flex items-center justify-center"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    /* ── Desktop: Inline layout (unchanged) ── */
                     <div key={setIdx} className="flex flex-wrap items-center gap-2">
                       <span className="text-xs font-bold text-(--color-accent) w-8">S{setIdx + 1}</span>
 

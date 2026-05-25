@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrackingMyVolume — Renk Palette Seçenekleri</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0a0a0a;
+      color: #f5f5f5;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    
+    h1 {
+      font-size: 24px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    
+    .subtitle {
+      text-align: center;
+      color: #94a3b8;
+      font-size: 14px;
+      margin-bottom: 32px;
+    }
+    
+    .palettes {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 20px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    
+    .palette-card {
+      border-radius: 20px;
+      overflow: hidden;
+      border: 2px solid transparent;
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+    
+    .palette-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    }
+    
+    .palette-card.selected {
+      border-color: white;
+      box-shadow: 0 0 30px rgba(255,255,255,0.15);
+    }
+    
+    .palette-preview {
+      padding: 24px;
+      min-height: 320px;
+    }
+    
+    .palette-name {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    
+    .palette-desc {
+      font-size: 12px;
+      opacity: 0.7;
+      margin-bottom: 20px;
+    }
+    
+    .mini-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .mini-logo span:nth-child(2) {
+      font-weight: 900;
+    }
+    
+    .mini-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    
+    .mini-stat {
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .mini-stat-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      opacity: 0.6;
+      margin-bottom: 4px;
+    }
+    
+    .mini-stat-value {
+      font-size: 20px;
+      font-weight: 900;
+    }
+    
+    .mini-btn {
+      display: inline-block;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+    }
+    
+    .mini-set {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      font-size: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    
+    .mini-set-badge {
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    
+    .color-swatches {
+      display: flex;
+      gap: 6px;
+      margin-top: 16px;
+    }
+    
+    .swatch {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    
+    .vote-section {
+      text-align: center;
+      margin-top: 32px;
+      padding: 20px;
+      background: #111;
+      border-radius: 16px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    
+    .vote-section p {
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: #94a3b8;
+    }
+    
+    .vote-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+    
+    .vote-btn {
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: 1px solid #333;
+      background: #1a1a1a;
+      color: #f5f5f5;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .vote-btn:hover {
+      background: #2a2a2a;
+      border-color: #555;
+    }
+    
+    .vote-btn.selected {
+      border-color: white;
+      background: #333;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎨 Renk Palette Seçenekleri</h1>
+  <p class="subtitle">Mevcut neon yeşili yerine alternatif temalar. Birini beğenirsen söyle!</p>
+
+  <div class="palettes">
+    
+    <!-- OPTION 1: Current (Neon Green) -->
+    <div class="palette-card" onclick="selectPalette(this)">
+      <div class="palette-preview" style="background: #050a0a;">
+        <div class="palette-name" style="color: #ecfdf5">Mevcut — Neon Yeşil</div>
+        <div class="palette-desc" style="color: #94a3b8">Şu anki tema. Referans için burada.</div>
+        
+        <div class="mini-header">
+          <div class="mini-logo" style="font-size:14px; font-weight:700">
+            <span style="color:#ecfdf5">Tracking</span><span style="color:#10b981">My</span><span style="color:#ecfdf5">Volume</span>
+          </div>
+        </div>
+        
+        <div class="mini-stats">
+          <div class="mini-stat" style="background:rgba(16,185,129,0.08); border-color:rgba(16,185,129,0.2)">
+            <div class="mini-stat-label" style="color:#6ee7b7">Bu Hafta</div>
+            <div class="mini-stat-value" style="color:#10b981; text-shadow:0 0 8px rgba(16,185,129,0.5)">3/5</div>
+          </div>
+          <div class="mini-stat" style="background:rgba(16,185,129,0.08); border-color:rgba(16,185,129,0.2)">
+            <div class="mini-stat-label" style="color:#6ee7b7">Streak</div>
+            <div class="mini-stat-value" style="color:#10b981; text-shadow:0 0 8px rgba(16,185,129,0.5)">8</div>
+          </div>
+        </div>
+        
+        <div class="mini-btn" style="background:#10b981; color:#050a0a; box-shadow:0 0 12px rgba(16,185,129,0.4)">+ Yeni Hafta</div>
+        
+        <div class="color-swatches">
+          <div class="swatch" style="background:#10b981"></div>
+          <div class="swatch" style="background:#059669"></div>
+          <div class="swatch" style="background:#6ee7b7"></div>
+          <div class="swatch" style="background:#0a1412"></div>
+          <div class="swatch" style="background:#050a0a"></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- OPTION 2: Electric Blue -->
+    <div class="palette-card" onclick="selectPalette(this)">
+      <div class="palette-preview" style="background: #050810;">
+        <div class="palette-name" style="color: #eef2ff">Electric Blue</div>
+        <div class="palette-desc" style="color: #94a3b8">Temiz, modern, profesyonel. Fitness app'lerde yaygın.</div>
+        
+        <div class="mini-header">
+          <div class="mini-logo" style="font-size:14px; font-weight:700">
+            <span style="color:#eef2ff">Tracking</span><span style="color:#6366f1">My</span><span style="color:#eef2ff">Volume</span>
+          </div>
+        </div>
+        
+        <div class="mini-stats">
+          <div class="mini-stat" style="background:rgba(99,102,241,0.08); border-color:rgba(99,102,241,0.2)">
+            <div class="mini-stat-label" style="color:#a5b4fc">Bu Hafta</div>
+            <div class="mini-stat-value" style="color:#6366f1; text-shadow:0 0 8px rgba(99,102,241,0.5)">3/5</div>
+          </div>
+          <div class="mini-stat" style="background:rgba(99,102,241,0.08); border-color:rgba(99,102,241,0.2)">
+            <div class="mini-stat-label" style="color:#a5b4fc">Streak</div>
+            <div class="mini-stat-value" style="color:#6366f1; text-shadow:0 0 8px rgba(99,102,241,0.5)">8</div>
+          </div>
+        </div>
+        
+        <div class="mini-btn" style="background:#6366f1; color:white; box-shadow:0 0 12px rgba(99,102,241,0.4)">+ Yeni Hafta</div>
+        
+        <div class="color-swatches">
+          <div class="swatch" style="background:#6366f1"></div>
+          <div class="swatch" style="background:#4f46e5"></div>
+          <div class="swatch" style="background:#a5b4fc"></div>
+          <div class="swatch" style="background:#0a0d1a"></div>
+          <div class="swatch" style="background:#050810"></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- OPTION 3: Warm Orange/Amber -->
+    <div class="palette-card" onclick="selectPalette(this)">
+      <div class="palette-preview" style="background: #0a0806;">
+        <div class="palette-name" style="color: #fffbeb">Warm Amber</div>
+        <div class="palette-desc" style="color: #94a3b8">Sıcak, enerjik, motivasyonel. Alev hissi.</div>
+        
+        <div class="mini-header">
+          <div class="mini-logo" style="font-size:14px; font-weight:700">
+            <span style="color:#fffbeb">Tracking</span><span style="color:#f59e0b">My</span><span style="color:#fffbeb">Volume</span>
+          </div>
+        </div>
+        
+        <div class="mini-stats">
+          <div class="mini-stat" style="background:rgba(245,158,11,0.08); border-color:rgba(245,158,11,0.2)">
+            <div class="mini-stat-label" style="color:#fcd34d">Bu Hafta</div>
+            <div class="mini-stat-value" style="color:#f59e0b; text-shadow:0 0 8px rgba(245,158,11,0.5)">3/5</div>
+          </div>
+          <div class="mini-stat" style="background:rgba(245,158,11,0.08); border-color:rgba(245,158,11,0.2)">
+            <div class="mini-stat-label" style="color:#fcd34d">Streak</div>
+            <div class="mini-stat-value" style="color:#f59e0b; text-shadow:0 0 8px rgba(245,158,11,0.5)">8</div>
+          </div>
+        </div>
+        
+        <div class="mini-btn" style="background:#f59e0b; color:#0a0806; box-shadow:0 0 12px rgba(245,158,11,0.4)">+ Yeni Hafta</div>
+        
+        <div class="color-swatches">
+          <div class="swatch" style="background:#f59e0b"></div>
+          <div class="swatch" style="background:#d97706"></div>
+          <div class="swatch" style="background:#fcd34d"></div>
+          <div class="swatch" style="background:#1a1408"></div>
+          <div class="swatch" style="background:#0a0806"></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- OPTION 4: Cyan/Teal -->
+    <div class="palette-card" onclick="selectPalette(this)">
+      <div class="palette-preview" style="background: #04080a;">
+        <div class="palette-name" style="color: #ecfeff">Ice Cyan</div>
+        <div class="palette-desc" style="color: #94a3b8">Soğuk, keskin, teknik. Veri odaklı his.</div>
+        
+        <div class="mini-header">
+          <div class="mini-logo" style="font-size:14px; font-weight:700">
+            <span style="color:#ecfeff">Tracking</span><span style="color:#06b6d4">My</span><span style="color:#ecfeff">Volume</span>
+          </div>
+        </div>
+        
+        <div class="mini-stats">
+          <div class="mini-stat" style="background:rgba(6,182,212,0.08); border-color:rgba(6,182,212,0.2)">
+            <div class="mini-stat-label" style="color:#67e8f9">Bu Hafta</div>
+            <div class="mini-stat-value" style="color:#06b6d4; text-shadow:0 0 8px rgba(6,182,212,0.5)">3/5</div>
+          </div>
+          <div class="mini-stat" style="background:rgba(6,182,212,0.08); border-color:rgba(6,182,212,0.2)">
+            <div class="mini-stat-label" style="color:#67e8f9">Streak</div>
+            <div class="mini-stat-value" style="color:#06b6d4; text-shadow:0 0 8px rgba(6,182,212,0.5)">8</div>
+          </div>
+        </div>
+        
+        <div class="mini-btn" style="background:#06b6d4; color:#04080a; box-shadow:0 0 12px rgba(6,182,212,0.4)">+ Yeni Hafta</div>
+        
+        <div class="color-swatches">
+          <div class="swatch" style="background:#06b6d4"></div>
+          <div class="swatch" style="background:#0891b2"></div>
+          <div class="swatch" style="background:#67e8f9"></div>
+          <div class="swatch" style="background:#0a1416"></div>
+          <div class="swatch" style="background:#04080a"></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- OPTION 5: Rose/Pink -->
+    <div class="palette-card" onclick="selectPalette(this)">
+      <div class="palette-preview" style="background: #0a0508;">
+        <div class="palette-name" style="color: #fff1f2">Neon Rose</div>
+        <div class="palette-desc" style="color: #94a3b8">Cesur, dikkat çekici, güçlü. Modern gym vibe.</div>
+        
+        <div class="mini-header">
+          <div class="mini-logo" style="font-size:14px; font-weight:700">
+            <span style="color:#fff1f2">Tracking</span><span style="color:#f43f5e">My</span><span style="color:#fff1f2">Volume</span>
+          </div>
+        </div>
+        
+        <div class="mini-stats">
+          <div class="mini-stat" style="background:rgba(244,63,94,0.08); border-color:rgba(244,63,94,0.2)">
+            <div class="mini-stat-label" style="color:#fda4af">Bu Hafta</div>
+            <div class="mini-stat-value" style="color:#f43f5e; text-shadow:0 0 8px rgba(244,63,94,0.5)">3/5</div>
+          </div>
+          <div class="mini-stat" style="background:rgba(244,63,94,0.08); border-color:rgba(244,63,94,0.2)">
+            <div class="mini-stat-label" style="color:#fda4af">Streak</div>
+            <div class="mini-stat-value" style="color:#f43f5e; text-shadow:0 0 8px rgba(244,63,94,0.5)">8</div>
+          </div>
+        </div>
+        
+        <div class="mini-btn" style="background:#f43f5e; color:white; box-shadow:0 0 12px rgba(244,63,94,0.4)">+ Yeni Hafta</div>
+        
+        <div class="color-swatches">
+          <div class="swatch" style="background:#f43f5e"></div>
+          <div class="swatch" style="background:#e11d48"></div>
+          <div class="swatch" style="background:#fda4af"></div>
+          <div class="swatch" style="background:#1a0a10"></div>
+          <div class="swatch" style="background:#0a0508"></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- OPTION 6: Purple/Violet -->
+    <div class="palette-card" onclick="selectPalette(this)">
+      <div class="palette-preview" style="background: #08050a;">
+        <div class="palette-name" style="color: #faf5ff">Royal Purple</div>
+        <div class="palette-desc" style="color: #94a3b8">Premium, sofistike, güçlü. Lüks spor hissi.</div>
+        
+        <div class="mini-header">
+          <div class="mini-logo" style="font-size:14px; font-weight:700">
+            <span style="color:#faf5ff">Tracking</span><span style="color:#a855f7">My</span><span style="color:#faf5ff">Volume</span>
+          </div>
+        </div>
+        
+        <div class="mini-stats">
+          <div class="mini-stat" style="background:rgba(168,85,247,0.08); border-color:rgba(168,85,247,0.2)">
+            <div class="mini-stat-label" style="color:#d8b4fe">Bu Hafta</div>
+            <div class="mini-stat-value" style="color:#a855f7; text-shadow:0 0 8px rgba(168,85,247,0.5)">3/5</div>
+          </div>
+          <div class="mini-stat" style="background:rgba(168,85,247,0.08); border-color:rgba(168,85,247,0.2)">
+            <div class="mini-stat-label" style="color:#d8b4fe">Streak</div>
+            <div class="mini-stat-value" style="color:#a855f7; text-shadow:0 0 8px rgba(168,85,247,0.5)">8</div>
+          </div>
+        </div>
+        
+        <div class="mini-btn" style="background:#a855f7; color:white; box-shadow:0 0 12px rgba(168,85,247,0.4)">+ Yeni Hafta</div>
+        
+        <div class="color-swatches">
+          <div class="swatch" style="background:#a855f7"></div>
+          <div class="swatch" style="background:#9333ea"></div>
+          <div class="swatch" style="background:#d8b4fe"></div>
+          <div class="swatch" style="background:#140a1f"></div>
+          <div class="swatch" style="background:#08050a"></div>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+
+  <div class="vote-section">
+    <p>Hangisini beğendin? Veya birden fazla rengi karıştırabiliriz (örn: mavi accent + mor glow)</p>
+    <div class="vote-options">
+      <button class="vote-btn" onclick="vote(this)">🟢 Neon Yeşil (mevcut)</button>
+      <button class="vote-btn" onclick="vote(this)">🔵 Electric Blue</button>
+      <button class="vote-btn" onclick="vote(this)">🟠 Warm Amber</button>
+      <button class="vote-btn" onclick="vote(this)">🩵 Ice Cyan</button>
+      <button class="vote-btn" onclick="vote(this)">🩷 Neon Rose</button>
+      <button class="vote-btn" onclick="vote(this)">🟣 Royal Purple</button>
+    </div>
+  </div>
+
+  <script>
+    function selectPalette(el) {
+      document.querySelectorAll('.palette-card').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+    }
+    
+    function vote(btn) {
+      document.querySelectorAll('.vote-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    }
+  </script>
+</body>
+</html>

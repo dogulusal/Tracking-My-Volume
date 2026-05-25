@@ -78,25 +78,25 @@ body {
 
 /* Neon glow for cards */
 .neon-card {
-  box-shadow: 0 0 15px rgba(16, 185, 129, 0.05);
+  box-shadow: 0 0 15px var(--color-accent-glow);
   transition: box-shadow 0.2s ease;
 }
 .neon-card:hover {
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.12);
+  box-shadow: 0 0 20px var(--color-accent-glow);
 }
 
 /* Neon text glow */
 .neon-glow {
-  text-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+  text-shadow: 0 0 8px var(--color-accent-glow);
 }
 
 /* Neon button glow */
 .btn-neon {
-  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 12px var(--color-accent-glow);
   transition: box-shadow 0.2s ease, transform 0.1s ease;
 }
 .btn-neon:hover {
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
+  box-shadow: 0 0 20px var(--color-accent-glow);
 }
 .btn-neon:active {
   transform: scale(0.95);
@@ -130,4 +130,22 @@ input[type="number"]::-webkit-outer-spin-button {
 
 [data-mobile-ui='true'] .mobile-device-ui {
   letter-spacing: 0.01em;
+}
+
+/* Hide scrollbar for carousel */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Bottom sheet animation */
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slideUp 0.3s ease;
 }
