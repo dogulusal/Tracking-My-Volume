@@ -13,6 +13,7 @@ const INTENSITY_OPTIONS: { value: Intensity; label: string }[] = [
   { value: 'rir2', label: '2' },
   { value: 'rir3', label: '3' },
 ];
+const REST_TIMER_KEY = 'rest-timer-default-sec';
 
 export function WorkoutEntry() {
   const { programId, weekNumber: weekParam } = useParams();
@@ -33,6 +34,13 @@ export function WorkoutEntry() {
   );
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>([]);
   const [isDirty, setIsDirty] = useState(false);
+  const [restDurationSec, setRestDurationSec] = useState<number>(() => {
+    const saved = localStorage.getItem(REST_TIMER_KEY);
+    const parsed = saved ? Number(saved) : 90;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 90;
+  });
+  const [timerRemainingSec, setTimerRemainingSec] = useState(0);
+  const [timerActive, setTimerActive] = useState(false);
 
   // Initialize exercise logs
   useEffect(() => {
@@ -78,6 +86,25 @@ export function WorkoutEntry() {
       } catch { /* ignore */ }
     }
   }, [draftKey, existingLog]);
+
+  useEffect(() => {
+    localStorage.setItem(REST_TIMER_KEY, String(restDurationSec));
+  }, [restDurationSec]);
+
+  useEffect(() => {
+    if (!timerActive) return;
+    const id = window.setInterval(() => {
+      setTimerRemainingSec(prev => {
+        if (prev <= 1) {
+          window.clearInterval(id);
+          setTimerActive(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [timerActive]);
 
   const updateSet = useCallback((exerciseIdx: number, setIdx: number, field: keyof SetLog, value: number | Intensity) => {
     setExerciseLogs(prev => {
@@ -137,6 +164,22 @@ export function WorkoutEntry() {
     navigate('/');
   };
 
+  const startRestTimer = (seconds: number = restDurationSec) => {
+    setTimerRemainingSec(seconds);
+    setTimerActive(true);
+  };
+
+  const stopRestTimer = () => {
+    setTimerActive(false);
+    setTimerRemainingSec(0);
+  };
+
+  const formatTimer = (totalSec: number) => {
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec % 60;
+    return `${min}:${String(sec).padStart(2, '0')}`;
+  };
+
   const getPreviousSetRef = useMemo(() => {
     if (!previousLog) return () => null;
     return (exerciseId: string, setIdx: number): SetLog | null => {
@@ -185,6 +228,45 @@ export function WorkoutEntry() {
         />
         <span className="text-sm font-bold">Bu günü tatil olarak işaretle</span>
       </label>
+
+      {/* Rest Timer */}
+      {!isHoliday && (
+        <div className="mb-6 p-4 bg-(--color-bg-card) rounded-xl border border-(--color-border)">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold">Set Arası Sayaç</p>
+            <span className="text-xs font-semibold text-(--color-text-muted)">Varsayılan: {formatTimer(restDurationSec)}</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[60, 90, 120, 180].map(sec => (
+              <button
+                key={sec}
+                onClick={() => setRestDurationSec(sec)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  restDurationSec === sec
+                    ? 'bg-(--color-accent) text-white'
+                    : 'bg-(--color-btn-bg) text-(--color-text-secondary) hover:bg-(--color-btn-hover)'
+                }`}
+              >
+                {sec / 60 >= 1 ? `${sec / 60} dk` : `${sec} sn`}
+              </button>
+            ))}
+            <button
+              onClick={() => startRestTimer()}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-(--color-accent) text-white hover:bg-(--color-accent-hover)"
+            >
+              ⏱ Başlat
+            </button>
+            {timerActive && (
+              <button
+                onClick={stopRestTimer}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-900 text-rose-100 hover:bg-rose-800"
+              >
+                Durdur
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Exercise Cards */}
       {!isHoliday && (
@@ -257,6 +339,13 @@ export function WorkoutEntry() {
                             {opt.label}
                           </button>
                         ))}
+                        <button
+                          onClick={() => startRestTimer()}
+                          className="w-11 h-11 rounded-xl bg-(--color-btn-bg) text-(--color-text-secondary) hover:bg-(--color-btn-hover) text-sm"
+                          title="Set arası sayaç başlat"
+                        >
+                          ⏱
+                        </button>
                         {exercise.sets.length > 1 && (
                           <button
                             onClick={() => removeSet(exIdx, setIdx)}
@@ -312,6 +401,13 @@ export function WorkoutEntry() {
                             {opt.label}
                           </button>
                         ))}
+                        <button
+                          onClick={() => startRestTimer()}
+                          className="w-8 h-8 rounded-lg text-xs font-black transition-all bg-(--color-btn-bg) text-(--color-text-secondary) hover:bg-(--color-btn-hover)"
+                          title="Set arası sayaç başlat"
+                        >
+                          ⏱
+                        </button>
                       </div>
 
                       {/* Remove set */}
@@ -368,6 +464,28 @@ export function WorkoutEntry() {
       >
         Kaydet
       </button>
+
+      {timerActive && (
+        <div
+          className={`fixed z-50 rounded-2xl border border-(--color-accent) bg-(--color-bg-card) px-4 py-2 shadow-2xl shadow-(--color-accent-glow) ${
+            isMobile ? 'bottom-24 left-1/2 -translate-x-1/2' : 'bottom-6 right-6'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-(--color-text-muted)">Dinlenme</p>
+              <p className="text-xl font-black text-(--color-accent) font-set">{formatTimer(timerRemainingSec)}</p>
+            </div>
+            <button
+              onClick={stopRestTimer}
+              className="w-8 h-8 rounded-full bg-rose-900 text-rose-100 text-xs font-bold"
+              title="Sayacı durdur"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </PageContainer>
   );
 }

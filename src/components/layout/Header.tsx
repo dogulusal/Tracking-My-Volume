@@ -34,10 +34,11 @@ export function Header() {
     : userEmail
       ? (syncStatus === 'synced' ? (githubLogin ?? userEmail) : 'Senkron...')
       : 'Login';
+  const mobileCloudLabel = cloudLabel.length > 12 ? `${cloudLabel.slice(0, 12)}...` : cloudLabel;
 
   return (
     <>
-      <header className="bg-gradient-to-b from-(--color-accent-glow) to-transparent border-b border-(--color-border) sticky top-0 z-50 backdrop-blur-sm">
+      <header className="bg-gradient-to-b from-(--color-accent-glow) to-transparent border-b border-(--color-border) sticky top-0 z-50 backdrop-blur-sm pt-[env(safe-area-inset-top)]">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link to="/" className="text-lg font-extrabold tracking-tight">
           <span className="text-(--color-text-primary)">Tracking</span>
@@ -65,9 +66,10 @@ export function Header() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsCloudModalOpen(true)}
-              className="px-3 py-2 rounded-md text-xs md:text-sm font-semibold text-(--color-text-primary) bg-(--color-btn-bg) hover:bg-(--color-btn-hover) transition-colors"
+              className="px-3 py-2 rounded-md text-xs md:text-sm font-semibold text-(--color-text-primary) bg-(--color-btn-bg) hover:bg-(--color-btn-hover) transition-colors max-w-[120px] md:max-w-none truncate"
             >
-              {cloudLabel}
+              <span className="md:hidden">{mobileCloudLabel}</span>
+              <span className="hidden md:inline">{cloudLabel}</span>
             </button>
             <button
               onClick={() => setIsColorPickerOpen(true)}

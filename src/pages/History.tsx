@@ -59,8 +59,6 @@ export function History() {
     autoStatus: ExerciseStatus;
   } | null>(null);
 
-  const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
-
   const selectedProgram = programs.find(p => p.id === selectedProgramId);
 
   const programLogs = useMemo(
@@ -561,68 +559,70 @@ export function History() {
       {programs.length === 0 ? (
         <p className="text-(--color-text-muted)">Henüz program yok.</p>
       ) : isMobile ? (
-        /* ── Mobile: Accordion View ── */
-        <div className="space-y-2">
-          {allExerciseIds.map(exerciseId => {
-            const isOpen = expandedExercise === exerciseId;
+        /* ── Mobile: Week-by-week list ── */
+        <div className="space-y-3">
+          {visibleWeeks.map(weekNum => {
+            const weekLog = getWeekLog(weekNum);
+            const weekExercises = weekLog?.exercises ?? [];
+
             return (
-              <div key={exerciseId} className="bg-(--color-bg-card) border border-(--color-border) rounded-xl overflow-hidden">
-                <button
-                  onClick={() => setExpandedExercise(isOpen ? null : exerciseId)}
-                  className="w-full flex items-center justify-between px-4 py-3.5 text-left"
-                >
-                  <span className="font-bold text-sm">{getExerciseName(exerciseId)}</span>
-                  <span className={`text-xs text-(--color-text-muted) transition-transform ${isOpen ? 'rotate-180' : ''}`}>▼</span>
-                </button>
-                {isOpen && (
-                  <div className="px-4 pb-4 space-y-2">
-                    {visibleWeeks.map(weekNum => {
-                      const log = getExerciseLog(weekNum, exerciseId);
-                      const weekLog = getWeekLog(weekNum);
-                      const prevWithinPhase = getPrevExerciseWithinPhase(weekNum, exerciseId);
+              <div key={weekNum} className="bg-(--color-bg-card) border border-(--color-border) rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-black tracking-wider">H{getDisplayWeek(weekNum)}</h3>
+                  {weekLog?.isHoliday ? (
+                    <span className="text-xs font-bold px-2 py-1 rounded-md bg-amber-800 text-amber-200">Tatil</span>
+                  ) : (
+                    <span className="text-xs font-semibold text-(--color-text-muted)">{weekExercises.length} egzersiz</span>
+                  )}
+                </div>
+
+                {weekLog?.isHoliday ? (
+                  <div className="text-sm text-(--color-text-secondary) p-3 rounded-lg bg-(--color-bg-input)">Bu hafta tatil olarak işaretlenmiş.</div>
+                ) : weekExercises.length > 0 ? (
+                  <div className="space-y-2">
+                    {weekExercises.map(exercise => {
+                      const prevWithinPhase = getPrevExerciseWithinPhase(weekNum, exercise.exerciseId);
                       const prevLog = prevWithinPhase?.log;
-
-                      let status: ExerciseStatus = 'same';
-                      if (weekLog?.isHoliday) status = 'holiday';
-                      else if (log) status = prevLog ? calculateExerciseStatus(log.sets, prevLog.sets) : 'new';
-                      else if (prevLog) status = 'removed';
-
-                      const statusBg = status === 'improved' ? 'bg-emerald-900/30' : status === 'decreased' ? 'bg-rose-900/30' : status === 'new' ? 'bg-blue-900/30' : status === 'holiday' ? 'bg-amber-900/30' : 'bg-(--color-bg-input)';
+                      const status: ExerciseStatus = prevLog
+                        ? calculateExerciseStatus(exercise.sets, prevLog.sets)
+                        : 'new';
+                      const statusColor = status === 'improved'
+                        ? 'bg-emerald-800 text-emerald-200'
+                        : status === 'decreased'
+                          ? 'bg-rose-800 text-rose-200'
+                          : status === 'new'
+                            ? 'bg-blue-800 text-blue-200'
+                            : 'bg-(--color-bg-card) text-(--color-text-secondary)';
 
                       return (
-                        <div
-                          key={weekNum}
+                        <button
+                          key={exercise.exerciseId}
                           onClick={() => {
                             setModalData({
-                              exerciseName: getExerciseName(exerciseId),
-                              exerciseId,
+                              exerciseName: exercise.exerciseName,
+                              exerciseId: exercise.exerciseId,
                               weekNumber: weekNum,
-                              currentSets: log?.sets || [],
+                              currentSets: exercise.sets,
                               previousSets: prevLog?.sets,
                               previousWeek: prevWithinPhase ? getDisplayWeek(prevWithinPhase.weekNumber) : undefined,
                               weekNotes: weekLog?.notes,
-                              isEmpty: !log || log.sets.length === 0,
+                              isEmpty: exercise.sets.length === 0,
                               autoStatus: status,
                             });
                           }}
-                          className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer active:scale-[0.98] transition-all ${statusBg}`}
+                          className="w-full flex items-center gap-3 p-3 rounded-lg bg-(--color-bg-input) border border-(--color-border) text-left active:scale-[0.99] transition-all"
                         >
-                          <span className={`text-xs font-bold px-2 py-1 rounded-md min-w-[36px] text-center ${
-                            status === 'improved' ? 'bg-emerald-800 text-emerald-200' :
-                            status === 'decreased' ? 'bg-rose-800 text-rose-200' :
-                            status === 'new' ? 'bg-blue-800 text-blue-200' :
-                            status === 'holiday' ? 'bg-amber-800 text-amber-200' :
-                            'bg-(--color-bg-card) text-(--color-text-secondary)'
-                          }`}>
-                            H{getDisplayWeek(weekNum)}
+                          <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${statusColor}`}>
+                            {status === 'improved' ? 'İlerleme' : status === 'decreased' ? 'Düşüş' : status === 'new' ? 'Yeni' : 'Aynı'}
                           </span>
-                          <span className="text-sm font-set font-bold text-(--color-text-primary) flex-1">
-                            {weekLog?.isHoliday ? '🏖️ Tatil' : log ? formatSets(log.sets) : '—'}
-                          </span>
-                        </div>
+                          <span className="text-sm font-bold text-(--color-text-primary) flex-1">{exercise.exerciseName}</span>
+                          <span className="text-xs font-set font-semibold text-(--color-text-secondary)">{formatSets(exercise.sets)}</span>
+                        </button>
                       );
                     })}
                   </div>
+                ) : (
+                  <div className="text-sm text-(--color-text-secondary) p-3 rounded-lg bg-(--color-bg-input)">Bu hafta için kayıt yok.</div>
                 )}
               </div>
             );
