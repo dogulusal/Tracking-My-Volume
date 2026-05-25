@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePrograms } from '@/hooks/usePrograms';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
@@ -41,6 +41,8 @@ export function WorkoutEntry() {
   });
   const [timerRemainingSec, setTimerRemainingSec] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerTotalRef = useRef(restDurationSec);
 
   // Initialize exercise logs
   useEffect(() => {
@@ -91,20 +93,12 @@ export function WorkoutEntry() {
     localStorage.setItem(REST_TIMER_KEY, String(restDurationSec));
   }, [restDurationSec]);
 
+  // Cleanup interval on unmount
   useEffect(() => {
-    if (!timerActive) return;
-    const id = window.setInterval(() => {
-      setTimerRemainingSec(prev => {
-        if (prev <= 1) {
-          window.clearInterval(id);
-          setTimerActive(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [timerActive]);
+    return () => {
+      if (timerRef.current !== null) clearInterval(timerRef.current);
+    };
+  }, []);
 
   const updateSet = useCallback((exerciseIdx: number, setIdx: number, field: keyof SetLog, value: number | Intensity) => {
     setExerciseLogs(prev => {
@@ -165,11 +159,24 @@ export function WorkoutEntry() {
   };
 
   const startRestTimer = (seconds: number = restDurationSec) => {
+    if (timerRef.current !== null) clearInterval(timerRef.current);
+    timerTotalRef.current = seconds;
     setTimerRemainingSec(seconds);
     setTimerActive(true);
+    timerRef.current = setInterval(() => {
+      setTimerRemainingSec(prev => {
+        if (prev <= 1) {
+          if (timerRef.current !== null) { clearInterval(timerRef.current); timerRef.current = null; }
+          setTimerActive(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
   const stopRestTimer = () => {
+    if (timerRef.current !== null) { clearInterval(timerRef.current); timerRef.current = null; }
     setTimerActive(false);
     setTimerRemainingSec(0);
   };
@@ -229,44 +236,7 @@ export function WorkoutEntry() {
         <span className="text-sm font-bold">Bu günü tatil olarak işaretle</span>
       </label>
 
-      {/* Rest Timer */}
-      {!isHoliday && (
-        <div className="mb-6 p-4 bg-(--color-bg-card) rounded-xl border border-(--color-border)">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-bold">Set Arası Sayaç</p>
-            <span className="text-xs font-semibold text-(--color-text-muted)">Varsayılan: {formatTimer(restDurationSec)}</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {[60, 90, 120, 180].map(sec => (
-              <button
-                key={sec}
-                onClick={() => setRestDurationSec(sec)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                  restDurationSec === sec
-                    ? 'bg-(--color-accent) text-white'
-                    : 'bg-(--color-btn-bg) text-(--color-text-secondary) hover:bg-(--color-btn-hover)'
-                }`}
-              >
-                {sec / 60 >= 1 ? `${sec / 60} dk` : `${sec} sn`}
-              </button>
-            ))}
-            <button
-              onClick={() => startRestTimer()}
-              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-(--color-accent) text-white hover:bg-(--color-accent-hover)"
-            >
-              ⏱ Başlat
-            </button>
-            {timerActive && (
-              <button
-                onClick={stopRestTimer}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-900 text-rose-100 hover:bg-rose-800"
-              >
-                Durdur
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+
 
       {/* Exercise Cards */}
       {!isHoliday && (
@@ -341,10 +311,12 @@ export function WorkoutEntry() {
                         ))}
                         <button
                           onClick={() => startRestTimer()}
-                          className="w-11 h-11 rounded-xl bg-(--color-btn-bg) text-(--color-text-secondary) hover:bg-(--color-btn-hover) text-sm"
-                          title="Set arası sayaç başlat"
+                          className={`w-11 h-11 rounded-xl text-sm font-black transition-all ${
+                            timerActive ? 'bg-(--color-accent) text-white' : 'bg-(--color-btn-bg) text-(--color-text-secondary) hover:bg-(--color-btn-hover)'
+                          }`}
+                          title="Set bitti — dinlenme sayacını başlat"
                         >
-                          ⏱
+                          ✓
                         </button>
                         {exercise.sets.length > 1 && (
                           <button
@@ -403,10 +375,12 @@ export function WorkoutEntry() {
                         ))}
                         <button
                           onClick={() => startRestTimer()}
-                          className="w-8 h-8 rounded-lg text-xs font-black transition-all bg-(--color-btn-bg) text-(--color-text-secondary) hover:bg-(--color-btn-hover)"
-                          title="Set arası sayaç başlat"
+                          className={`w-8 h-8 rounded-lg text-xs font-black transition-all ${
+                            timerActive ? 'bg-(--color-accent) text-white' : 'bg-(--color-btn-bg) text-(--color-text-secondary) hover:bg-(--color-btn-hover)'
+                          }`}
+                          title="Set bitti — dinlenme sayacını başlat"
                         >
-                          ⏱
+                          ✓
                         </button>
                       </div>
 
@@ -465,27 +439,54 @@ export function WorkoutEntry() {
         Kaydet
       </button>
 
-      {timerActive && (
-        <div
-          className={`fixed z-50 rounded-2xl border border-(--color-accent) bg-(--color-bg-card) px-4 py-2 shadow-2xl shadow-(--color-accent-glow) ${
-            isMobile ? 'bottom-24 left-1/2 -translate-x-1/2' : 'bottom-6 right-6'
-          }`}
-        >
-          <div className="flex items-center gap-3">
+      {/* Floating rest timer */}
+      <div
+        className={`fixed z-50 transition-all duration-300 ${
+          timerActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
+        } ${
+          isMobile ? 'bottom-20 left-4 right-4' : 'bottom-6 right-6 w-72'
+        }`}
+      >
+        <div className="bg-(--color-bg-card) border-2 border-(--color-accent) rounded-2xl p-4 shadow-2xl">
+          {/* Progress bar */}
+          <div className="w-full h-1.5 bg-(--color-border) rounded-full mb-3 overflow-hidden">
+            <div
+              className="h-full bg-(--color-accent) rounded-full transition-all duration-1000"
+              style={{ width: `${timerTotalRef.current > 0 ? (timerRemainingSec / timerTotalRef.current) * 100 : 0}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-(--color-text-muted)">Dinlenme</p>
-              <p className="text-xl font-black text-(--color-accent) font-set">{formatTimer(timerRemainingSec)}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-(--color-text-muted) mb-0.5">Dinlenme süresi</p>
+              <p className="text-3xl font-black text-(--color-accent) font-set leading-none">{formatTimer(timerRemainingSec)}</p>
             </div>
-            <button
-              onClick={stopRestTimer}
-              className="w-8 h-8 rounded-full bg-rose-900 text-rose-100 text-xs font-bold"
-              title="Sayacı durdur"
-            >
-              ✕
-            </button>
+            <div className="flex flex-col gap-2 items-end">
+              <button
+                onClick={stopRestTimer}
+                className="w-8 h-8 rounded-full bg-rose-900 text-rose-100 text-xs font-bold flex items-center justify-center"
+                title="Sayacı durdur"
+              >
+                ✕
+              </button>
+              <div className="flex gap-1">
+                {[60, 90, 120, 180].map(sec => (
+                  <button
+                    key={sec}
+                    onClick={() => { setRestDurationSec(sec); startRestTimer(sec); }}
+                    className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
+                      restDurationSec === sec
+                        ? 'bg-(--color-accent) text-white'
+                        : 'bg-(--color-btn-bg) text-(--color-text-secondary)'
+                    }`}
+                  >
+                    {sec < 60 ? `${sec}s` : `${sec / 60}dk`}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-      )}
+      </div>
     </PageContainer>
   );
 }

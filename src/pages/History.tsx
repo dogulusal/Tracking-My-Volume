@@ -610,13 +610,33 @@ export function History() {
                               autoStatus: status,
                             });
                           }}
-                          className="w-full flex items-center gap-3 p-3 rounded-lg bg-(--color-bg-input) border border-(--color-border) text-left active:scale-[0.99] transition-all"
+                          className="w-full text-left p-3 rounded-xl bg-(--color-bg-input) border border-(--color-border) active:scale-[0.99] transition-all"
                         >
-                          <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${statusColor}`}>
-                            {status === 'improved' ? 'İlerleme' : status === 'decreased' ? 'Düşüş' : status === 'new' ? 'Yeni' : 'Aynı'}
-                          </span>
-                          <span className="text-sm font-bold text-(--color-text-primary) flex-1">{exercise.exerciseName}</span>
-                          <span className="text-xs font-set font-semibold text-(--color-text-secondary)">{formatSets(exercise.sets)}</span>
+                          {/* Exercise name row */}
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-bold text-(--color-text-primary)">{exercise.exerciseName}</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor}`}>
+                              {status === 'improved' ? '↑ İlerleme' : status === 'decreased' ? '↓ Düşüş' : status === 'new' ? '★ Yeni' : '= Aynı'}
+                            </span>
+                          </div>
+                          {/* Set pills */}
+                          <div className="flex flex-wrap gap-1.5">
+                            {exercise.sets.map((s, si) => (
+                              <span key={si} className="text-[11px] font-set font-semibold px-2 py-1 rounded-lg bg-(--color-bg-card) text-(--color-text-secondary) border border-(--color-border)">
+                                {s.weight}×{s.reps}
+                              </span>
+                            ))}
+                          </div>
+                          {/* Comparison with previous week */}
+                          {prevLog && (
+                            <div className="flex flex-wrap gap-1.5 mt-1.5 opacity-50">
+                              {prevLog.sets.map((s, si) => (
+                                <span key={si} className="text-[10px] font-set px-2 py-0.5 rounded-lg bg-(--color-bg-input) text-(--color-text-muted) border border-(--color-border)/50">
+                                  {s.weight}×{s.reps}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </button>
                       );
                     })}
