@@ -62,9 +62,14 @@ export function WorkoutEntry() {
     if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
     return Notification.permission;
   });
+  const [timerJustFinished, setTimerJustFinished] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerTotalRef = useRef(restDurationSec);
   const timerEndAtRef = useRef<number | null>(null);
+  // Persistent AudioContext — unlocked via user gesture so iOS allows playback later
+  const audioContextRef = useRef<AudioContext | null>(null);
+  // WakeLock — keeps screen on while timer counts down
+  const wakeLockRef = useRef<{ release(): Promise<void> } | null>(null);
 
   // Initialize exercise logs
   useEffect(() => {
@@ -136,6 +141,8 @@ export function WorkoutEntry() {
   useEffect(() => {
     return () => {
       if (timerRef.current !== null) clearInterval(timerRef.current);
+      void audioContextRef.current?.close();
+      void wakeLockRef.current?.release();
     };
   }, []);
 
@@ -204,49 +211,52 @@ export function WorkoutEntry() {
     });
   }, []);
 
-  const playAlarmTone = useCallback(() => {
+  const playAlarmTone = useCallback(async () => {
     try {
-      const audioContext = new AudioContext();
-      const now = audioContext.currentTime;
-
+      // Reuse the pre-unlocked AudioContext so iOS allows audio from non-gesture contexts
+      let ctx = audioContextRef.current;
+      if (!ctx || ctx.state === 'closed') {
+        ctx = new AudioContext();
+        audioContextRef.current = ctx;
+      }
+      // iOS suspends AudioContext when page goes to background; resume before playing
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+      const now = ctx.currentTime;
       [880, 660, 880].forEach((frequency, index) => {
-        const oscillator = audioContext.createOscillator();
-        const gain = audioContext.createGain();
-
+        const oscillator = ctx!.createOscillator();
+        const gain = ctx!.createGain();
         oscillator.type = 'sine';
         oscillator.frequency.value = frequency;
-
         const startAt = now + index * 0.22;
         gain.gain.setValueAtTime(0.0001, startAt);
         gain.gain.exponentialRampToValueAtTime(0.12, startAt + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.18);
-
         oscillator.connect(gain);
-        gain.connect(audioContext.destination);
+        gain.connect(ctx!.destination);
         oscillator.start(startAt);
         oscillator.stop(startAt + 0.2);
       });
-
-      setTimeout(() => {
-        void audioContext.close();
-      }, 900);
     } catch {
-      // Browsers may block audio if there was no user interaction.
+      // Browsers may block audio — visual banner still fires.
     }
   }, []);
 
   const fireTimerFinishedAlerts = useCallback(() => {
-    playAlarmTone();
+    void playAlarmTone();
     if ('vibrate' in navigator) {
       navigator.vibrate([180, 100, 220]);
     }
-
-    if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+    if ('Notification' in window && Notification.permission === 'granted') {
       new Notification('Dinlenme bitti', {
         body: 'Sonraki sete hazırsın.',
         tag: 'rest-timer-finished',
       });
     }
+    // Visual banner — reliable even when audio/vibration fails (e.g. iOS Safari)
+    setTimerJustFinished(true);
+    setTimeout(() => setTimerJustFinished(false), 5000);
   }, [playAlarmTone]);
 
   // Uses endAt timestamp so interval drift / throttling is corrected on every tick
@@ -259,6 +269,8 @@ export function WorkoutEntry() {
         if (timerRef.current !== null) { clearInterval(timerRef.current); timerRef.current = null; }
         timerEndAtRef.current = null;
         localStorage.removeItem(TIMER_END_AT_KEY);
+        void wakeLockRef.current?.release();
+        wakeLockRef.current = null;
         setTimerActive(false);
         setTimerRemainingSec(0);
         fireTimerFinishedAlerts();
@@ -269,6 +281,23 @@ export function WorkoutEntry() {
   }, [fireTimerFinishedAlerts]);
 
   const startRestTimer = (seconds: number = restDurationSec) => {
+    // Unlock / resume AudioContext on this user gesture — required for iOS audio policy
+    try {
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+        audioContextRef.current = new AudioContext();
+      }
+      if (audioContextRef.current.state === 'suspended') {
+        void audioContextRef.current.resume();
+      }
+    } catch { /* ignore */ }
+    // Request WakeLock so screen stays on while the user is resting
+    if ('wakeLock' in navigator) {
+      (navigator as unknown as { wakeLock: { request(t: string): Promise<{ release(): Promise<void> }> } })
+        .wakeLock.request('screen')
+        .then(lock => { wakeLockRef.current = lock; })
+        .catch(() => { /* not all browsers / OS configs support wake lock */ });
+    }
+    setTimerJustFinished(false);
     const safeSeconds = Math.max(5, Math.round(seconds));
     const endAt = Date.now() + safeSeconds * 1000;
     timerTotalRef.current = safeSeconds;
@@ -283,8 +312,11 @@ export function WorkoutEntry() {
     if (timerRef.current !== null) { clearInterval(timerRef.current); timerRef.current = null; }
     timerEndAtRef.current = null;
     localStorage.removeItem(TIMER_END_AT_KEY);
+    void wakeLockRef.current?.release();
+    wakeLockRef.current = null;
     setTimerActive(false);
     setTimerRemainingSec(0);
+    setTimerJustFinished(false);
   };
 
   const formatTimer = (totalSec: number) => {
@@ -465,12 +497,24 @@ export function WorkoutEntry() {
                   placeholder="Süre gir…"
                   className="flex-1 px-4 py-3 bg-transparent text-sm font-semibold focus:outline-none placeholder:text-(--color-text-muted)"
                 />
-                <button
-                  onClick={() => setCustomDurationUnit(u => u === 'sec' ? 'min' : 'sec')}
-                  className="px-3 py-3 text-sm font-bold text-(--color-text-secondary) hover:text-(--color-accent) border-l border-(--color-border) transition-colors min-w-[44px]"
-                >
-                  {customDurationUnit === 'sec' ? 'sn' : 'dk'}
-                </button>
+                <div className="flex border-l border-(--color-border) shrink-0">
+                  <button
+                    onClick={() => setCustomDurationUnit('sec')}
+                    className={`px-3 py-3 text-sm font-black transition-colors ${
+                      customDurationUnit === 'sec'
+                        ? 'text-(--color-accent) bg-(--color-btn-bg)'
+                        : 'text-(--color-text-muted) hover:text-(--color-text-primary)'
+                    }`}
+                  >sn</button>
+                  <button
+                    onClick={() => setCustomDurationUnit('min')}
+                    className={`px-3 py-3 text-sm font-black transition-colors border-l border-(--color-border) ${
+                      customDurationUnit === 'min'
+                        ? 'text-(--color-accent) bg-(--color-btn-bg)'
+                        : 'text-(--color-text-muted) hover:text-(--color-text-primary)'
+                    }`}
+                  >dk</button>
+                </div>
               </div>
               <button
                 onClick={handleStartCustomTimer}
@@ -697,50 +741,62 @@ export function WorkoutEntry() {
       {/* Floating rest timer */}
       <div
         className={`fixed z-50 transition-all duration-300 ${
-          timerActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
+          (timerActive || timerJustFinished) ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
         } ${
           isMobile ? 'bottom-20 left-4 right-4' : 'bottom-6 right-6 w-72'
         }`}
       >
-        <div className="bg-(--color-bg-card) border-2 border-(--color-accent) rounded-2xl p-4 shadow-2xl">
-          {/* Progress bar */}
-          <div className="w-full h-1.5 bg-(--color-border) rounded-full mb-3 overflow-hidden">
-            <div
-              className="h-full bg-(--color-accent) rounded-full transition-all duration-1000"
-              style={{ width: `${timerTotalRef.current > 0 ? (timerRemainingSec / timerTotalRef.current) * 100 : 0}%` }}
-            />
+        {timerJustFinished && !timerActive ? (
+          /* Finished state — reliable visual alert for iOS where audio may be blocked */
+          <div className="bg-(--color-bg-card) border-2 border-emerald-500 rounded-2xl p-5 shadow-2xl text-center">
+            <p className="text-2xl font-black text-emerald-500">✓ Dinlenme bitti!</p>
+            <p className="text-sm text-(--color-text-muted) mt-1">Sonraki sete hazırsın.</p>
+            <button
+              onClick={() => setTimerJustFinished(false)}
+              className="mt-3 px-5 py-1.5 text-sm font-bold bg-emerald-900/40 text-emerald-400 rounded-lg active:scale-95 transition-transform"
+            >Tamam</button>
           </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-(--color-text-muted) mb-0.5">Dinlenme süresi</p>
-              <p className="text-3xl font-black text-(--color-accent) font-set leading-none">{formatTimer(timerRemainingSec)}</p>
+        ) : (
+          <div className="bg-(--color-bg-card) border-2 border-(--color-accent) rounded-2xl p-4 shadow-2xl">
+            {/* Progress bar */}
+            <div className="w-full h-1.5 bg-(--color-border) rounded-full mb-3 overflow-hidden">
+              <div
+                className="h-full bg-(--color-accent) rounded-full transition-all duration-1000"
+                style={{ width: `${timerTotalRef.current > 0 ? (timerRemainingSec / timerTotalRef.current) * 100 : 0}%` }}
+              />
             </div>
-            <div className="flex flex-col gap-2 items-end">
-              <button
-                onClick={stopRestTimer}
-                className="w-8 h-8 rounded-full bg-rose-900 text-rose-100 text-xs font-bold flex items-center justify-center"
-                title="Sayacı durdur"
-              >
-                ✕
-              </button>
-              <div className="flex gap-1">
-                {[60, 90, 120, 180].map(sec => (
-                  <button
-                    key={sec}
-                    onClick={() => { setRestDurationSec(sec); startRestTimer(sec); }}
-                    className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
-                      restDurationSec === sec
-                        ? 'bg-(--color-accent) text-white'
-                        : 'bg-(--color-btn-bg) text-(--color-text-secondary)'
-                    }`}
-                  >
-                    {sec < 60 ? `${sec}s` : `${sec / 60}dk`}
-                  </button>
-                ))}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-(--color-text-muted) mb-0.5">Dinlenme süresi</p>
+                <p className="text-3xl font-black text-(--color-accent) font-set leading-none">{formatTimer(timerRemainingSec)}</p>
+              </div>
+              <div className="flex flex-col gap-2 items-end">
+                <button
+                  onClick={stopRestTimer}
+                  className="w-8 h-8 rounded-full bg-rose-900 text-rose-100 text-xs font-bold flex items-center justify-center"
+                  title="Sayacı durdur"
+                >
+                  ✕
+                </button>
+                <div className="flex gap-1">
+                  {[60, 90, 120, 180].map(sec => (
+                    <button
+                      key={sec}
+                      onClick={() => { setRestDurationSec(sec); startRestTimer(sec); }}
+                      className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
+                        restDurationSec === sec
+                          ? 'bg-(--color-accent) text-white'
+                          : 'bg-(--color-btn-bg) text-(--color-text-secondary)'
+                      }`}
+                    >
+                      {sec < 60 ? `${sec}s` : `${sec / 60}dk`}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </PageContainer>
   );

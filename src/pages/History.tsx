@@ -93,7 +93,8 @@ export function History() {
     }).filter(p => p.weeks.length > 0);
   }, [availableWeeks, contextPhases]);
 
-  const PAGE_SIZE = 4;
+  // Show 1 week at a time on mobile for easier browsing
+  const PAGE_SIZE = isMobile ? 1 : 4;
 
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(() => phases.length - 1);
   const currentPhase = phases[selectedPhaseIdx] || phases[0];
@@ -544,7 +545,10 @@ export function History() {
           ← Önceki
         </button>
         <span className="text-sm font-bold text-(--color-text-secondary)">
-          H{getDisplayWeek(visibleWeeks[0] ?? currentPhase.baseWeek)} — H{getDisplayWeek(visibleWeeks[visibleWeeks.length - 1] ?? currentPhase.baseWeek)}
+          {isMobile && visibleWeeks.length === 1
+            ? `H${getDisplayWeek(visibleWeeks[0] ?? currentPhase.baseWeek)}`
+            : `H${getDisplayWeek(visibleWeeks[0] ?? currentPhase.baseWeek)} — H${getDisplayWeek(visibleWeeks[visibleWeeks.length - 1] ?? currentPhase.baseWeek)}`
+          }
         </span>
         <button
           onClick={() => setPageStart(s => s + PAGE_SIZE)}
