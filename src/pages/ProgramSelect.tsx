@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { usePrograms } from '@/hooks/usePrograms';
 import { usePlans } from '@/hooks/usePlans';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
@@ -126,10 +126,20 @@ function NewPlanModal({
 export function ProgramSelect() {
   const { programs } = usePrograms();
   const { plans, activePlan, activePlanId, activePlanPrograms, setActivePlan, addPlan } = usePlans();
-  const { currentWeek } = useWeekLogs();
+  const { weekLogs, currentWeek } = useWeekLogs();
 
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [showNewPlanModal, setShowNewPlanModal] = useState(false);
+
+  const programPreviews = useMemo(() => {
+    return activePlanPrograms.map(program => {
+      const lastLog = weekLogs
+        .filter(log => log.programId === program.id && !log.isHoliday && log.exercises.length > 0)
+        .sort((a, b) => b.weekNumber - a.weekNumber)[0] ?? null;
+
+      return { program, lastLog };
+    });
+  }, [activePlanPrograms, weekLogs]);
 
   return (
     <PageContainer>
@@ -154,7 +164,7 @@ export function ProgramSelect() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        {activePlanPrograms.map(program => (
+        {programPreviews.map(({ program, lastLog }) => (
           <div
             key={program.id}
             className="card-hover neon-card bg-(--color-bg-card) rounded-xl p-5 border border-(--color-border)"
@@ -171,6 +181,42 @@ export function ProgramSelect() {
             <p className="text-sm text-(--color-text-secondary) font-medium mb-3">
               {program.exercises.filter(e => e.isActive).length} aktif egzersiz
             </p>
+            <div className="mb-3 rounded-xl border border-(--color-border) bg-(--color-bg-input) p-3">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-(--color-text-muted)">Son hafta</p>
+                {lastLog ? (
+                  <span className="text-[10px] font-bold text-(--color-accent)">H{lastLog.weekNumber}</span>
+                ) : (
+                  <span className="text-[10px] font-bold text-(--color-text-muted)">Kayıt yok</span>
+                )}
+              </div>
+              {lastLog ? (
+                <div className="space-y-2">
+                  {lastLog.exercises.slice(0, 3).map(exercise => (
+                    <div key={exercise.exerciseId} className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-(--color-text-primary) truncate">{exercise.exerciseName}</p>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {exercise.sets.map((set, index) => (
+                            <span
+                              key={`${exercise.exerciseId}-${index}`}
+                              className="text-[10px] font-set font-bold px-2 py-0.5 rounded-md bg-(--color-bg-card) text-(--color-text-secondary) border border-(--color-border)"
+                            >
+                              {set.weight}×{set.reps}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {lastLog.exercises.length > 3 && (
+                    <p className="text-[10px] font-semibold text-(--color-text-muted)">+{lastLog.exercises.length - 3} egzersiz daha</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-(--color-text-muted)">Bu program için henüz geçmiş kayıt yok.</p>
+              )}
+            </div>
             <Link
               to={`/workout/${program.id}/week/${currentWeek}`}
               className="inline-block px-4 py-2 bg-(--color-accent) hover:bg-(--color-accent-hover) text-[#050a0a] text-xs font-bold rounded-lg btn-neon"

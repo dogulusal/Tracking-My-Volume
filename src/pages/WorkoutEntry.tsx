@@ -236,6 +236,56 @@ export function WorkoutEntry() {
         <span className="text-sm font-bold">Bu günü tatil olarak işaretle</span>
       </label>
 
+      {/* Rest timer control */}
+      {!isHoliday && (
+        <div className="mb-6 rounded-xl border border-(--color-border) bg-(--color-bg-card) p-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-(--color-text-muted)">Dinlenme sayacı</p>
+              <h2 className="text-lg font-black text-(--color-text-primary)">Set arası süreyi buradan başlat</h2>
+              <p className="text-sm text-(--color-text-secondary)">Her set sonrasında aşağıdaki sürelerden birini seçip sayacı çalıştırabilirsin.</p>
+            </div>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${timerActive ? 'bg-(--color-accent)/20 text-(--color-accent)' : 'bg-(--color-btn-bg) text-(--color-text-secondary)'}`}>
+                {timerActive ? `Aktif · ${formatTimer(timerRemainingSec)}` : `Varsayılan · ${formatTimer(restDurationSec)}`}
+              </span>
+              {timerActive && (
+                <button
+                  onClick={stopRestTimer}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-900 text-rose-100 hover:bg-rose-800"
+                >
+                  Durdur
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {[60, 90, 120, 180].map(sec => (
+              <button
+                key={sec}
+                onClick={() => {
+                  setRestDurationSec(sec);
+                  startRestTimer(sec);
+                }}
+                className={`px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
+                  restDurationSec === sec
+                    ? 'bg-(--color-accent) text-white'
+                    : 'bg-(--color-btn-bg) text-(--color-text-secondary) hover:bg-(--color-btn-hover)'
+                }`}
+              >
+                {sec >= 60 ? `${sec / 60} dk` : `${sec} sn`}
+              </button>
+            ))}
+            <button
+              onClick={() => startRestTimer()}
+              className="px-4 py-2 rounded-lg text-sm font-black bg-(--color-accent) text-white hover:bg-(--color-accent-hover)"
+            >
+              {timerActive ? 'Yeniden Başlat' : 'Başlat'}
+            </button>
+          </div>
+        </div>
+      )}
+
 
 
       {/* Exercise Cards */}
