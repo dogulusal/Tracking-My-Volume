@@ -31,6 +31,8 @@ const STATUS_OPTIONS: { value: ExerciseStatus; label: string }[] = [
   { value: 'removed', label: 'Kaldırıldı' },
 ];
 
+const HISTORY_STATE_KEY = 'history-page-state-v1';
+
 export function History() {
   const { programs, updateProgram } = usePrograms();
   const { weekLogs, currentWeek, saveWorkout, incrementWeek } = useWeekLogs();
@@ -96,13 +98,33 @@ export function History() {
   // Show 1 week at a time on mobile for easier browsing
   const PAGE_SIZE = isMobile ? 1 : 4;
 
-  const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(() => phases.length - 1);
+  const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(() => {
+    try {
+      const saved = localStorage.getItem(HISTORY_STATE_KEY);
+      if (saved) {
+        const { phaseIdx } = JSON.parse(saved) as { phaseIdx: number; pageStart: number };
+        if (Number.isFinite(phaseIdx) && phaseIdx >= 0 && phaseIdx < phases.length) return phaseIdx;
+      }
+    } catch { /* ignore */ }
+    return phases.length - 1;
+  });
   const currentPhase = phases[selectedPhaseIdx] || phases[0];
 
   const getDisplayWeek = (weekNum: number): number => weekNum - currentPhase.baseWeek;
 
-  // Pagination: default to last page of the initial phase
+  // Pagination: default to last page (or restore from localStorage)
   const [pageStart, setPageStart] = useState(() => {
+    try {
+      const saved = localStorage.getItem(HISTORY_STATE_KEY);
+      if (saved) {
+        const state = JSON.parse(saved) as { phaseIdx: number; pageStart: number };
+        const targetPhase = (Number.isFinite(state.phaseIdx) && state.phaseIdx >= 0 && state.phaseIdx < phases.length)
+          ? phases[state.phaseIdx] : phases[phases.length - 1];
+        if (targetPhase && Number.isFinite(state.pageStart) && state.pageStart >= 0 && state.pageStart < targetPhase.weeks.length) {
+          return state.pageStart;
+        }
+      }
+    } catch { /* ignore */ }
     const initPhase = phases[phases.length - 1] || phases[0];
     if (!initPhase || initPhase.weeks.length === 0) return 0;
     return Math.floor((initPhase.weeks.length - 1) / PAGE_SIZE) * PAGE_SIZE;
@@ -110,6 +132,11 @@ export function History() {
   const visibleWeeks = useMemo(() => {
     return currentPhase.weeks.slice(pageStart, pageStart + PAGE_SIZE);
   }, [currentPhase, pageStart]);
+
+  // Persist navigation position so it survives tab switches
+  useEffect(() => {
+    localStorage.setItem(HISTORY_STATE_KEY, JSON.stringify({ phaseIdx: selectedPhaseIdx, pageStart }));
+  }, [selectedPhaseIdx, pageStart]);
 
   // Get all exercise IDs for visible weeks
   const allExerciseIds = useMemo(() => {

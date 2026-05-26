@@ -18,6 +18,33 @@ const REST_TIMER_RECENTS_KEY = 'rest-timer-recent-sec';
 const TIMER_END_AT_KEY = 'rest-timer-end-at';
 const MAX_RECENT_DURATIONS = 3;
 
+// 1-second silent WAV (8000 Hz, 8-bit mono) — keeps iOS audio session alive when screen locks
+const SILENT_WAV_URL = (() => {
+  try {
+    const rate = 8000;
+    const buf = new ArrayBuffer(44 + rate);
+    const v = new DataView(buf);
+    const ws = (o: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    ws(0, 'RIFF'); v.setUint32(4, 36 + rate, true);
+    ws(8, 'WAVE'); ws(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate, true);
+    v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+    ws(36, 'data'); v.setUint32(40, rate, true);
+    for (let i = 0; i < rate; i++) v.setUint8(44 + i, 128);
+    const bytes = new Uint8Array(buf);
+    let b = ''; bytes.forEach(x => { b += String.fromCharCode(x); });
+    return 'data:audio/wav;base64,' + btoa(b);
+  } catch { return ''; }
+})();
+
+// Pure formatter — outside component so interval callbacks use it without deps
+function formatTimer(totalSec: number): string {
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${String(sec).padStart(2, '0')}`;
+}
+
 export function WorkoutEntry() {
   const { programId, weekNumber: weekParam } = useParams();
   const navigate = useNavigate();
@@ -70,6 +97,8 @@ export function WorkoutEntry() {
   const audioContextRef = useRef<AudioContext | null>(null);
   // WakeLock — keeps screen on while timer counts down
   const wakeLockRef = useRef<{ release(): Promise<void> } | null>(null);
+  // Silent audio element — keeps iOS audio session alive when screen locks
+  const silentAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Initialize exercise logs
   useEffect(() => {
@@ -143,6 +172,7 @@ export function WorkoutEntry() {
       if (timerRef.current !== null) clearInterval(timerRef.current);
       void audioContextRef.current?.close();
       void wakeLockRef.current?.release();
+      silentAudioRef.current?.pause();
     };
   }, []);
 
@@ -271,11 +301,17 @@ export function WorkoutEntry() {
         localStorage.removeItem(TIMER_END_AT_KEY);
         void wakeLockRef.current?.release();
         wakeLockRef.current = null;
+        silentAudioRef.current?.pause();
+        if ('mediaSession' in navigator) { navigator.mediaSession.metadata = null; }
         setTimerActive(false);
         setTimerRemainingSec(0);
         fireTimerFinishedAlerts();
       } else {
         setTimerRemainingSec(remaining);
+        // Keep lock screen / notification center in sync
+        if ('mediaSession' in navigator && navigator.mediaSession.metadata) {
+          navigator.mediaSession.metadata.title = `${formatTimer(remaining)} — Dinlenme`;
+        }
       }
     }, 500);
   }, [fireTimerFinishedAlerts]);
@@ -305,6 +341,21 @@ export function WorkoutEntry() {
     setTimerRemainingSec(safeSeconds);
     setTimerActive(true);
     addRecentDuration(safeSeconds);
+    // Play silent audio loop — keeps iOS audio session alive when screen locks
+    if (SILENT_WAV_URL) {
+      if (!silentAudioRef.current) {
+        silentAudioRef.current = new Audio(SILENT_WAV_URL);
+        silentAudioRef.current.loop = true;
+      }
+      void silentAudioRef.current.play().catch(() => {});
+    }
+    // Register MediaSession so the countdown is visible in notification center / lock screen
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: `${formatTimer(safeSeconds)} — Dinlenme`,
+        artist: 'TrackingMyVolume',
+      });
+    }
     restartIntervalFromEndAt(endAt);
   };
 
@@ -314,15 +365,11 @@ export function WorkoutEntry() {
     localStorage.removeItem(TIMER_END_AT_KEY);
     void wakeLockRef.current?.release();
     wakeLockRef.current = null;
+    silentAudioRef.current?.pause();
+    if ('mediaSession' in navigator) { navigator.mediaSession.metadata = null; }
     setTimerActive(false);
     setTimerRemainingSec(0);
     setTimerJustFinished(false);
-  };
-
-  const formatTimer = (totalSec: number) => {
-    const min = Math.floor(totalSec / 60);
-    const sec = totalSec % 60;
-    return `${min}:${String(sec).padStart(2, '0')}`;
   };
 
   const formatDurationLabel = (seconds: number) => {
@@ -369,6 +416,8 @@ export function WorkoutEntry() {
         if (timerRef.current !== null) { clearInterval(timerRef.current); timerRef.current = null; }
         timerEndAtRef.current = null;
         localStorage.removeItem(TIMER_END_AT_KEY);
+        silentAudioRef.current?.pause();
+        if ('mediaSession' in navigator) { navigator.mediaSession.metadata = null; }
         setTimerActive(false);
         setTimerRemainingSec(0);
         fireTimerFinishedAlerts();
@@ -495,26 +544,26 @@ export function WorkoutEntry() {
                   onChange={e => setCustomDurationInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') void handleStartCustomTimer(); }}
                   placeholder="Süre gir…"
-                  className="flex-1 px-4 py-3 bg-transparent text-sm font-semibold focus:outline-none placeholder:text-(--color-text-muted)"
+                  className="flex-1 min-w-0 px-4 py-3 bg-transparent text-sm font-semibold focus:outline-none placeholder:text-(--color-text-muted)"
                 />
-                <div className="flex border-l border-(--color-border) shrink-0">
-                  <button
-                    onClick={() => setCustomDurationUnit('sec')}
-                    className={`px-3 py-3 text-sm font-black transition-colors ${
-                      customDurationUnit === 'sec'
-                        ? 'text-(--color-accent) bg-(--color-btn-bg)'
-                        : 'text-(--color-text-muted) hover:text-(--color-text-primary)'
-                    }`}
-                  >sn</button>
-                  <button
-                    onClick={() => setCustomDurationUnit('min')}
-                    className={`px-3 py-3 text-sm font-black transition-colors border-l border-(--color-border) ${
-                      customDurationUnit === 'min'
-                        ? 'text-(--color-accent) bg-(--color-btn-bg)'
-                        : 'text-(--color-text-muted) hover:text-(--color-text-primary)'
-                    }`}
-                  >dk</button>
-                </div>
+              </div>
+              <div className="flex items-stretch rounded-xl overflow-hidden border border-(--color-border) shrink-0">
+                <button
+                  onClick={() => setCustomDurationUnit('sec')}
+                  className={`px-3 text-sm font-black transition-colors ${
+                    customDurationUnit === 'sec'
+                      ? 'bg-(--color-accent) text-white'
+                      : 'bg-(--color-bg-input) text-(--color-text-muted) hover:text-(--color-text-primary)'
+                  }`}
+                >sn</button>
+                <button
+                  onClick={() => setCustomDurationUnit('min')}
+                  className={`px-3 text-sm font-black transition-colors border-l border-(--color-border) ${
+                    customDurationUnit === 'min'
+                      ? 'bg-(--color-accent) text-white'
+                      : 'bg-(--color-bg-input) text-(--color-text-muted) hover:text-(--color-text-primary)'
+                  }`}
+                >dk</button>
               </div>
               <button
                 onClick={handleStartCustomTimer}
