@@ -99,6 +99,8 @@ export function WorkoutEntry() {
   const wakeLockRef = useRef<{ release(): Promise<void> } | null>(null);
   // Silent audio element — keeps iOS audio session alive when screen locks
   const silentAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Pre-scheduled oscillators — cancelled if user stops timer early
+  const scheduledOscillatorsRef = useRef<OscillatorNode[]>([]);
 
   // Initialize exercise logs
   useEffect(() => {
@@ -170,6 +172,7 @@ export function WorkoutEntry() {
   useEffect(() => {
     return () => {
       if (timerRef.current !== null) clearInterval(timerRef.current);
+      scheduledOscillatorsRef.current.forEach(o => { try { o.disconnect(); } catch { /* */ } });
       void audioContextRef.current?.close();
       void wakeLockRef.current?.release();
       silentAudioRef.current?.pause();
@@ -302,16 +305,13 @@ export function WorkoutEntry() {
         void wakeLockRef.current?.release();
         wakeLockRef.current = null;
         silentAudioRef.current?.pause();
-        if ('mediaSession' in navigator) { navigator.mediaSession.metadata = null; }
+        scheduledOscillatorsRef.current.forEach(o => { try { o.disconnect(); } catch { /* */ } });
+        scheduledOscillatorsRef.current = [];
         setTimerActive(false);
         setTimerRemainingSec(0);
         fireTimerFinishedAlerts();
       } else {
         setTimerRemainingSec(remaining);
-        // Keep lock screen / notification center in sync
-        if ('mediaSession' in navigator && navigator.mediaSession.metadata) {
-          navigator.mediaSession.metadata.title = `${formatTimer(remaining)} — Dinlenme`;
-        }
       }
     }, 500);
   }, [fireTimerFinishedAlerts]);
@@ -349,12 +349,32 @@ export function WorkoutEntry() {
       }
       void silentAudioRef.current.play().catch(() => {});
     }
-    // Register MediaSession so the countdown is visible in notification center / lock screen
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: `${formatTimer(safeSeconds)} — Dinlenme`,
-        artist: 'TrackingMyVolume',
+    // Pre-schedule alarm tones in AudioContext.
+    // The audio thread continues running even when JS is suspended (iOS background/lock),
+    // so the alarm fires at the exact time as long as the audio session stays active.
+    if (audioContextRef.current && audioContextRef.current.state === 'running') {
+      const ctx = audioContextRef.current;
+      // Cancel any leftover pre-scheduled notes from a previous timer
+      scheduledOscillatorsRef.current.forEach(o => { try { o.disconnect(); } catch { /* */ } });
+      scheduledOscillatorsRef.current = [];
+      const fireAt = ctx.currentTime + safeSeconds;
+      const oscs: OscillatorNode[] = [];
+      [880, 660, 880].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const startAt = fireAt + i * 0.22;
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, startAt);
+        gain.gain.exponentialRampToValueAtTime(0.35, startAt + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.18);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(startAt);
+        osc.stop(startAt + 0.22);
+        oscs.push(osc);
       });
+      scheduledOscillatorsRef.current = oscs;
     }
     restartIntervalFromEndAt(endAt);
   };
@@ -365,8 +385,9 @@ export function WorkoutEntry() {
     localStorage.removeItem(TIMER_END_AT_KEY);
     void wakeLockRef.current?.release();
     wakeLockRef.current = null;
+    scheduledOscillatorsRef.current.forEach(o => { try { o.disconnect(); } catch { /* */ } });
+    scheduledOscillatorsRef.current = [];
     silentAudioRef.current?.pause();
-    if ('mediaSession' in navigator) { navigator.mediaSession.metadata = null; }
     setTimerActive(false);
     setTimerRemainingSec(0);
     setTimerJustFinished(false);
@@ -417,7 +438,8 @@ export function WorkoutEntry() {
         timerEndAtRef.current = null;
         localStorage.removeItem(TIMER_END_AT_KEY);
         silentAudioRef.current?.pause();
-        if ('mediaSession' in navigator) { navigator.mediaSession.metadata = null; }
+        scheduledOscillatorsRef.current.forEach(o => { try { o.disconnect(); } catch { /* */ } });
+        scheduledOscillatorsRef.current = [];
         setTimerActive(false);
         setTimerRemainingSec(0);
         fireTimerFinishedAlerts();

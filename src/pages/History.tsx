@@ -41,7 +41,16 @@ export function History() {
   const ctx = useContext(AppContext);
   const contextPhases = ctx?.state.phases ?? [];
 
-  const [selectedProgramId, setSelectedProgramId] = useState<string>(programs[0]?.id || '');
+  const [selectedProgramId, setSelectedProgramId] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(HISTORY_STATE_KEY);
+      if (saved) {
+        const { programId } = JSON.parse(saved) as { programId: string; phaseIdx: number; pageStart: number };
+        if (programId && programs.find(p => p.id === programId)) return programId;
+      }
+    } catch { /* ignore */ }
+    return programs[0]?.id || '';
+  });
   const [showColorSettings, setShowColorSettings] = useState(false);
   const [showProgramEditor, setShowProgramEditor] = useState(false);
   const [programEdits, setProgramEdits] = useState<Array<{ id: string; name: string; defaultSets: number }>>([]);
@@ -135,8 +144,8 @@ export function History() {
 
   // Persist navigation position so it survives tab switches
   useEffect(() => {
-    localStorage.setItem(HISTORY_STATE_KEY, JSON.stringify({ phaseIdx: selectedPhaseIdx, pageStart }));
-  }, [selectedPhaseIdx, pageStart]);
+    localStorage.setItem(HISTORY_STATE_KEY, JSON.stringify({ programId: selectedProgramId, phaseIdx: selectedPhaseIdx, pageStart }));
+  }, [selectedProgramId, selectedPhaseIdx, pageStart]);
 
   // Get all exercise IDs for visible weeks
   const allExerciseIds = useMemo(() => {
