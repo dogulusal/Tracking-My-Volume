@@ -15,7 +15,8 @@ const INTENSITY_OPTIONS: { value: Intensity; label: string }[] = [
 ];
 const REST_TIMER_KEY = 'rest-timer-default-sec';
 const REST_TIMER_RECENTS_KEY = 'rest-timer-recent-sec';
-const MAX_RECENT_DURATIONS = 5;
+const TIMER_END_AT_KEY = 'rest-timer-end-at';
+const MAX_RECENT_DURATIONS = 3;
 
 export function WorkoutEntry() {
   const { programId, weekNumber: weekParam } = useParams();
@@ -63,6 +64,7 @@ export function WorkoutEntry() {
   });
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerTotalRef = useRef(restDurationSec);
+  const timerEndAtRef = useRef<number | null>(null);
 
   // Initialize exercise logs
   useEffect(() => {
@@ -247,28 +249,40 @@ export function WorkoutEntry() {
     }
   }, [playAlarmTone]);
 
+  // Uses endAt timestamp so interval drift / throttling is corrected on every tick
+  const restartIntervalFromEndAt = useCallback((endAt: number) => {
+    if (timerRef.current !== null) { clearInterval(timerRef.current); timerRef.current = null; }
+    timerEndAtRef.current = endAt;
+    timerRef.current = setInterval(() => {
+      const remaining = Math.ceil((timerEndAtRef.current! - Date.now()) / 1000);
+      if (remaining <= 0) {
+        if (timerRef.current !== null) { clearInterval(timerRef.current); timerRef.current = null; }
+        timerEndAtRef.current = null;
+        localStorage.removeItem(TIMER_END_AT_KEY);
+        setTimerActive(false);
+        setTimerRemainingSec(0);
+        fireTimerFinishedAlerts();
+      } else {
+        setTimerRemainingSec(remaining);
+      }
+    }, 500);
+  }, [fireTimerFinishedAlerts]);
+
   const startRestTimer = (seconds: number = restDurationSec) => {
     const safeSeconds = Math.max(5, Math.round(seconds));
-    if (timerRef.current !== null) clearInterval(timerRef.current);
+    const endAt = Date.now() + safeSeconds * 1000;
     timerTotalRef.current = safeSeconds;
+    localStorage.setItem(TIMER_END_AT_KEY, String(endAt));
     setTimerRemainingSec(safeSeconds);
     setTimerActive(true);
     addRecentDuration(safeSeconds);
-    timerRef.current = setInterval(() => {
-      setTimerRemainingSec(prev => {
-        if (prev <= 1) {
-          if (timerRef.current !== null) { clearInterval(timerRef.current); timerRef.current = null; }
-          setTimerActive(false);
-          fireTimerFinishedAlerts();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    restartIntervalFromEndAt(endAt);
   };
 
   const stopRestTimer = () => {
     if (timerRef.current !== null) { clearInterval(timerRef.current); timerRef.current = null; }
+    timerEndAtRef.current = null;
+    localStorage.removeItem(TIMER_END_AT_KEY);
     setTimerActive(false);
     setTimerRemainingSec(0);
   };
@@ -308,6 +322,33 @@ export function WorkoutEntry() {
     const permission = await Notification.requestPermission();
     setNotificationPermission(permission);
   };
+
+  // When tab becomes visible again, recalculate remaining from the saved endAt timestamp.
+  // This corrects any drift caused by OS/browser throttling while the screen was off.
+  useEffect(() => {
+    const handleVisible = () => {
+      if (document.hidden) return;
+      const saved = localStorage.getItem(TIMER_END_AT_KEY);
+      if (!saved) return;
+      const endAt = Number(saved);
+      if (!Number.isFinite(endAt)) return;
+      const remaining = Math.ceil((endAt - Date.now()) / 1000);
+      if (remaining <= 0) {
+        if (timerRef.current !== null) { clearInterval(timerRef.current); timerRef.current = null; }
+        timerEndAtRef.current = null;
+        localStorage.removeItem(TIMER_END_AT_KEY);
+        setTimerActive(false);
+        setTimerRemainingSec(0);
+        fireTimerFinishedAlerts();
+      } else {
+        setTimerRemainingSec(remaining);
+        setTimerActive(true);
+        restartIntervalFromEndAt(endAt);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisible);
+    return () => document.removeEventListener('visibilitychange', handleVisible);
+  }, [fireTimerFinishedAlerts, restartIntervalFromEndAt]);
 
   const getPreviousSetRef = useMemo(() => {
     if (!previousLog) return () => null;
@@ -360,103 +401,93 @@ export function WorkoutEntry() {
 
       {/* Rest timer control */}
       {!isHoliday && (
-        <div className="mb-6 rounded-xl border border-(--color-border) bg-(--color-bg-card) p-4 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-(--color-text-muted)">Dinlenme sayacı</p>
-              <h2 className="text-lg font-black text-(--color-text-primary)">Set arası süreyi buradan başlat</h2>
-              <p className="text-sm text-(--color-text-secondary)">Her set sonrasında aşağıdaki sürelerden birini seçip sayacı çalıştırabilirsin.</p>
-            </div>
-            <div className="flex items-center gap-2 self-start sm:self-auto">
-              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${timerActive ? 'bg-(--color-accent)/20 text-(--color-accent)' : 'bg-(--color-btn-bg) text-(--color-text-secondary)'}`}>
-                {timerActive ? `Aktif · ${formatTimer(timerRemainingSec)}` : `Varsayılan · ${formatTimer(restDurationSec)}`}
-              </span>
-              {timerActive && (
-                <button
-                  onClick={stopRestTimer}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-900 text-rose-100 hover:bg-rose-800"
-                >
-                  Durdur
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {[60, 90, 120, 180].map(sec => (
-              <button
-                key={sec}
-                onClick={() => {
-                  setRestDurationSec(sec);
-                  startRestTimer(sec);
-                }}
-                className={`px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
-                  restDurationSec === sec
-                    ? 'bg-(--color-accent) text-white'
-                    : 'bg-(--color-btn-bg) text-(--color-text-secondary) hover:bg-(--color-btn-hover)'
-                }`}
-              >
-                {sec >= 60 ? `${sec / 60} dk` : `${sec} sn`}
-              </button>
-            ))}
-            {recentDurations
-              .filter(sec => ![60, 90, 120, 180].includes(sec))
-              .map(sec => (
-                <button
-                  key={`recent-${sec}`}
-                  onClick={() => {
-                    setRestDurationSec(sec);
-                    startRestTimer(sec);
-                  }}
-                  className="px-3 py-2 rounded-lg text-sm font-bold bg-(--color-bg-input) text-(--color-text-secondary) border border-(--color-border) hover:border-(--color-accent)/50"
-                  title="Son kullanılan süre"
-                >
-                  {formatDurationLabel(sec)}
-                </button>
-              ))}
-            <button
-              onClick={() => startRestTimer()}
-              className="px-4 py-2 rounded-lg text-sm font-black bg-(--color-accent) text-white hover:bg-(--color-accent-hover)"
-            >
-              {timerActive ? 'Yeniden Başlat' : 'Başlat'}
-            </button>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <input
-              type="number"
-              min={1}
-              step={1}
-              inputMode="numeric"
-              value={customDurationInput}
-              onChange={e => setCustomDurationInput(e.target.value)}
-              placeholder="Özel süre"
-              className="w-28 px-3 py-2 bg-(--color-bg-input) border border-(--color-border) rounded-lg text-sm font-semibold focus:outline-none focus:border-(--color-accent)"
-            />
-            <select
-              value={customDurationUnit}
-              onChange={e => setCustomDurationUnit(e.target.value as 'sec' | 'min')}
-              className="px-3 py-2 bg-(--color-bg-input) border border-(--color-border) rounded-lg text-sm font-semibold focus:outline-none focus:border-(--color-accent)"
-            >
-              <option value="sec">sn</option>
-              <option value="min">dk</option>
-            </select>
-            <button
-              onClick={handleStartCustomTimer}
-              className="px-4 py-2 rounded-lg text-sm font-bold bg-(--color-btn-bg) text-(--color-text-primary) hover:bg-(--color-btn-hover)"
-            >
-              Özel süreyi başlat
-            </button>
-            {notificationPermission !== 'unsupported' && notificationPermission !== 'granted' && (
+        <div className="mb-6 rounded-2xl border border-(--color-border) bg-(--color-bg-card) overflow-hidden shadow-sm">
+
+          {/* Header row */}
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-(--color-border)">
+            <p className="text-sm font-extrabold tracking-wide">⏱ Set arası dinlenme</p>
+            {notificationPermission === 'default' && (
               <button
                 onClick={handleEnableNotifications}
-                className="px-3 py-2 rounded-lg text-xs font-bold bg-(--color-bg-input) border border-(--color-border) text-(--color-text-secondary) hover:border-(--color-accent)/50"
+                className="text-xs font-semibold text-(--color-accent) hover:underline"
               >
-                Bildirimi aç
+                Bildirim izni ver
               </button>
             )}
+            {notificationPermission === 'granted' && (
+              <span className="text-xs font-semibold text-emerald-500">● Bildirimler açık</span>
+            )}
+            {notificationPermission === 'denied' && (
+              <span className="text-xs text-(--color-text-muted)">Bildirim engellendi</span>
+            )}
           </div>
-          <p className="mt-2 text-xs text-(--color-text-muted)">
-            Süre bitince ses + titreşim çalışır. Bildirim izni açıksa uygulama arka plandayken de bildirim gönderilir.
-          </p>
+
+          <div className="p-5 space-y-4">
+
+            {/* Last 3 used durations — big tap targets */}
+            {recentDurations.length > 0 ? (
+              <div className={`grid gap-3 ${
+                recentDurations.length === 1 ? 'grid-cols-1'
+                  : recentDurations.length === 2 ? 'grid-cols-2'
+                  : 'grid-cols-3'
+              }`}>
+                {recentDurations.map(sec => (
+                  <button
+                    key={sec}
+                    onClick={() => { setRestDurationSec(sec); startRestTimer(sec); }}
+                    className={`py-5 rounded-2xl text-2xl font-black transition-all active:scale-95 ${
+                      restDurationSec === sec
+                        ? 'bg-(--color-accent) text-white shadow-lg shadow-(--color-accent-glow)'
+                        : 'bg-(--color-bg-input) text-(--color-text-primary) border border-(--color-border) hover:border-(--color-accent)/50'
+                    }`}
+                  >
+                    {formatDurationLabel(sec)}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-(--color-text-muted) text-center py-2">
+                Henüz kayıtlı süre yok — özel süre girerek başlayabilirsin.
+              </p>
+            )}
+
+            {/* Custom duration row */}
+            <div className="flex gap-2">
+              <div className="flex flex-1 items-center bg-(--color-bg-input) border border-(--color-border) rounded-xl overflow-hidden focus-within:border-(--color-accent) transition-colors">
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  value={customDurationInput}
+                  onChange={e => setCustomDurationInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') void handleStartCustomTimer(); }}
+                  placeholder="Süre gir…"
+                  className="flex-1 px-4 py-3 bg-transparent text-sm font-semibold focus:outline-none placeholder:text-(--color-text-muted)"
+                />
+                <button
+                  onClick={() => setCustomDurationUnit(u => u === 'sec' ? 'min' : 'sec')}
+                  className="px-3 py-3 text-sm font-bold text-(--color-text-secondary) hover:text-(--color-accent) border-l border-(--color-border) transition-colors min-w-[44px]"
+                >
+                  {customDurationUnit === 'sec' ? 'sn' : 'dk'}
+                </button>
+              </div>
+              <button
+                onClick={handleStartCustomTimer}
+                disabled={!customDurationInput || Number(customDurationInput) <= 0}
+                className="px-5 py-3 bg-(--color-accent) text-white font-bold rounded-xl hover:bg-(--color-accent-hover) disabled:opacity-40 transition-all active:scale-95 whitespace-nowrap"
+              >
+                Başlat
+              </button>
+            </div>
+
+            <p className="text-xs text-(--color-text-muted)">
+              {notificationPermission === 'granted'
+                ? 'Süre bitince ses + titreşim + bildirim. Uygulama arka plandayken de uyarır.'
+                : 'Süre bitince ses çalar ve telefon titreşir.'}
+            </p>
+
+          </div>
         </div>
       )}
 
