@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useContext } from 'react';
+import { useState, useMemo, useEffect, useLayoutEffect, useContext } from 'react';
 import { usePrograms } from '@/hooks/usePrograms';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
 import { useColorSettings } from '@/hooks/useColorSettings';
@@ -107,45 +107,45 @@ export function History() {
   // Show 1 week at a time on mobile for easier browsing
   const PAGE_SIZE = isMobile ? 1 : 4;
 
-  const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(() => {
-    try {
-      const saved = localStorage.getItem(HISTORY_STATE_KEY);
-      if (saved) {
-        const { phaseIdx } = JSON.parse(saved) as { phaseIdx: number; pageStart: number };
-        if (Number.isFinite(phaseIdx) && phaseIdx >= 0 && phaseIdx < phases.length) return phaseIdx;
-      }
-    } catch { /* ignore */ }
-    return phases.length - 1;
-  });
+  const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(0);
   const currentPhase = phases[selectedPhaseIdx] || phases[0];
 
   const getDisplayWeek = (weekNum: number): number => weekNum - currentPhase.baseWeek;
 
-  // Pagination: default to last page (or restore from localStorage)
-  const [pageStart, setPageStart] = useState(() => {
-    try {
-      const saved = localStorage.getItem(HISTORY_STATE_KEY);
-      if (saved) {
-        const state = JSON.parse(saved) as { phaseIdx: number; pageStart: number };
-        const targetPhase = (Number.isFinite(state.phaseIdx) && state.phaseIdx >= 0 && state.phaseIdx < phases.length)
-          ? phases[state.phaseIdx] : phases[phases.length - 1];
-        if (targetPhase && Number.isFinite(state.pageStart) && state.pageStart >= 0 && state.pageStart < targetPhase.weeks.length) {
-          return state.pageStart;
-        }
+  // Pagination default — corrected by the layout effect below
+  const [pageStart, setPageStart] = useState(0);
+
+  // Jump to last workout week whenever the selected program changes (or on mount).
+  // useLayoutEffect runs before paint, so there's no visible flash of wrong position.
+  useLayoutEffect(() => {
+    if (!phases.length) return;
+    // Smart default: last week that has actual workout data (not holiday)
+    const workoutLogs = programLogs.filter(l => !l.isHoliday && (l.exercises?.length ?? 0) > 0);
+    const lastDataWeek = workoutLogs.length > 0 ? workoutLogs[workoutLogs.length - 1].weekNumber : null;
+    if (lastDataWeek !== null) {
+      const pIdx = phases.findIndex(p => p.weeks.includes(lastDataWeek));
+      if (pIdx >= 0) {
+        const phase = phases[pIdx];
+        const weekIdx = phase.weeks.indexOf(lastDataWeek);
+        setSelectedPhaseIdx(pIdx);
+        setPageStart(Math.floor(weekIdx / PAGE_SIZE) * PAGE_SIZE);
+        return;
       }
-    } catch { /* ignore */ }
-    const initPhase = phases[phases.length - 1] || phases[0];
-    if (!initPhase || initPhase.weeks.length === 0) return 0;
-    return Math.floor((initPhase.weeks.length - 1) / PAGE_SIZE) * PAGE_SIZE;
-  });
+    }
+    // Fallback: last phase, last page
+    const lastPhase = phases[phases.length - 1];
+    setSelectedPhaseIdx(phases.length - 1);
+    setPageStart(Math.max(0, Math.floor((lastPhase.weeks.length - 1) / PAGE_SIZE) * PAGE_SIZE));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProgramId]); // Only re-run when program changes, not on every data update
   const visibleWeeks = useMemo(() => {
     return currentPhase.weeks.slice(pageStart, pageStart + PAGE_SIZE);
   }, [currentPhase, pageStart]);
 
-  // Persist navigation position so it survives tab switches
+  // Persist last selected program so it survives tab switches
   useEffect(() => {
-    localStorage.setItem(HISTORY_STATE_KEY, JSON.stringify({ programId: selectedProgramId, phaseIdx: selectedPhaseIdx, pageStart }));
-  }, [selectedProgramId, selectedPhaseIdx, pageStart]);
+    localStorage.setItem(HISTORY_STATE_KEY, JSON.stringify({ programId: selectedProgramId }));
+  }, [selectedProgramId]);
 
   // Get all exercise IDs for visible weeks
   const allExerciseIds = useMemo(() => {
