@@ -14,6 +14,8 @@ const INTENSITY_OPTIONS: { value: Intensity; label: string }[] = [
   { value: 'rir3', label: '3' },
 ];
 const REST_TIMER_KEY = 'rest-timer-default-sec';
+const REST_TIMER_RECENTS_KEY = 'rest-timer-recent-sec';
+const MAX_RECENT_DURATIONS = 5;
 
 export function WorkoutEntry() {
   const { programId, weekNumber: weekParam } = useParams();
@@ -41,6 +43,24 @@ export function WorkoutEntry() {
   });
   const [timerRemainingSec, setTimerRemainingSec] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
+  const [customDurationInput, setCustomDurationInput] = useState('');
+  const [customDurationUnit, setCustomDurationUnit] = useState<'sec' | 'min'>('sec');
+  const [recentDurations, setRecentDurations] = useState<number[]>(() => {
+    const saved = localStorage.getItem(REST_TIMER_RECENTS_KEY);
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved) as number[];
+      return Array.isArray(parsed)
+        ? parsed.filter(v => Number.isFinite(v) && v > 0).slice(0, MAX_RECENT_DURATIONS)
+        : [];
+    } catch {
+      return [];
+    }
+  });
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
+    return Notification.permission;
+  });
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerTotalRef = useRef(restDurationSec);
 
@@ -53,18 +73,31 @@ export function WorkoutEntry() {
     if (existingLog && existingLog.exercises.length > 0) {
       setExerciseLogs(existingLog.exercises);
     } else {
-      const initial: ExerciseLog[] = activeExercises.map(ex => ({
-        exerciseId: ex.id,
-        exerciseName: ex.name,
-        sets: Array.from({ length: ex.defaultSets }, () => ({
-          weight: ex.defaultWeight,
-          reps: ex.defaultReps,
-          intensity: 'failure' as Intensity,
-        })),
-      }));
+      const initial: ExerciseLog[] = activeExercises.map(ex => {
+        const previousExercise = previousLog?.exercises.find(prev => prev.exerciseId === ex.id);
+        const previousSets = previousExercise?.sets ?? [];
+
+        if (previousSets.length > 0) {
+          return {
+            exerciseId: ex.id,
+            exerciseName: ex.name,
+            sets: previousSets.map(set => ({ ...set })),
+          };
+        }
+
+        return {
+          exerciseId: ex.id,
+          exerciseName: ex.name,
+          sets: Array.from({ length: ex.defaultSets }, () => ({
+            weight: ex.defaultWeight,
+            reps: ex.defaultReps,
+            intensity: 'failure' as Intensity,
+          })),
+        };
+      });
       setExerciseLogs(initial);
     }
-  }, [program, existingLog]);
+  }, [program, existingLog, previousLog]);
 
   // Draft save to localStorage
   const draftKey = `draft-${programId}-${weekNumber}`;
@@ -92,6 +125,10 @@ export function WorkoutEntry() {
   useEffect(() => {
     localStorage.setItem(REST_TIMER_KEY, String(restDurationSec));
   }, [restDurationSec]);
+
+  useEffect(() => {
+    localStorage.setItem(REST_TIMER_RECENTS_KEY, JSON.stringify(recentDurations));
+  }, [recentDurations]);
 
   // Cleanup interval on unmount
   useEffect(() => {
@@ -158,16 +195,71 @@ export function WorkoutEntry() {
     navigate('/');
   };
 
+  const addRecentDuration = useCallback((seconds: number) => {
+    setRecentDurations(prev => {
+      const next = [seconds, ...prev.filter(v => v !== seconds)].slice(0, MAX_RECENT_DURATIONS);
+      return next;
+    });
+  }, []);
+
+  const playAlarmTone = useCallback(() => {
+    try {
+      const audioContext = new AudioContext();
+      const now = audioContext.currentTime;
+
+      [880, 660, 880].forEach((frequency, index) => {
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        oscillator.type = 'sine';
+        oscillator.frequency.value = frequency;
+
+        const startAt = now + index * 0.22;
+        gain.gain.setValueAtTime(0.0001, startAt);
+        gain.gain.exponentialRampToValueAtTime(0.12, startAt + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.18);
+
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+        oscillator.start(startAt);
+        oscillator.stop(startAt + 0.2);
+      });
+
+      setTimeout(() => {
+        void audioContext.close();
+      }, 900);
+    } catch {
+      // Browsers may block audio if there was no user interaction.
+    }
+  }, []);
+
+  const fireTimerFinishedAlerts = useCallback(() => {
+    playAlarmTone();
+    if ('vibrate' in navigator) {
+      navigator.vibrate([180, 100, 220]);
+    }
+
+    if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+      new Notification('Dinlenme bitti', {
+        body: 'Sonraki sete hazırsın.',
+        tag: 'rest-timer-finished',
+      });
+    }
+  }, [playAlarmTone]);
+
   const startRestTimer = (seconds: number = restDurationSec) => {
+    const safeSeconds = Math.max(5, Math.round(seconds));
     if (timerRef.current !== null) clearInterval(timerRef.current);
-    timerTotalRef.current = seconds;
-    setTimerRemainingSec(seconds);
+    timerTotalRef.current = safeSeconds;
+    setTimerRemainingSec(safeSeconds);
     setTimerActive(true);
+    addRecentDuration(safeSeconds);
     timerRef.current = setInterval(() => {
       setTimerRemainingSec(prev => {
         if (prev <= 1) {
           if (timerRef.current !== null) { clearInterval(timerRef.current); timerRef.current = null; }
           setTimerActive(false);
+          fireTimerFinishedAlerts();
           return 0;
         }
         return prev - 1;
@@ -185,6 +277,36 @@ export function WorkoutEntry() {
     const min = Math.floor(totalSec / 60);
     const sec = totalSec % 60;
     return `${min}:${String(sec).padStart(2, '0')}`;
+  };
+
+  const formatDurationLabel = (seconds: number) => {
+    if (seconds >= 60 && seconds % 60 === 0) return `${seconds / 60} dk`;
+    return `${seconds} sn`;
+  };
+
+  const handleStartCustomTimer = async () => {
+    const raw = Number(customDurationInput);
+    if (!Number.isFinite(raw) || raw <= 0) return;
+
+    const seconds = customDurationUnit === 'min'
+      ? Math.round(raw * 60)
+      : Math.round(raw);
+
+    const normalized = Math.min(Math.max(seconds, 5), 7200);
+    setRestDurationSec(normalized);
+    startRestTimer(normalized);
+    setCustomDurationInput('');
+
+    if (notificationPermission === 'default' && 'Notification' in window) {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+    }
+  };
+
+  const handleEnableNotifications = async () => {
+    if (!('Notification' in window)) return;
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
   };
 
   const getPreviousSetRef = useMemo(() => {
@@ -276,6 +398,21 @@ export function WorkoutEntry() {
                 {sec >= 60 ? `${sec / 60} dk` : `${sec} sn`}
               </button>
             ))}
+            {recentDurations
+              .filter(sec => ![60, 90, 120, 180].includes(sec))
+              .map(sec => (
+                <button
+                  key={`recent-${sec}`}
+                  onClick={() => {
+                    setRestDurationSec(sec);
+                    startRestTimer(sec);
+                  }}
+                  className="px-3 py-2 rounded-lg text-sm font-bold bg-(--color-bg-input) text-(--color-text-secondary) border border-(--color-border) hover:border-(--color-accent)/50"
+                  title="Son kullanılan süre"
+                >
+                  {formatDurationLabel(sec)}
+                </button>
+              ))}
             <button
               onClick={() => startRestTimer()}
               className="px-4 py-2 rounded-lg text-sm font-black bg-(--color-accent) text-white hover:bg-(--color-accent-hover)"
@@ -283,6 +420,43 @@ export function WorkoutEntry() {
               {timerActive ? 'Yeniden Başlat' : 'Başlat'}
             </button>
           </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              step={1}
+              inputMode="numeric"
+              value={customDurationInput}
+              onChange={e => setCustomDurationInput(e.target.value)}
+              placeholder="Özel süre"
+              className="w-28 px-3 py-2 bg-(--color-bg-input) border border-(--color-border) rounded-lg text-sm font-semibold focus:outline-none focus:border-(--color-accent)"
+            />
+            <select
+              value={customDurationUnit}
+              onChange={e => setCustomDurationUnit(e.target.value as 'sec' | 'min')}
+              className="px-3 py-2 bg-(--color-bg-input) border border-(--color-border) rounded-lg text-sm font-semibold focus:outline-none focus:border-(--color-accent)"
+            >
+              <option value="sec">sn</option>
+              <option value="min">dk</option>
+            </select>
+            <button
+              onClick={handleStartCustomTimer}
+              className="px-4 py-2 rounded-lg text-sm font-bold bg-(--color-btn-bg) text-(--color-text-primary) hover:bg-(--color-btn-hover)"
+            >
+              Özel süreyi başlat
+            </button>
+            {notificationPermission !== 'unsupported' && notificationPermission !== 'granted' && (
+              <button
+                onClick={handleEnableNotifications}
+                className="px-3 py-2 rounded-lg text-xs font-bold bg-(--color-bg-input) border border-(--color-border) text-(--color-text-secondary) hover:border-(--color-accent)/50"
+              >
+                Bildirimi aç
+              </button>
+            )}
+          </div>
+          <p className="mt-2 text-xs text-(--color-text-muted)">
+            Süre bitince ses + titreşim çalışır. Bildirim izni açıksa uygulama arka plandayken de bildirim gönderilir.
+          </p>
         </div>
       )}
 
