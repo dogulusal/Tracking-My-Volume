@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePrograms } from '@/hooks/usePrograms';
 import { PageContainer } from '@/components/layout/PageContainer';
+import { moveItem } from '@/utils/reorder';
 import type { ExerciseDefinition } from '@/types';
 
 function generateId(name: string): string {
@@ -43,6 +44,11 @@ export function ProgramEditor() {
     const updated = [...exercises];
     updated[index] = { ...updated[index], [field]: value };
     setExercises(updated);
+  };
+
+  // Array position IS the exercise order — there is no separate `order` field.
+  const moveExercise = (index: number, delta: number) => {
+    setExercises(prev => moveItem(prev, index, delta));
   };
 
   const removeExercise = (index: number) => {
@@ -126,6 +132,26 @@ export function ProgramEditor() {
                     : 'bg-(--color-bg-input) border-(--color-border) opacity-50'
                 }`}
               >
+                <div className="flex flex-col gap-0.5">
+                  <button
+                    onClick={() => moveExercise(idx, -1)}
+                    disabled={idx === 0}
+                    aria-label={`${exercise.name || 'Egzersiz'} yukarı taşı`}
+                    title="Yukarı taşı"
+                    className="px-1.5 leading-none text-xs rounded bg-(--color-bg-input) border border-(--color-border) text-(--color-text-secondary) hover:text-(--color-text-primary) disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    onClick={() => moveExercise(idx, 1)}
+                    disabled={idx === exercises.length - 1}
+                    aria-label={`${exercise.name || 'Egzersiz'} aşağı taşı`}
+                    title="Aşağı taşı"
+                    className="px-1.5 leading-none text-xs rounded bg-(--color-bg-input) border border-(--color-border) text-(--color-text-secondary) hover:text-(--color-text-primary) disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    ▼
+                  </button>
+                </div>
                 <input
                   type="text"
                   value={exercise.name}

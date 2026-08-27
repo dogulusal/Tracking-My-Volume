@@ -5,6 +5,7 @@ import { useWeekLogs } from '@/hooks/useWeekLogs';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { formatSet } from '@/utils/formatters';
+import { moveItem } from '@/utils/reorder';
 import type { SetLog, Intensity, ExerciseLog } from '@/types';
 
 const INTENSITY_OPTIONS: { value: Intensity; label: string }[] = [
@@ -48,7 +49,7 @@ function formatTimer(totalSec: number): string {
 export function WorkoutEntry() {
   const { programId, weekNumber: weekParam } = useParams();
   const navigate = useNavigate();
-  const { getProgramById } = usePrograms();
+  const { getProgramById, updateProgram } = usePrograms();
   const { getLogForWeek, getPreviousLog, saveWorkout, setHoliday } = useWeekLogs();
   const isMobile = useIsMobileDevice();
 
@@ -91,6 +92,7 @@ export function WorkoutEntry() {
   });
   const [timerJustFinished, setTimerJustFinished] = useState(false);
   const [setInputDrafts, setSetInputDrafts] = useState<Record<string, string>>({});
+  const [orderDiffersFromProgram, setOrderDiffersFromProgram] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerTotalRef = useRef(restDurationSec);
   const timerEndAtRef = useRef<number | null>(null);
@@ -328,6 +330,32 @@ export function WorkoutEntry() {
     });
     setIsDirty(true);
   }, []);
+
+  // Reorders THIS week only — the program keeps its own order until the user
+  // explicitly pushes this one onto it with the button below the list.
+  const moveExercise = useCallback((exerciseIdx: number, delta: number) => {
+    setExerciseLogs(prev => {
+      const next = moveItem(prev, exerciseIdx, delta);
+      if (next === prev) return prev;
+      setOrderDiffersFromProgram(true);
+      return next;
+    });
+    setIsDirty(true);
+  }, []);
+
+  const applyOrderToProgram = useCallback(() => {
+    if (!program) return;
+    const position = new Map(exerciseLogs.map((e, i) => [e.exerciseId, i]));
+    // Exercises not in this week's log (inactive, or added later) keep their
+    // relative order and sit after the ones the user just arranged.
+    const reordered = [...program.exercises].sort((a, b) => {
+      const ai = position.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+      const bi = position.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+      return ai - bi;
+    });
+    updateProgram({ ...program, exercises: reordered });
+    setOrderDiffersFromProgram(false);
+  }, [program, exerciseLogs, updateProgram]);
 
   const removeSet = useCallback((exerciseIdx: number, setIdx: number) => {
     setExerciseLogs(prev => {
@@ -741,7 +769,31 @@ export function WorkoutEntry() {
               key={exercise.exerciseId}
               className="bg-(--color-bg-card) rounded-xl p-5 border border-(--color-border) shadow-sm"
             >
-              <h3 className="font-extrabold text-lg mb-4">{exercise.exerciseName}</h3>
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="font-extrabold text-lg flex-1">{exercise.exerciseName}</h3>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => moveExercise(exIdx, -1)}
+                    disabled={exIdx === 0}
+                    aria-label={`${exercise.exerciseName} yukarı taşı`}
+                    title="Yukarı taşı"
+                    className="px-2 py-1 leading-none text-sm rounded-lg bg-(--color-bg-input) border border-(--color-border) text-(--color-text-secondary) hover:text-(--color-text-primary) disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveExercise(exIdx, 1)}
+                    disabled={exIdx === exerciseLogs.length - 1}
+                    aria-label={`${exercise.exerciseName} aşağı taşı`}
+                    title="Aşağı taşı"
+                    className="px-2 py-1 leading-none text-sm rounded-lg bg-(--color-bg-input) border border-(--color-border) text-(--color-text-secondary) hover:text-(--color-text-primary) disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    ▼
+                  </button>
+                </div>
+              </div>
 
               {/* Sets */}
               <div className="space-y-2.5 md:space-y-2.5">
@@ -919,6 +971,21 @@ export function WorkoutEntry() {
               </button>
             </div>
           ))}
+
+          {orderDiffersFromProgram && (
+            <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl bg-(--color-bg-input) border border-(--color-border)">
+              <span className="text-xs text-(--color-text-secondary) flex-1 min-w-[200px]">
+                Sırayı bu hafta için değiştirdin. Programın kalıcı sırası aynı kaldı.
+              </span>
+              <button
+                type="button"
+                onClick={applyOrderToProgram}
+                className="px-4 py-2 rounded-lg text-xs font-bold bg-(--color-accent) text-white hover:bg-(--color-accent-hover) transition-colors"
+              >
+                Programa da uygula
+              </button>
+            </div>
+          )}
         </div>
       )}
 
