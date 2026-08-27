@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    .bar { fill: #6366f1; }
+    .plate { fill: #a5b4fc; }
+    @media (prefers-color-scheme: dark) {
+      .bar { fill: #818cf8; }
+      .plate { fill: #c7d2fe; }
+    }
+  </style>
+  <rect class="bar" x="9" y="14" width="14" height="4" rx="2"/>
+  <rect class="plate" x="3" y="10" width="4" height="12" rx="2"/>
+  <rect class="plate" x="25" y="10" width="4" height="12" rx="2"/>
+  <rect class="bar" x="7" y="12" width="3" height="8" rx="1.5"/>
+  <rect class="bar" x="22" y="12" width="3" height="8" rx="1.5"/>
+</svg>
