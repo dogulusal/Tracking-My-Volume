@@ -149,3 +149,87 @@ input[type="number"]::-webkit-outer-spin-button {
 .animate-slide-up {
   animation: slideUp 0.3s ease;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Logbook — the design language, piloted on Dashboard.
+
+   Premise: this app exists to answer "did I beat last week?".
+   So colour is spent ONLY on that answer. Chrome (buttons, headings,
+   borders) is neutral; the accent hue appears where data has meaning.
+   Structure comes from hairline rules and space, not from giving every
+   group its own bordered box.
+   ───────────────────────────────────────────────────────────── */
+
+.logbook {
+  /* Neutral chrome. The old text colour was a mint white (#ecfdf5), which
+     tinted every word green and left the accent nothing of its own to say. */
+  --color-text-primary: #e7ece9;
+  --lb-rule: color-mix(in srgb, var(--color-text-secondary) 24%, transparent);
+  --lb-rule-strong: color-mix(in srgb, var(--color-text-secondary) 45%, transparent);
+  --lb-gain: #34d399;
+  --lb-drop: #fb7185;
+  --lb-press: color-mix(in srgb, var(--color-text-primary) 7%, transparent);
+  color: var(--color-text-primary);
+}
+
+:root:not(.dark) .logbook {
+  --color-text-primary: #14181a;
+  --lb-gain: #047857;
+  --lb-drop: #be123c;
+}
+
+/* Figures are the subject matter — tabular so columns of numbers align
+   and digits don't jitter as values change. */
+.lb-figure {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+}
+
+.lb-rule { border-color: var(--lb-rule); }
+.lb-rule-strong { border-color: var(--lb-rule-strong); }
+
+/* Quiet label: sentence case, normal weight. The old design shouted every
+   label in uppercase+black, which left nothing able to stand out. */
+.lb-label {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+/* Touch feedback. hover:scale is meaningless on the phone this is used on;
+   a press needs to move under the thumb instead. */
+.lb-press {
+  transition: background-color 0.12s ease, transform 0.12s ease, border-color 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.lb-press:active {
+  transform: translateY(1px);
+  background-color: var(--lb-press);
+}
+
+@media (hover: hover) {
+  .lb-press:hover { border-color: var(--lb-rule-strong); }
+}
+
+.lb-press:focus-visible {
+  outline: 2px solid var(--color-text-primary);
+  outline-offset: 2px;
+}
+
+/* The one orchestrated moment: rows settle in on load, in reading order. */
+@keyframes lbSettle {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.lb-settle {
+  animation: lbSettle 0.32s cubic-bezier(0.2, 0.7, 0.3, 1) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-settle { animation: none; }
+  .lb-press { transition: none; }
+  .lb-press:active { transform: none; }
+}
