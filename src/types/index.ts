@@ -78,6 +78,10 @@ export interface AppState {
   currentWeek: number;
   phases: PhaseDefinition[];
   dataVersion?: number;
+  // Manual row order for the History grid, per program id. Absent/empty means
+  // "no manual order yet" — History keeps deriving order from the week logs,
+  // so existing users see no change until they move a row themselves.
+  exerciseRowOrder?: Record<string, string[]>;
 }
 
 // ─── Reducer Actions ──────────────────────────────────
@@ -97,6 +101,7 @@ export type AppAction =
   | { type: 'INCREMENT_WEEK' }
   | { type: 'SET_WEEK'; payload: number }
   | { type: 'SET_PHASES'; payload: PhaseDefinition[] }
+  | { type: 'SET_EXERCISE_ROW_ORDER'; payload: { programId: string; exerciseIds: string[] } }
   | { type: 'IMPORT_DATA'; payload: AppState }
   | { type: 'RESET_DATA' };
 

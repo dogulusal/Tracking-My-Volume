@@ -7,6 +7,7 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { WorkoutDetailModal } from '@/components/shared/WorkoutDetailModal';
 import { calculateExerciseStatus } from '@/utils/statusCalculator';
 import { formatSets } from '@/utils/formatters';
+import { moveItem, applySavedOrder } from '@/utils/reorder';
 import { AppContext } from '@/context/AppContext';
 import type { ExerciseLog, ExerciseStatus } from '@/types';
 
@@ -48,6 +49,7 @@ export function History() {
   const isMobile = useIsMobileDevice();
   const ctx = useContext(AppContext);
   const contextPhases = ctx?.state.phases ?? [];
+  const exerciseRowOrder = ctx?.state.exerciseRowOrder;
 
   const [selectedProgramId, setSelectedProgramId] = useState<string>(() => {
     try {
@@ -155,6 +157,8 @@ export function History() {
     localStorage.setItem(HISTORY_STATE_KEY, JSON.stringify({ programId: selectedProgramId }));
   }, [selectedProgramId]);
 
+  const savedRowOrder = exerciseRowOrder?.[selectedProgramId];
+
   // Get all exercise IDs for visible weeks
   const allExerciseIds = useMemo(() => {
     const ids = new Set<string>();
@@ -168,8 +172,11 @@ export function History() {
     if (ids.size === 0) {
       selectedProgram?.exercises.filter(e => e.isActive).forEach(e => ids.add(e.id));
     }
-    return Array.from(ids);
-  }, [programLogs, visibleWeeks, selectedProgram]);
+    // A manual row order, once the user has set one, wins over the order the
+    // ids happened to appear in. No saved order → untouched, so nothing moves
+    // for anyone who has never reordered.
+    return applySavedOrder(Array.from(ids), savedRowOrder);
+  }, [programLogs, visibleWeeks, selectedProgram, savedRowOrder]);
 
   const getExerciseName = (exerciseId: string): string => {
     const def = selectedProgram?.exercises.find(e => e.id === exerciseId);
@@ -305,6 +312,13 @@ export function History() {
       ...selectedProgram,
       exercises: updatedExercises,
       updatedAt: new Date().toISOString(),
+    });
+
+    // Persist the row order the user arranged with the ▲/▼ buttons. This is
+    // stored per program and is what allExerciseIds applies on the next render.
+    ctx?.dispatch({
+      type: 'SET_EXERCISE_ROW_ORDER',
+      payload: { programId: selectedProgram.id, exerciseIds: programEdits.map(p => p.id) },
     });
 
     const targetWeek = editorWeek ?? visibleWeeks[visibleWeeks.length - 1];
@@ -503,11 +517,31 @@ export function History() {
                     </button>
                   </div>
 
-                  <p className="text-xs text-(--color-text-secondary) mb-2">Liste, aktif program + görünür haftadaki satırlarla eşleşir.</p>
+                  <p className="text-xs text-(--color-text-secondary) mb-2">Liste, aktif program + görünür haftadaki satırlarla eşleşir. Ok tuşlarıyla satır sırasını değiştir, sonra Kaydet.</p>
 
                   <div className="grid gap-2 max-h-64 overflow-auto pr-1">
-                    {programEdits.map((row) => (
-                      <div key={row.id} className="grid grid-cols-[1fr_80px] gap-2">
+                    {programEdits.map((row, rowIdx) => (
+                      <div key={row.id} className="grid grid-cols-[auto_1fr_80px] gap-2">
+                        <div className="flex flex-col justify-center gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setProgramEdits(prev => moveItem(prev, rowIdx, -1))}
+                            disabled={rowIdx === 0}
+                            aria-label={`${row.name} satırını yukarı taşı`}
+                            className="px-1.5 leading-none text-xs rounded bg-(--color-bg-primary) border border-(--color-border) text-(--color-text-secondary) hover:text-(--color-text-primary) disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setProgramEdits(prev => moveItem(prev, rowIdx, 1))}
+                            disabled={rowIdx === programEdits.length - 1}
+                            aria-label={`${row.name} satırını aşağı taşı`}
+                            className="px-1.5 leading-none text-xs rounded bg-(--color-bg-primary) border border-(--color-border) text-(--color-text-secondary) hover:text-(--color-text-primary) disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            ▼
+                          </button>
+                        </div>
                         <input
                           value={row.name}
                           onChange={(e) => {

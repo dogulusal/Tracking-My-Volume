@@ -110,6 +110,15 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_PHASES':
       return { ...state, phases: action.payload };
 
+    case 'SET_EXERCISE_ROW_ORDER':
+      return {
+        ...state,
+        exerciseRowOrder: {
+          ...state.exerciseRowOrder,
+          [action.payload.programId]: action.payload.exerciseIds,
+        },
+      };
+
     case 'IMPORT_DATA':
       return { ...action.payload };
 
