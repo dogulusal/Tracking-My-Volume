@@ -45,7 +45,10 @@ const HISTORY_STATE_KEY = 'history-page-state-v1';
 export function History() {
   const { programs, updateProgram } = usePrograms();
   const { weekLogs, currentWeek, saveWorkout, incrementWeek } = useWeekLogs();
-  const { getCellColor, setCellColor, removeCellColor, getCellOverride, resetAllOverrides } = useColorSettings();
+  const {
+    getCellColor, setCellColor, removeCellColor, getCellOverride, resetAllOverrides,
+    isDark, getStatusBgColor, setStatusBgColor, resetStatusColors, hasCustomStatusColors,
+  } = useColorSettings();
   const isMobile = useIsMobileDevice();
   const ctx = useContext(AppContext);
   const contextPhases = ctx?.state.phases ?? [];
@@ -406,12 +409,37 @@ export function History() {
           <p className="text-xs text-(--color-text-secondary) mb-3">
             Hücrelere tıklayarak renkleri tek tek değiştirebilirsin. Otomatik renkler: ağırlık/tekrar artarsa veya aynı kilo/tekrarda RIR iyileşirse <span className="text-emerald-400 font-bold">yeşil</span>, düşerse <span className="text-rose-400 font-bold">kırmızı</span>, aynıysa <span className="text-(--color-text-muted) font-bold">gri</span>.
           </p>
-          <div className="flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1 text-xs"><span className="w-3 h-3 rounded bg-emerald-800 inline-block"></span> İlerleme</span>
-            <span className="inline-flex items-center gap-1 text-xs"><span className="w-3 h-3 rounded bg-rose-900 inline-block"></span> Düşüş</span>
-            <span className="inline-flex items-center gap-1 text-xs"><span className="w-3 h-3 rounded bg-gray-700 inline-block"></span> Aynı</span>
-            <span className="inline-flex items-center gap-1 text-xs"><span className="w-3 h-3 rounded bg-blue-900 inline-block"></span> Yeni</span>
-            <span className="inline-flex items-center gap-1 text-xs"><span className="w-3 h-3 rounded bg-yellow-800 inline-block"></span> Tatil</span>
+          <div className="p-3 rounded-xl bg-(--color-bg-input) border border-(--color-border)">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs font-black uppercase tracking-wider">
+                Durum Renkleri ({isDark ? 'koyu tema' : 'açık tema'})
+              </h4>
+              {hasCustomStatusColors && (
+                <button
+                  onClick={resetStatusColors}
+                  className="text-xs font-bold text-(--color-accent) hover:underline"
+                >
+                  Varsayılana Dön
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-(--color-text-secondary) mb-2.5">
+              Kareye tıklayıp rengi değiştir. Koyu ve açık tema renkleri ayrı tutulur.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {STATUS_OPTIONS.map(opt => (
+                <label key={opt.value} className="inline-flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input
+                    type="color"
+                    value={getStatusBgColor(opt.value)}
+                    onChange={e => setStatusBgColor(opt.value, e.target.value)}
+                    aria-label={`${opt.label} rengi`}
+                    className="w-6 h-6 rounded cursor-pointer bg-transparent border border-(--color-border) p-0"
+                  />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
           </div>
 
           <div className="mt-4 p-3 rounded-xl bg-(--color-bg-input) border border-(--color-border)">

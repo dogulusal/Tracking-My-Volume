@@ -82,6 +82,9 @@ export interface AppState {
   // "no manual order yet" — History keeps deriving order from the week logs,
   // so existing users see no change until they move a row themselves.
   exerciseRowOrder?: Record<string, string[]>;
+  // User overrides for the History grid's status colours. Only the statuses
+  // actually customised are stored; the rest fall back to the defaults.
+  statusColors?: Partial<Record<ExerciseStatus, { dark: string; light: string }>>;
 }
 
 // ─── Reducer Actions ──────────────────────────────────
@@ -102,6 +105,7 @@ export type AppAction =
   | { type: 'SET_WEEK'; payload: number }
   | { type: 'SET_PHASES'; payload: PhaseDefinition[] }
   | { type: 'SET_EXERCISE_ROW_ORDER'; payload: { programId: string; exerciseIds: string[] } }
+  | { type: 'SET_STATUS_COLORS'; payload: AppState['statusColors'] }
   | { type: 'IMPORT_DATA'; payload: AppState }
   | { type: 'RESET_DATA' };
 

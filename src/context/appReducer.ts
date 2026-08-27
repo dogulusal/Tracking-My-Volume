@@ -110,6 +110,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_PHASES':
       return { ...state, phases: action.payload };
 
+    case 'SET_STATUS_COLORS':
+      return { ...state, statusColors: action.payload };
+
     case 'SET_EXERCISE_ROW_ORDER':
       return {
         ...state,
