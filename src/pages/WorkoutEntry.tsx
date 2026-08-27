@@ -103,18 +103,65 @@ export function WorkoutEntry() {
   // Pre-scheduled oscillators — cancelled if user stops timer early
   const scheduledOscillatorsRef = useRef<OscillatorNode[]>([]);
 
-  // Initialize exercise logs
+  const draftKey = `draft-${programId}-${weekNumber}`;
+
+  // Populate the form exactly ONCE per program+week. `program`/`existingLog`/
+  // `previousLog` are plain finds over context state, so a cloud sync (which
+  // replaces every object in state) changes their identity and used to re-run
+  // this effect — overwriting whatever the user was typing. Backgrounding the
+  // app on mobile triggers exactly that via the visibilitychange pull.
+  const initializedKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!program) return;
+    if (initializedKeyRef.current === draftKey) return;
+    initializedKeyRef.current = draftKey;
 
-    const activeExercises = program.exercises.filter(e => e.isActive);
+    // 1) Unsaved draft wins — unless the stored log was saved more recently
+    //    (e.g. another device pushed a newer version of this week).
+    const rawDraft = localStorage.getItem(draftKey);
+    if (rawDraft) {
+      try {
+        const draft = JSON.parse(rawDraft) as {
+          exerciseLogs?: ExerciseLog[];
+          notes?: string;
+          date?: string;
+          isHoliday?: boolean;
+          savedAt?: string;
+        };
+        const draftIsStale =
+          existingLog?.updatedAt != null &&
+          draft.savedAt != null &&
+          existingLog.updatedAt > draft.savedAt;
 
+        if (Array.isArray(draft.exerciseLogs) && draft.exerciseLogs.length > 0 && !draftIsStale) {
+          setExerciseLogs(draft.exerciseLogs);
+          if (typeof draft.notes === 'string') setNotes(draft.notes);
+          if (typeof draft.date === 'string') setDate(draft.date);
+          if (typeof draft.isHoliday === 'boolean') setIsHoliday(draft.isHoliday);
+          setIsDirty(true); // keep persisting it until the user saves
+          return;
+        }
+        if (draftIsStale) localStorage.removeItem(draftKey);
+      } catch {
+        localStorage.removeItem(draftKey); // corrupted draft
+      }
+    }
+
+    // 2) Previously saved week
     if (existingLog && existingLog.exercises.length > 0) {
       setExerciseLogs(existingLog.exercises);
-    } else {
-      const initial: ExerciseLog[] = activeExercises.map(ex => {
-        const previousExercise = previousLog?.exercises.find(prev => prev.exerciseId === ex.id);
-        const previousSets = previousExercise?.sets ?? [];
+      setNotes(existingLog.notes || '');
+      setDate(existingLog.date);
+      setIsHoliday(existingLog.isHoliday || false);
+      return;
+    }
+
+    // 3) Fresh week — prefill from last week's numbers
+    const initial: ExerciseLog[] = program.exercises
+      .filter(e => e.isActive)
+      .map(ex => {
+        const previousSets = previousLog?.exercises.find(prev => prev.exerciseId === ex.id)?.sets ?? [];
 
         if (previousSets.length > 0) {
           return {
@@ -134,32 +181,17 @@ export function WorkoutEntry() {
           })),
         };
       });
-      setExerciseLogs(initial);
-    }
-  }, [program, existingLog, previousLog]);
+    setExerciseLogs(initial);
+  }, [program, existingLog, previousLog, draftKey]);
 
-  // Draft save to localStorage
-  const draftKey = `draft-${programId}-${weekNumber}`;
-
+  // Draft save to localStorage — survives iOS evicting the page on app switch
   useEffect(() => {
-    if (isDirty) {
-      localStorage.setItem(draftKey, JSON.stringify({ exerciseLogs, notes, date, isHoliday }));
-    }
+    if (!isDirty) return;
+    localStorage.setItem(
+      draftKey,
+      JSON.stringify({ exerciseLogs, notes, date, isHoliday, savedAt: new Date().toISOString() })
+    );
   }, [exerciseLogs, notes, date, isHoliday, isDirty, draftKey]);
-
-  // Load draft on mount
-  useEffect(() => {
-    const draft = localStorage.getItem(draftKey);
-    if (draft && !existingLog) {
-      try {
-        const parsed = JSON.parse(draft);
-        if (parsed.exerciseLogs) setExerciseLogs(parsed.exerciseLogs);
-        if (parsed.notes) setNotes(parsed.notes);
-        if (parsed.date) setDate(parsed.date);
-        if (parsed.isHoliday !== undefined) setIsHoliday(parsed.isHoliday);
-      } catch { /* ignore */ }
-    }
-  }, [draftKey, existingLog]);
 
   useEffect(() => {
     localStorage.setItem(REST_TIMER_KEY, String(restDurationSec));
