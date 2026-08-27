@@ -167,7 +167,13 @@ export function WorkoutEntry() {
           return {
             exerciseId: ex.id,
             exerciseName: ex.name,
-            sets: previousSets.map(set => ({ ...set })),
+            // Weight/reps are a useful starting point; intensity is not — it
+            // describes the set you actually performed, so it resets to F.
+            sets: previousSets.map(set => ({
+              weight: set.weight,
+              reps: set.reps,
+              intensity: 'failure' as Intensity,
+            })),
           };
         }
 
@@ -311,7 +317,12 @@ export function WorkoutEntry() {
       const updated = [...prev];
       const exercise = { ...updated[exerciseIdx] };
       const lastSet = exercise.sets[exercise.sets.length - 1];
-      exercise.sets = [...exercise.sets, { ...lastSet }];
+      // Same rule as the week prefill: carry the numbers, not the intensity.
+      exercise.sets = [...exercise.sets, {
+        weight: lastSet.weight,
+        reps: lastSet.reps,
+        intensity: 'failure' as Intensity,
+      }];
       updated[exerciseIdx] = exercise;
       return updated;
     });
