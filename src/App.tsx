@@ -54,7 +54,9 @@ function AppContent() {
 export default function App() {
   return (
     <AppProvider>
-      <BrowserRouter>
+      {/* basename must match vite's `base` — on GitHub Pages the app is served
+          from /Tracking-My-Volume/, so without it no route ever matches. */}
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <AppContent />
       </BrowserRouter>
     </AppProvider>
