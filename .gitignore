@@ -5,3 +5,5 @@ dist
 .env
 .agent
 .superpowers
+.serena
+.tmp-verify
