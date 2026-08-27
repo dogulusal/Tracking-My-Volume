@@ -90,6 +90,7 @@ export function WorkoutEntry() {
     return Notification.permission;
   });
   const [timerJustFinished, setTimerJustFinished] = useState(false);
+  const [setInputDrafts, setSetInputDrafts] = useState<Record<string, string>>({});
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerTotalRef = useRef(restDurationSec);
   const timerEndAtRef = useRef<number | null>(null);
@@ -191,6 +192,87 @@ export function WorkoutEntry() {
     });
     setIsDirty(true);
   }, []);
+
+  const getSetInputKey = useCallback((exerciseIdx: number, setIdx: number, field: 'weight' | 'reps') => {
+    return `${exerciseIdx}-${setIdx}-${field}`;
+  }, []);
+
+  const sanitizeSetInput = useCallback((rawValue: string, field: 'weight' | 'reps') => {
+    if (field === 'reps') {
+      const digitsOnly = rawValue.replace(/\D/g, '');
+      return digitsOnly.replace(/^0+(?=\d)/, '');
+    }
+
+    const normalized = rawValue
+      .replace(/[\u066B,،﹐，]/g, '.')
+      .replace(/[^0-9.]/g, '');
+    const [integerPart, ...decimalParts] = normalized.split('.');
+    const normalizedInteger = integerPart.replace(/^0+(?=\d)/, '');
+    if (decimalParts.length === 0) return normalizedInteger;
+
+    const joinedDecimals = decimalParts.join('');
+    if (normalizedInteger === '' && joinedDecimals === '') return '.';
+    return `${normalizedInteger || '0'}.${joinedDecimals}`;
+  }, []);
+
+  const parseSetInput = useCallback((value: string, field: 'weight' | 'reps'): number | null => {
+    if (value.trim() === '') return null;
+
+    if (field === 'reps') {
+      const parsed = Number.parseInt(value, 10);
+      if (!Number.isFinite(parsed)) return null;
+      return Math.max(0, parsed);
+    }
+
+    if (value === '.') return null;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return null;
+    return Math.max(0, parsed);
+  }, []);
+
+  const handleSetFieldChange = useCallback((exerciseIdx: number, setIdx: number, field: 'weight' | 'reps', rawValue: string) => {
+    const key = getSetInputKey(exerciseIdx, setIdx, field);
+    const sanitized = sanitizeSetInput(rawValue, field);
+
+    setSetInputDrafts(prev => ({ ...prev, [key]: sanitized }));
+
+    const parsed = parseSetInput(sanitized, field);
+    if (parsed === null) return;
+    updateSet(exerciseIdx, setIdx, field, parsed);
+  }, [getSetInputKey, parseSetInput, sanitizeSetInput, updateSet]);
+
+  const handleSetFieldBlur = useCallback((exerciseIdx: number, setIdx: number, field: 'weight' | 'reps', currentValue: number) => {
+    const key = getSetInputKey(exerciseIdx, setIdx, field);
+    const draft = setInputDrafts[key];
+    if (draft === undefined) return;
+
+    const parsed = parseSetInput(draft, field);
+    if (parsed === null) {
+      updateSet(exerciseIdx, setIdx, field, 0);
+    } else if (parsed !== currentValue) {
+      updateSet(exerciseIdx, setIdx, field, parsed);
+    }
+
+    setSetInputDrafts(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, [getSetInputKey, parseSetInput, setInputDrafts, updateSet]);
+
+  const handleSetFieldFocus = useCallback((exerciseIdx: number, setIdx: number, field: 'weight' | 'reps', currentValue: number) => {
+    if (currentValue !== 0) return;
+    const key = getSetInputKey(exerciseIdx, setIdx, field);
+    setSetInputDrafts(prev => {
+      if (prev[key] !== undefined) return prev;
+      return { ...prev, [key]: '' };
+    });
+  }, [getSetInputKey]);
+
+  const getSetFieldDisplayValue = useCallback((exerciseIdx: number, setIdx: number, field: 'weight' | 'reps', currentValue: number) => {
+    const key = getSetInputKey(exerciseIdx, setIdx, field);
+    return setInputDrafts[key] ?? String(currentValue);
+  }, [getSetInputKey, setInputDrafts]);
 
   const addSet = useCallback((exerciseIdx: number) => {
     setExerciseLogs(prev => {
@@ -638,10 +720,12 @@ export function WorkoutEntry() {
                           <label className="text-[10px] font-bold text-(--color-text-muted) uppercase tracking-wider mb-1 block">Ağırlık</label>
                           <div className="relative">
                             <input
-                              type="number"
+                              type="text"
                               inputMode="decimal"
-                              value={set.weight}
-                              onChange={e => updateSet(exIdx, setIdx, 'weight', Number(e.target.value))}
+                              value={getSetFieldDisplayValue(exIdx, setIdx, 'weight', set.weight)}
+                              onChange={e => handleSetFieldChange(exIdx, setIdx, 'weight', e.target.value)}
+                              onFocus={() => handleSetFieldFocus(exIdx, setIdx, 'weight', set.weight)}
+                              onBlur={() => handleSetFieldBlur(exIdx, setIdx, 'weight', set.weight)}
                               step={0.5}
                               min={0}
                               className="w-full px-3 py-3 bg-(--color-bg-card) border border-(--color-border) rounded-xl text-lg font-set font-bold focus:outline-none focus:border-(--color-accent) focus:ring-1 focus:ring-(--color-accent)"
@@ -653,10 +737,12 @@ export function WorkoutEntry() {
                           <label className="text-[10px] font-bold text-(--color-text-muted) uppercase tracking-wider mb-1 block">Tekrar</label>
                           <div className="relative">
                             <input
-                              type="number"
+                              type="text"
                               inputMode="numeric"
-                              value={set.reps}
-                              onChange={e => updateSet(exIdx, setIdx, 'reps', Number(e.target.value))}
+                              value={getSetFieldDisplayValue(exIdx, setIdx, 'reps', set.reps)}
+                              onChange={e => handleSetFieldChange(exIdx, setIdx, 'reps', e.target.value)}
+                              onFocus={() => handleSetFieldFocus(exIdx, setIdx, 'reps', set.reps)}
+                              onBlur={() => handleSetFieldBlur(exIdx, setIdx, 'reps', set.reps)}
                               min={0}
                               className="w-full px-3 py-3 bg-(--color-bg-card) border border-(--color-border) rounded-xl text-lg font-set font-bold focus:outline-none focus:border-(--color-accent) focus:ring-1 focus:ring-(--color-accent)"
                             />
@@ -706,9 +792,12 @@ export function WorkoutEntry() {
                       {/* Weight */}
                       <div className="flex items-center gap-1">
                         <input
-                          type="number"
-                          value={set.weight}
-                          onChange={e => updateSet(exIdx, setIdx, 'weight', Number(e.target.value))}
+                          type="text"
+                          inputMode="decimal"
+                          value={getSetFieldDisplayValue(exIdx, setIdx, 'weight', set.weight)}
+                          onChange={e => handleSetFieldChange(exIdx, setIdx, 'weight', e.target.value)}
+                          onFocus={() => handleSetFieldFocus(exIdx, setIdx, 'weight', set.weight)}
+                          onBlur={() => handleSetFieldBlur(exIdx, setIdx, 'weight', set.weight)}
                           step={0.5}
                           min={0}
                           className="w-16 px-2 py-1.5 bg-(--color-bg-input) border border-(--color-border) rounded-lg text-sm font-set font-bold focus:outline-none focus:border-(--color-accent)"
@@ -719,9 +808,12 @@ export function WorkoutEntry() {
                       {/* Reps */}
                       <div className="flex items-center gap-1">
                         <input
-                          type="number"
-                          value={set.reps}
-                          onChange={e => updateSet(exIdx, setIdx, 'reps', Number(e.target.value))}
+                          type="text"
+                          inputMode="numeric"
+                          value={getSetFieldDisplayValue(exIdx, setIdx, 'reps', set.reps)}
+                          onChange={e => handleSetFieldChange(exIdx, setIdx, 'reps', e.target.value)}
+                          onFocus={() => handleSetFieldFocus(exIdx, setIdx, 'reps', set.reps)}
+                          onBlur={() => handleSetFieldBlur(exIdx, setIdx, 'reps', set.reps)}
                           min={0}
                           className="w-14 px-2 py-1.5 bg-(--color-bg-input) border border-(--color-border) rounded-lg text-sm font-set font-bold focus:outline-none focus:border-(--color-accent)"
                         />

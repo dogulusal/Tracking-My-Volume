@@ -28,6 +28,27 @@ const intensityLabels: Record<string, string> = {
   rir3: '+3',
 };
 
+const intensityScore: Record<Intensity, number> = {
+  failure: 0,
+  rir1: 1,
+  rir2: 2,
+  rir3: 3,
+};
+
+const legacyIntensityScore: Record<string, number> = {
+  F: 0,
+  '+1': 1,
+  '+2': 2,
+  '+3': 3,
+};
+
+function getIntensityScoreValue(intensity: string): number {
+  if (intensity in intensityScore) {
+    return intensityScore[intensity as Intensity];
+  }
+  return legacyIntensityScore[intensity] ?? 0;
+}
+
 const STATUS_OPTIONS: { value: ExerciseStatus; label: string; emoji: string }[] = [
   { value: 'improved', label: 'İlerleme', emoji: '🟢' },
   { value: 'decreased', label: 'Düşüş', emoji: '🔴' },
@@ -55,6 +76,7 @@ export function WorkoutDetailModal({
   onRemoveColor,
 }: WorkoutDetailModalProps) {
   const [editingSets, setEditingSets] = useState<SetLog[]>([]);
+  const [editingInputDrafts, setEditingInputDrafts] = useState<Record<string, string>>({});
   const [isEditing, setIsEditing] = useState(false);
   const [editingNotes, setEditingNotes] = useState('');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
@@ -68,12 +90,20 @@ export function WorkoutDetailModal({
     return { value: 0, icon: '=', color: 'text-(--color-text-muted)' };
   };
 
+  const getIntensityDelta = (curr: Intensity, prev: Intensity): { value: number; icon: string; color: string } => {
+    const diff = getIntensityScoreValue(curr) - getIntensityScoreValue(prev);
+    if (diff > 0) return { value: diff, icon: '▲', color: 'text-emerald-400' };
+    if (diff < 0) return { value: diff, icon: '▼', color: 'text-rose-400' };
+    return { value: 0, icon: '=', color: 'text-(--color-text-muted)' };
+  };
+
   const startEditing = () => {
     setEditingSets(
       isEmpty
         ? [{ weight: 0, reps: 0, intensity: 'failure' as Intensity }]
         : currentSets.map(s => ({ ...s }))
     );
+    setEditingInputDrafts({});
     setIsEditing(true);
   };
 
@@ -89,11 +119,91 @@ export function WorkoutDetailModal({
     setEditingSets(prev => prev.map((s, i) => i === idx ? { ...s, [field]: value } : s));
   };
 
+  const getInputKey = (idx: number, field: 'weight' | 'reps') => `${idx}-${field}`;
+
+  const sanitizeSetInput = (rawValue: string, field: 'weight' | 'reps') => {
+    if (field === 'reps') {
+      const digitsOnly = rawValue.replace(/\D/g, '');
+      return digitsOnly.replace(/^0+(?=\d)/, '');
+    }
+
+    const normalized = rawValue
+      .replace(/[\u066B,،﹐，]/g, '.')
+      .replace(/[^0-9.]/g, '');
+    const [integerPart, ...decimalParts] = normalized.split('.');
+    const normalizedInteger = integerPart.replace(/^0+(?=\d)/, '');
+    if (decimalParts.length === 0) return normalizedInteger;
+
+    const joinedDecimals = decimalParts.join('');
+    if (normalizedInteger === '' && joinedDecimals === '') return '.';
+    return `${normalizedInteger || '0'}.${joinedDecimals}`;
+  };
+
+  const parseSetInput = (value: string, field: 'weight' | 'reps'): number | null => {
+    if (value.trim() === '') return null;
+
+    if (field === 'reps') {
+      const parsed = Number.parseInt(value, 10);
+      if (!Number.isFinite(parsed)) return null;
+      return Math.max(0, parsed);
+    }
+
+    if (value === '.') return null;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return null;
+    return Math.max(0, parsed);
+  };
+
+  const handleSetInputChange = (idx: number, field: 'weight' | 'reps', rawValue: string) => {
+    const key = getInputKey(idx, field);
+    const sanitized = sanitizeSetInput(rawValue, field);
+
+    setEditingInputDrafts(prev => ({ ...prev, [key]: sanitized }));
+
+    const parsed = parseSetInput(sanitized, field);
+    if (parsed === null) return;
+    updateSet(idx, field, parsed);
+  };
+
+  const handleSetInputBlur = (idx: number, field: 'weight' | 'reps', currentValue: number) => {
+    const key = getInputKey(idx, field);
+    const draft = editingInputDrafts[key];
+    if (draft === undefined) return;
+
+    const parsed = parseSetInput(draft, field);
+    if (parsed === null) {
+      updateSet(idx, field, 0);
+    } else if (parsed !== currentValue) {
+      updateSet(idx, field, parsed);
+    }
+
+    setEditingInputDrafts(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const handleSetInputFocus = (idx: number, field: 'weight' | 'reps', currentValue: number) => {
+    if (currentValue !== 0) return;
+    const key = getInputKey(idx, field);
+    setEditingInputDrafts(prev => {
+      if (prev[key] !== undefined) return prev;
+      return { ...prev, [key]: '' };
+    });
+  };
+
+  const getSetInputValue = (idx: number, field: 'weight' | 'reps', currentValue: number) => {
+    const key = getInputKey(idx, field);
+    return editingInputDrafts[key] ?? String(currentValue);
+  };
+
   const handleSave = () => {
     const validSets = editingSets.filter(s => s.weight > 0 || s.reps > 0);
     if (onSaveSets) {
       onSaveSets(validSets); // empty array = clear all sets for this exercise
     }
+    setEditingInputDrafts({});
     setIsEditing(false);
     onClose();
   };
@@ -148,18 +258,24 @@ export function WorkoutDetailModal({
               <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-(--color-bg-input) border border-(--color-border)">
                 <span className="text-xs font-bold text-(--color-accent) w-6">S{idx + 1}</span>
                 <input
-                  type="number"
-                  value={set.weight || ''}
-                  onChange={e => updateSet(idx, 'weight', Number(e.target.value))}
+                  type="text"
+                  inputMode="decimal"
+                  value={getSetInputValue(idx, 'weight', set.weight)}
+                  onChange={e => handleSetInputChange(idx, 'weight', e.target.value)}
+                  onFocus={() => handleSetInputFocus(idx, 'weight', set.weight)}
+                  onBlur={() => handleSetInputBlur(idx, 'weight', set.weight)}
                   placeholder="kg"
                   step={0.25}
                   className="w-16 px-2 py-1 text-xs bg-(--color-bg-primary) border border-(--color-border) rounded focus:border-(--color-accent) focus:outline-none"
                 />
                 <span className="text-xs text-(--color-text-muted)">×</span>
                 <input
-                  type="number"
-                  value={set.reps || ''}
-                  onChange={e => updateSet(idx, 'reps', Number(e.target.value))}
+                  type="text"
+                  inputMode="numeric"
+                  value={getSetInputValue(idx, 'reps', set.reps)}
+                  onChange={e => handleSetInputChange(idx, 'reps', e.target.value)}
+                  onFocus={() => handleSetInputFocus(idx, 'reps', set.reps)}
+                  onBlur={() => handleSetInputBlur(idx, 'reps', set.reps)}
                   placeholder="rep"
                   className="w-14 px-2 py-1 text-xs bg-(--color-bg-primary) border border-(--color-border) rounded focus:border-(--color-accent) focus:outline-none"
                 />
@@ -210,6 +326,7 @@ export function WorkoutDetailModal({
                 const prevSet = previousSets?.[idx];
                 const weightDelta = prevSet ? getDelta(set.weight, prevSet.weight) : null;
                 const repsDelta = prevSet ? getDelta(set.reps, prevSet.reps) : null;
+                const intensityDelta = prevSet ? getIntensityDelta(set.intensity, prevSet.intensity) : null;
 
                 return (
                   <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-(--color-bg-input) border border-(--color-border)">
@@ -230,6 +347,11 @@ export function WorkoutDetailModal({
                     {repsDelta && repsDelta.value !== 0 && (
                       <span className={`text-xs font-bold ${repsDelta.color}`}>
                         {repsDelta.icon}{Math.abs(repsDelta.value)}rep
+                      </span>
+                    )}
+                    {intensityDelta && intensityDelta.value !== 0 && (
+                      <span className={`text-xs font-bold ${intensityDelta.color}`}>
+                        {intensityDelta.icon}RIR
                       </span>
                     )}
                   </div>

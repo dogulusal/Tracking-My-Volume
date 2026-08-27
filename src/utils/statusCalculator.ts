@@ -1,9 +1,32 @@
 import type { SetLog, ExerciseStatus } from '@/types';
 
+const INTENSITY_SCORE: Record<SetLog['intensity'], number> = {
+  failure: 0,
+  rir1: 1,
+  rir2: 2,
+  rir3: 3,
+};
+
+function getIntensityScore(intensity: SetLog['intensity'] | string): number {
+  if (intensity in INTENSITY_SCORE) {
+    return INTENSITY_SCORE[intensity as SetLog['intensity']];
+  }
+
+  switch (intensity) {
+    case 'F': return 0;
+    case '+1': return 1;
+    case '+2': return 2;
+    case '+3': return 3;
+    default: return 0;
+  }
+}
+
 function compareSets(curr: SetLog, prev: SetLog): { improved: boolean; decreased: boolean } {
+  const intensityDelta = getIntensityScore(curr.intensity) - getIntensityScore(prev.intensity);
+
   return {
-    improved: curr.weight > prev.weight || curr.reps > prev.reps,
-    decreased: curr.weight < prev.weight || curr.reps < prev.reps,
+    improved: curr.weight > prev.weight || curr.reps > prev.reps || intensityDelta > 0,
+    decreased: curr.weight < prev.weight || curr.reps < prev.reps || intensityDelta < 0,
   };
 }
 

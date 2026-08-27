@@ -16,6 +16,14 @@ type HistoryPhase = {
   baseWeek: number;
 };
 
+function formatIntensityLabel(intensity: string): string {
+  if (intensity === 'failure' || intensity === 'F') return 'F';
+  if (intensity === 'rir1' || intensity === '+1') return '+1';
+  if (intensity === 'rir2' || intensity === '+2') return '+2';
+  if (intensity === 'rir3' || intensity === '+3') return '+3';
+  return intensity;
+}
+
 function buildPhaseLabel(name: string, weeks: number[], baseWeek: number): string {
   if (weeks.length === 0) return `${name} (H0-H0)`;
   const endWeek = weeks[weeks.length - 1] - baseWeek;
@@ -382,7 +390,7 @@ export function History() {
             </button>
           </div>
           <p className="text-xs text-(--color-text-secondary) mb-3">
-            Hücrelere tıklayarak renkleri tek tek değiştirebilirsin. Otomatik renkler: ağırlık/tekrar artarsa <span className="text-emerald-400 font-bold">yeşil</span>, düşerse <span className="text-rose-400 font-bold">kırmızı</span>, aynıysa <span className="text-(--color-text-muted) font-bold">gri</span>.
+            Hücrelere tıklayarak renkleri tek tek değiştirebilirsin. Otomatik renkler: ağırlık/tekrar artarsa veya aynı kilo/tekrarda RIR iyileşirse <span className="text-emerald-400 font-bold">yeşil</span>, düşerse <span className="text-rose-400 font-bold">kırmızı</span>, aynıysa <span className="text-(--color-text-muted) font-bold">gri</span>.
           </p>
           <div className="flex flex-wrap gap-2">
             <span className="inline-flex items-center gap-1 text-xs"><span className="w-3 h-3 rounded bg-emerald-800 inline-block"></span> İlerleme</span>
@@ -663,7 +671,7 @@ export function History() {
                           <div className="flex flex-wrap gap-1.5">
                             {exercise.sets.map((s, si) => (
                               <span key={si} className="text-[11px] font-set font-semibold px-2 py-1 rounded-lg bg-(--color-bg-card) text-(--color-text-secondary) border border-(--color-border)">
-                                {s.weight}×{s.reps}
+                                {s.weight}×{s.reps} {formatIntensityLabel(String(s.intensity))}
                               </span>
                             ))}
                           </div>
@@ -672,7 +680,7 @@ export function History() {
                             <div className="flex flex-wrap gap-1.5 mt-1.5 opacity-50">
                               {prevLog.sets.map((s, si) => (
                                 <span key={si} className="text-[10px] font-set px-2 py-0.5 rounded-lg bg-(--color-bg-input) text-(--color-text-muted) border border-(--color-border)/50">
-                                  {s.weight}×{s.reps}
+                                  {s.weight}×{s.reps} {formatIntensityLabel(String(s.intensity))}
                                 </span>
                               ))}
                             </div>
