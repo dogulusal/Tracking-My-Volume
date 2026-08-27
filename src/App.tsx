@@ -26,7 +26,7 @@ function AppContent() {
   return (
     <div
       data-mobile-ui={isMobileDevice ? 'true' : 'false'}
-      className={`min-h-screen bg-(--color-bg-primary) text-(--color-text-primary) ${
+      className={`logbook min-h-screen bg-(--color-bg-primary) text-(--color-text-primary) ${
         isMobileDevice ? 'mobile-device-ui' : ''
       }`}
     >

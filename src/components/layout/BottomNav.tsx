@@ -15,7 +15,7 @@ export function BottomNav() {
   if (!isMobileDevice) return null;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-(--color-bg-card) border-t border-(--color-border) z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] pb-[env(safe-area-inset-bottom)]">
+    <nav className="fixed bottom-0 left-0 right-0 bg-(--color-bg-card) border-t lb-rule z-50 pb-[env(safe-area-inset-bottom)]">
       <div className="flex justify-around items-center h-16">
         {tabs.map(tab => {
           const isActive = location.pathname === tab.to ||
@@ -24,14 +24,19 @@ export function BottomNav() {
             <Link
               key={tab.to}
               to={tab.to}
-              className={`flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg transition-all ${
-                isActive
-                  ? 'text-(--color-accent) scale-110'
-                  : 'text-(--color-text-muted) hover:text-(--color-text-primary)'
+              className={`lb-press flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg ${
+                isActive ? 'text-(--color-text-primary)' : 'text-(--color-text-secondary)'
               }`}
             >
               <span className="text-xl">{tab.icon}</span>
-              <span className="text-xs font-bold">{tab.label}</span>
+              <span className={`text-xs ${isActive ? 'font-semibold' : 'font-medium'}`}>{tab.label}</span>
+              {/* Small rule instead of an accent fill — "where am I" is
+                  navigation state, not a gain/drop signal. */}
+              <span
+                aria-hidden="true"
+                className="h-0.5 w-4 rounded-full mt-0.5"
+                style={{ backgroundColor: isActive ? 'currentColor' : 'transparent' }}
+              />
             </Link>
           );
         })}

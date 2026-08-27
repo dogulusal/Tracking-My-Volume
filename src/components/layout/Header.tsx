@@ -38,49 +38,55 @@ export function Header() {
 
   return (
     <>
-      <header className="bg-gradient-to-b from-(--color-accent-glow) to-transparent border-b border-(--color-border) sticky top-0 z-50 backdrop-blur-sm pt-[env(safe-area-inset-top)]">
+      {/* Neutral chrome — no accent tint, no glow. The header is navigation,
+          not a place the app has anything to say about your progress. */}
+      <header className="bg-(--color-bg-card) border-b lb-rule sticky top-0 z-50 pt-[env(safe-area-inset-top)]">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link to="/" className="text-lg font-extrabold tracking-tight">
-          <span className="text-(--color-text-primary)">Tracking</span>
-          <span className="text-(--color-accent) neon-glow">My</span>
-          <span className="text-(--color-text-primary)">Volume</span>
-        </Link>
+          <Link to="/" className="text-lg font-semibold tracking-tight">
+            <span>Tracking</span>
+            <span className="text-(--color-accent)">My</span>
+            <span>Volume</span>
+          </Link>
 
-        {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-1">
-          {navLinks.map(link => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className={`px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
-                location.pathname === link.to
-                  ? 'bg-(--color-accent)/15 text-(--color-text-primary)'
-                  : 'text-(--color-text-secondary) hover:text-(--color-text-primary) hover:bg-(--color-btn-bg)'
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
+          {/* Desktop nav — current page marked by an underline, not a fill.
+              Accent stays reserved for gain/drop; "where am I" is chrome. */}
+          <nav className="hidden md:flex items-center gap-1">
+            {navLinks.map(link => {
+              const isActive = location.pathname === link.to;
+              return (
+                <Link
+                  key={link.to}
+                  to={link.to}
+                  className={`lb-press px-3 py-2 rounded-md text-sm border-b-2 transition-colors ${
+                    isActive
+                      ? 'font-semibold border-(--color-text-primary)'
+                      : 'font-medium border-transparent text-(--color-text-secondary) hover:text-(--color-text-primary)'
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </nav>
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsCloudModalOpen(true)}
-              className="px-3 py-2 rounded-md text-xs md:text-sm font-semibold text-(--color-text-primary) bg-(--color-btn-bg) hover:bg-(--color-btn-hover) transition-colors max-w-[120px] md:max-w-none truncate"
+              className="lb-press px-3 py-2 rounded-md text-xs md:text-sm font-medium border lb-rule max-w-[120px] md:max-w-none truncate"
             >
               <span className="md:hidden">{mobileCloudLabel}</span>
               <span className="hidden md:inline">{cloudLabel}</span>
             </button>
             <button
               onClick={() => setIsColorPickerOpen(true)}
-              className="p-2 rounded-md hover:bg-(--color-btn-bg) transition-colors"
+              className="lb-press p-2 rounded-md"
               aria-label="Renk temasi"
             >
               🎨
             </button>
             <button
               onClick={handleToggle}
-              className="p-2 rounded-md hover:bg-(--color-btn-bg) transition-colors text-(--color-text-primary)"
+              className="lb-press p-2 rounded-md"
               aria-label="Tema degistir"
             >
               {dark ? '☀️' : '🌙'}
