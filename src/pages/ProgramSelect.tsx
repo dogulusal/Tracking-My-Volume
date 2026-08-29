@@ -21,38 +21,34 @@ function PlanSelectModal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-(--color-bg-card) rounded-2xl border border-(--color-border) w-full max-w-md shadow-2xl">
-        <div className="flex items-center justify-between p-5 border-b border-(--color-border)">
-          <h2 className="text-lg font-black">Plan Seç</h2>
-          <button onClick={onClose} className="text-(--color-text-muted) hover:text-(--color-text-primary) text-xl leading-none">✕</button>
+      <div className="bg-(--color-bg-card) rounded-lg border lb-rule w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between p-5 border-b lb-rule">
+          <h2 className="text-lg font-semibold">Plan seç</h2>
+          <button onClick={onClose} aria-label="Kapat" className="lb-press text-(--color-text-secondary) hover:text-(--color-text-primary) text-xl leading-none">✕</button>
         </div>
         <div className="p-5 flex flex-col gap-3">
           {plans.map(plan => (
             <button
               key={plan.id}
               onClick={() => { onSelect(plan.id); onClose(); }}
-              className={`w-full text-left rounded-xl p-4 border transition-all hover:scale-[1.01] ${
-                plan.id === activePlanId
-                  ? 'border-(--color-accent) bg-(--color-accent)/10'
-                  : 'border-(--color-border) bg-(--color-bg-input) hover:border-(--color-accent)/50'
+              className={`lb-press w-full text-left rounded-lg p-4 border ${
+                plan.id === activePlanId ? 'lb-rule-strong' : 'lb-rule'
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="font-extrabold">{plan.name}</span>
+                <span className="font-semibold">{plan.name}</span>
                 {plan.id === activePlanId && (
-                  <span className="text-xs font-bold text-(--color-accent) bg-(--color-accent)/20 px-2 py-0.5 rounded-full">
-                    Aktif
-                  </span>
+                  <span className="lb-label font-semibold">Aktif</span>
                 )}
               </div>
-              <p className="text-xs text-(--color-text-muted) mt-0.5">{plan.programIds.length} gün</p>
+              <p className="lb-label mt-0.5">{plan.programIds.length} gün</p>
             </button>
           ))}
           <button
             onClick={() => { onNewPlan(); onClose(); }}
-            className="w-full px-4 py-3 border border-dashed border-(--color-border) rounded-xl text-sm font-bold text-(--color-text-muted) hover:text-(--color-text-primary) hover:border-(--color-accent)/50 transition-colors"
+            className="lb-press w-full px-4 py-3 border border-dashed lb-rule rounded-lg text-sm font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)"
           >
-            + Yeni Plan Oluştur
+            + Yeni plan oluştur
           </button>
         </div>
       </div>
@@ -77,10 +73,10 @@ function NewPlanModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-(--color-bg-card) rounded-2xl border border-(--color-border) w-full max-w-md shadow-2xl">
-        <div className="flex items-center justify-between p-5 border-b border-(--color-border)">
-          <h2 className="text-lg font-black">Yeni Plan</h2>
-          <button onClick={onClose} className="text-(--color-text-muted) hover:text-(--color-text-primary) text-xl leading-none">✕</button>
+      <div className="bg-(--color-bg-card) rounded-lg border lb-rule w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between p-5 border-b lb-rule">
+          <h2 className="text-lg font-semibold">Yeni plan</h2>
+          <button onClick={onClose} aria-label="Kapat" className="lb-press text-(--color-text-secondary) hover:text-(--color-text-primary) text-xl leading-none">✕</button>
         </div>
         <div className="p-5 flex flex-col gap-4">
           <input
@@ -88,10 +84,10 @@ function NewPlanModal({
             placeholder="Plan adı (örn. Dogu Hipertrofi)"
             value={name}
             onChange={e => setName(e.target.value)}
-            className="w-full px-4 py-2.5 bg-(--color-bg-input) border border-(--color-border) rounded-lg text-sm font-semibold text-(--color-text-primary) focus:outline-none focus:border-(--color-accent) focus:ring-1 focus:ring-(--color-accent)"
+            className="w-full px-4 py-2.5 bg-(--color-bg-input) border lb-rule rounded-lg text-sm focus:outline-none focus:border-(--color-text-primary) placeholder:text-(--color-text-secondary)"
           />
           <div>
-            <p className="text-xs font-bold text-(--color-text-muted) uppercase tracking-widest mb-2">
+            <p className="lb-label mb-2">
               Antrenman günleri seç
             </p>
             <div className="flex flex-col gap-2">
@@ -101,9 +97,9 @@ function NewPlanModal({
                     type="checkbox"
                     checked={selected.includes(p.id)}
                     onChange={() => toggle(p.id)}
-                    className="w-4 h-4 accent-(--color-accent)"
+                    className="w-4 h-4"
                   />
-                  <span className="text-sm font-semibold group-hover:text-(--color-accent) transition-colors">
+                  <span className="text-sm font-medium">
                     {p.name}
                   </span>
                 </label>
@@ -113,7 +109,7 @@ function NewPlanModal({
           <button
             disabled={!name.trim() || selected.length === 0}
             onClick={() => onConfirm(name.trim(), selected)}
-            className="w-full px-5 py-2.5 bg-(--color-accent) hover:bg-(--color-accent-hover) disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-all hover:scale-105 active:scale-95"
+            className="lb-press w-full px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) disabled:opacity-40 disabled:cursor-not-allowed text-sm font-semibold rounded-lg"
           >
             Oluştur
           </button>
@@ -146,19 +142,19 @@ export function ProgramSelect() {
       {/* Plan header */}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-1">
-          <h1 className="text-3xl md:text-4xl font-black tracking-tight">
+          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
             {activePlan?.name ?? 'Programlar'}
           </h1>
           {plans.length > 1 && (
             <button
               onClick={() => setShowPlanModal(true)}
-              className="px-3 py-1 text-xs font-bold bg-(--color-btn-bg) hover:bg-(--color-btn-hover) text-(--color-text-secondary) rounded-lg transition-colors"
+              className="lb-press px-3 py-1 text-xs font-medium border lb-rule rounded-lg"
             >
               Plan değiştir ↓
             </button>
           )}
         </div>
-        <p className="text-sm text-(--color-text-muted)">
+        <p className="lb-label">
           {activePlanPrograms.length} antrenman günü
         </p>
       </div>
@@ -167,27 +163,27 @@ export function ProgramSelect() {
         {programPreviews.map(({ program, lastLog }) => (
           <div
             key={program.id}
-            className="card-hover neon-card bg-(--color-bg-card) rounded-xl p-5 border border-(--color-border)"
+            className="rounded-lg p-5 border lb-rule"
           >
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-extrabold text-lg">{program.name}</h3>
+              <h3 className="font-semibold text-base">{program.name}</h3>
               <Link
                 to={`/programs/edit/${program.id}`}
-                className="text-xs font-bold text-(--color-text-muted) hover:text-(--color-accent) transition-colors"
+                className="lb-press text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)"
               >
-                ✏️ Düzenle
+                Düzenle
               </Link>
             </div>
-            <p className="text-sm text-(--color-text-secondary) font-medium mb-3">
+            <p className="lb-label mb-3">
               {program.exercises.filter(e => e.isActive).length} aktif egzersiz
             </p>
-            <div className="mb-3 rounded-xl border border-(--color-border) bg-(--color-bg-input) p-3">
+            <div className="mb-3 rounded-lg border lb-rule bg-(--color-bg-input) p-3">
               <div className="flex items-center justify-between gap-2 mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-(--color-text-muted)">Son hafta</p>
+                <p className="lb-label">Son hafta</p>
                 {lastLog ? (
-                  <span className="text-[10px] font-bold text-(--color-accent)">H{lastLog.weekNumber}</span>
+                  <span className="lb-figure text-xs font-semibold text-(--color-text-secondary)">H{lastLog.weekNumber}</span>
                 ) : (
-                  <span className="text-[10px] font-bold text-(--color-text-muted)">Kayıt yok</span>
+                  <span className="lb-label">Kayıt yok</span>
                 )}
               </div>
               {lastLog ? (
@@ -195,12 +191,12 @@ export function ProgramSelect() {
                   {lastLog.exercises.slice(0, 3).map(exercise => (
                     <div key={exercise.exerciseId} className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-xs font-bold text-(--color-text-primary) truncate">{exercise.exerciseName}</p>
+                        <p className="text-xs font-medium truncate">{exercise.exerciseName}</p>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {exercise.sets.map((set, index) => (
                             <span
                               key={`${exercise.exerciseId}-${index}`}
-                              className="text-[10px] font-set font-bold px-2 py-0.5 rounded-md bg-(--color-bg-card) text-(--color-text-secondary) border border-(--color-border)"
+                              className="lb-figure text-[10px] font-semibold px-2 py-0.5 rounded-md text-(--color-text-secondary) border lb-rule"
                             >
                               {set.weight}×{set.reps}
                             </span>
@@ -210,18 +206,18 @@ export function ProgramSelect() {
                     </div>
                   ))}
                   {lastLog.exercises.length > 3 && (
-                    <p className="text-[10px] font-semibold text-(--color-text-muted)">+{lastLog.exercises.length - 3} egzersiz daha</p>
+                    <p className="lb-label">+{lastLog.exercises.length - 3} egzersiz daha</p>
                   )}
                 </div>
               ) : (
-                <p className="text-xs text-(--color-text-muted)">Bu program için henüz geçmiş kayıt yok.</p>
+                <p className="lb-label">Bu program için henüz geçmiş kayıt yok.</p>
               )}
             </div>
             <Link
               to={`/workout/${program.id}/week/${currentWeek}`}
-              className="inline-block px-4 py-2 bg-(--color-accent) hover:bg-(--color-accent-hover) text-[#050a0a] text-xs font-bold rounded-lg btn-neon"
+              className="lb-press inline-block px-4 py-2 bg-(--color-text-primary) text-(--color-bg-primary) text-xs font-semibold rounded-lg"
             >
-              Antrenman Gir →
+              Antrenman gir →
             </Link>
           </div>
         ))}
@@ -231,15 +227,15 @@ export function ProgramSelect() {
       <div className="flex flex-wrap gap-3">
         <Link
           to="/programs/edit"
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-(--color-btn-bg) hover:bg-(--color-btn-hover) text-(--color-text-primary) text-sm font-bold rounded-lg transition-all hover:scale-105"
+          className="lb-press inline-flex items-center gap-2 px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg"
         >
-          + Yeni Gün Ekle
+          + Yeni gün ekle
         </Link>
         <button
           onClick={() => setShowNewPlanModal(true)}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-(--color-btn-bg) hover:bg-(--color-btn-hover) text-(--color-text-primary) text-sm font-bold rounded-lg transition-all hover:scale-105"
+          className="lb-press inline-flex items-center gap-2 px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg"
         >
-          + Yeni Plan Oluştur
+          + Yeni plan oluştur
         </button>
       </div>
 

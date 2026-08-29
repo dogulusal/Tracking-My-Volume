@@ -86,28 +86,28 @@ export function ProgramEditor() {
   return (
     <PageContainer>
       <div className="mb-6">
-        <h1 className="text-3xl md:text-4xl font-black tracking-tight">
-          {existingProgram ? 'Programı Düzenle' : 'Yeni Program'}
+        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
+          {existingProgram ? 'Programı düzenle' : 'Yeni program'}
         </h1>
       </div>
       <div className="space-y-6 max-w-2xl">
         {/* Program Name */}
         <div>
-          <label className="block text-sm font-bold text-(--color-text-primary) mb-2">
-            Program Adı
+          <label className="block text-sm font-semibold mb-2">
+            Program adı
           </label>
           <input
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder="Örn: Upper 1"
-            className="w-full px-4 py-2.5 bg-(--color-bg-input) border border-(--color-border) rounded-xl text-sm font-semibold focus:outline-none focus:border-(--color-accent) focus:ring-1 focus:ring-(--color-accent)"
+            className="w-full px-4 py-2.5 bg-(--color-bg-input) border lb-rule rounded-lg text-sm focus:outline-none focus:border-(--color-text-primary) placeholder:text-(--color-text-secondary)"
           />
         </div>
 
         {/* Order */}
         <div>
-          <label className="block text-sm font-bold text-(--color-text-primary) mb-2">
+          <label className="block text-sm font-semibold mb-2">
             Sıra
           </label>
           <input
@@ -115,21 +115,19 @@ export function ProgramEditor() {
             value={order}
             onChange={e => setOrder(Number(e.target.value))}
             min={1}
-            className="w-20 px-4 py-2.5 bg-(--color-bg-input) border border-(--color-border) rounded-xl text-sm font-semibold focus:outline-none focus:border-(--color-accent) focus:ring-1 focus:ring-(--color-accent)"
+            className="lb-figure w-20 px-4 py-2.5 bg-(--color-bg-input) border lb-rule rounded-lg text-sm focus:outline-none focus:border-(--color-text-primary)"
           />
         </div>
 
         {/* Exercises */}
         <div>
-          <h2 className="text-xl font-black mb-3">Egzersizler</h2>
+          <h2 className="text-base font-semibold mb-3">Egzersizler</h2>
           <div className="space-y-3">
             {exercises.map((exercise, idx) => (
               <div
                 key={exercise.id}
-                className={`flex flex-wrap items-center gap-2 p-4 rounded-xl border ${
-                  exercise.isActive
-                    ? 'bg-(--color-bg-card) border-(--color-border)'
-                    : 'bg-(--color-bg-input) border-(--color-border) opacity-50'
+                className={`flex flex-wrap items-center gap-2 p-4 rounded-lg border lb-rule ${
+                  exercise.isActive ? '' : 'opacity-50'
                 }`}
               >
                 <div className="flex flex-col gap-0.5">
@@ -138,7 +136,7 @@ export function ProgramEditor() {
                     disabled={idx === 0}
                     aria-label={`${exercise.name || 'Egzersiz'} yukarı taşı`}
                     title="Yukarı taşı"
-                    className="px-1.5 leading-none text-xs rounded bg-(--color-bg-input) border border-(--color-border) text-(--color-text-secondary) hover:text-(--color-text-primary) disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="lb-press px-1.5 leading-none text-xs rounded border lb-rule text-(--color-text-secondary) disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     ▲
                   </button>
@@ -147,7 +145,7 @@ export function ProgramEditor() {
                     disabled={idx === exercises.length - 1}
                     aria-label={`${exercise.name || 'Egzersiz'} aşağı taşı`}
                     title="Aşağı taşı"
-                    className="px-1.5 leading-none text-xs rounded bg-(--color-bg-input) border border-(--color-border) text-(--color-text-secondary) hover:text-(--color-text-primary) disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="lb-press px-1.5 leading-none text-xs rounded border lb-rule text-(--color-text-secondary) disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     ▼
                   </button>
@@ -157,42 +155,44 @@ export function ProgramEditor() {
                   value={exercise.name}
                   onChange={e => updateExercise(idx, 'name', e.target.value)}
                   placeholder="Egzersiz adı"
-                  className="flex-1 min-w-[150px] px-3 py-2 bg-(--color-bg-input) border border-(--color-border) rounded-lg text-sm font-semibold focus:outline-none focus:border-(--color-accent)"
+                  className="flex-1 min-w-[150px] px-3 py-2 bg-(--color-bg-input) border lb-rule rounded-lg text-sm focus:outline-none focus:border-(--color-text-primary) placeholder:text-(--color-text-secondary)"
                 />
                 <div className="flex items-center gap-1">
-                  <label className="text-xs text-(--color-text-muted)">Set:</label>
+                  <label className="lb-label">Set</label>
                   <input
                     type="number"
                     value={exercise.defaultSets}
                     onChange={e => updateExercise(idx, 'defaultSets', Number(e.target.value))}
                     min={1}
-                    className="w-14 px-2 py-1 bg-(--color-bg-input) border border-(--color-border) rounded text-sm focus:outline-none focus:border-(--color-accent)"
+                    className="lb-figure w-14 px-2 py-1 bg-(--color-bg-input) border lb-rule rounded text-sm focus:outline-none focus:border-(--color-text-primary)"
                   />
                 </div>
                 <div className="flex items-center gap-1">
-                  <label className="text-xs text-(--color-text-muted)">Kg:</label>
+                  <label className="lb-label">Kg</label>
                   <input
                     type="number"
                     value={exercise.defaultWeight}
                     onChange={e => updateExercise(idx, 'defaultWeight', Number(e.target.value))}
                     min={0}
                     step={0.5}
-                    className="w-16 px-2 py-1 bg-(--color-bg-input) border border-(--color-border) rounded text-sm focus:outline-none focus:border-(--color-accent)"
+                    className="lb-figure w-16 px-2 py-1 bg-(--color-bg-input) border lb-rule rounded text-sm focus:outline-none focus:border-(--color-text-primary)"
                   />
                 </div>
                 <div className="flex items-center gap-1">
-                  <label className="text-xs text-(--color-text-muted)">Rep:</label>
+                  <label className="lb-label">Rep</label>
                   <input
                     type="number"
                     value={exercise.defaultReps}
                     onChange={e => updateExercise(idx, 'defaultReps', Number(e.target.value))}
                     min={0}
-                    className="w-14 px-2 py-1 bg-(--color-bg-input) border border-(--color-border) rounded text-sm focus:outline-none focus:border-(--color-accent)"
+                    className="lb-figure w-14 px-2 py-1 bg-(--color-bg-input) border lb-rule rounded text-sm focus:outline-none focus:border-(--color-text-primary)"
                   />
                 </div>
                 <button
                   onClick={() => removeExercise(idx)}
-                  className="p-1 text-red-400 hover:text-red-300 transition-colors"
+                  className="lb-press p-1 rounded"
+                  style={{ color: 'var(--lb-drop)' }}
+                  aria-label={exercise.isActive ? `${exercise.name || 'Egzersiz'} devre dışı bırak` : `${exercise.name || 'Egzersiz'} sil`}
                   title={exercise.isActive ? 'Devre dışı bırak' : 'Sil'}
                 >
                   ✕
@@ -202,18 +202,18 @@ export function ProgramEditor() {
           </div>
           <button
             onClick={addExercise}
-            className="mt-3 px-4 py-2 bg-(--color-btn-bg) hover:bg-(--color-btn-hover) text-sm font-bold rounded-lg transition-all hover:scale-105"
+            className="lb-press mt-3 px-4 py-2 border lb-rule text-sm font-medium rounded-lg"
           >
-            + Egzersiz Ekle
+            + Egzersiz ekle
           </button>
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3 pt-4 border-t border-(--color-border)">
+        <div className="flex gap-3 pt-4 border-t lb-rule">
           <button
             onClick={handleSave}
             disabled={!name.trim()}
-            className="px-8 py-3 bg-(--color-accent) hover:bg-(--color-accent-hover) text-white font-black rounded-xl transition-all hover:scale-105 active:scale-95 shadow-lg shadow-(--color-accent-glow) disabled:opacity-50 disabled:cursor-not-allowed"
+            className="lb-press px-8 py-3 bg-(--color-text-primary) text-(--color-bg-primary) font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Kaydet
           </button>
