@@ -38,7 +38,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
             <div className="w-10 h-1 bg-(--color-border) rounded-full mx-auto mb-3" />
             {title && (
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-extrabold">{title}</h2>
+                <h2 className="text-lg font-semibold">{title}</h2>
                 <button
                   onClick={onClose}
                   className="text-(--color-text-secondary) text-xl p-1"
@@ -66,7 +66,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
       >
         {title && (
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-extrabold">{title}</h2>
+            <h2 className="text-lg font-semibold">{title}</h2>
             <button
               onClick={onClose}
               className="text-(--color-text-secondary) hover:text-(--color-text-primary) text-xl"

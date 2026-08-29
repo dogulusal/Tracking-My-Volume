@@ -62,7 +62,7 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
             <button
               onClick={handleGithubSignIn}
               disabled={isGithubLoading}
-              className="w-full px-4 py-2 rounded-md bg-(--color-accent) hover:bg-(--color-accent-hover) disabled:opacity-50 text-white text-sm font-medium"
+              className="lb-press w-full px-4 py-2 rounded-md bg-(--color-text-primary) text-(--color-bg-primary) disabled:opacity-50 text-sm font-semibold"
             >
               {isGithubLoading ? 'Yonlendiriliyor...' : 'GitHub ile giris yap'}
             </button>
@@ -81,7 +81,7 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
             <button
               onClick={handleRefresh}
               disabled={isRefreshing || syncStatus === 'syncing'}
-              className="px-4 py-2 rounded-md bg-(--color-accent) hover:bg-(--color-accent-hover) disabled:opacity-60 text-white text-sm"
+              className="lb-press px-4 py-2 rounded-md bg-(--color-text-primary) text-(--color-bg-primary) disabled:opacity-60 text-sm font-semibold"
             >
               {isRefreshing || syncStatus === 'syncing' ? 'Yenileniyor...' : 'Buluttan yenile'}
             </button>
