@@ -87,14 +87,14 @@ export function WorkoutDetailModal({
     const diff = curr - prev;
     if (diff > 0) return { value: diff, icon: '▲', color: 'text-emerald-400' };
     if (diff < 0) return { value: diff, icon: '▼', color: 'text-rose-400' };
-    return { value: 0, icon: '=', color: 'text-(--color-text-muted)' };
+    return { value: 0, icon: '=', color: 'text-(--color-text-secondary)' };
   };
 
   const getIntensityDelta = (curr: Intensity, prev: Intensity): { value: number; icon: string; color: string } => {
     const diff = getIntensityScoreValue(curr) - getIntensityScoreValue(prev);
     if (diff > 0) return { value: diff, icon: '▲', color: 'text-emerald-400' };
     if (diff < 0) return { value: diff, icon: '▼', color: 'text-rose-400' };
-    return { value: 0, icon: '=', color: 'text-(--color-text-muted)' };
+    return { value: 0, icon: '=', color: 'text-(--color-text-secondary)' };
   };
 
   const startEditing = () => {
@@ -218,13 +218,13 @@ export function WorkoutDetailModal({
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title={`${exerciseName} — H${weekNumber}`}>
         {/* Color Override Section */}
-        <div className="mb-4 p-3 rounded-xl bg-(--color-bg-input) border border-(--color-border)">
+        <div className="mb-4 p-3 rounded-lg bg-(--color-bg-input) border lb-rule">
           <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-(--color-text-muted)">Renk</h4>
+            <h4 className="text-xs font-semibold">Renk</h4>
             {currentColorOverride && (
               <button
                 onClick={onRemoveColor}
-                className="text-xs text-(--color-accent) hover:underline font-bold"
+                className="lb-press text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary) hover:underline"
               >
                 Otomatik
               </button>
@@ -235,7 +235,7 @@ export function WorkoutDetailModal({
               <button
                 key={opt.value}
                 onClick={() => onSetColor?.(opt.value)}
-                className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${
+                className={`lb-press px-2 py-1 rounded-lg text-xs font-semibold ${
                   (currentColorOverride || autoStatus) === opt.value
                     ? 'ring-2 ring-(--color-accent) scale-105'
                     : 'opacity-70 hover:opacity-100'
@@ -251,12 +251,12 @@ export function WorkoutDetailModal({
         {isEditing ? (
           <div className="space-y-2 mb-5">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-(--color-text-muted)">Setleri Düzenle</h4>
-              <span className="text-xs text-(--color-accent) font-bold">Değişiklikleri Kaydet'e bas</span>
+              <h4 className="text-xs font-semibold">Setleri Düzenle</h4>
+              <span className="lb-label">Değişiklikleri Kaydet'e bas</span>
             </div>
             {editingSets.map((set, idx) => (
               <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-(--color-bg-input) border border-(--color-border)">
-                <span className="text-xs font-bold text-(--color-accent) w-6">S{idx + 1}</span>
+                <span className="lb-figure text-xs font-semibold text-(--color-text-secondary) w-6">S{idx + 1}</span>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -268,7 +268,7 @@ export function WorkoutDetailModal({
                   step={0.25}
                   className="w-16 px-2 py-1 text-xs bg-(--color-bg-primary) border border-(--color-border) rounded focus:border-(--color-accent) focus:outline-none"
                 />
-                <span className="text-xs text-(--color-text-muted)">×</span>
+                <span className="lb-label">×</span>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -293,18 +293,18 @@ export function WorkoutDetailModal({
               </div>
             ))}
             <div className="flex gap-2 pt-2">
-              <button onClick={addSet} className="text-xs font-bold text-(--color-accent) hover:underline">+ Set Ekle</button>
+              <button onClick={addSet} className="lb-press text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary) hover:underline">+ Set ekle</button>
             </div>
             <div className="flex gap-2 pt-3">
               <button
                 onClick={handleSave}
-                className="px-4 py-2 bg-(--color-accent) hover:bg-(--color-accent-hover) text-white text-xs font-bold rounded-lg transition-all"
+                className="lb-press px-4 py-2 bg-(--color-text-primary) text-(--color-bg-primary) text-xs font-semibold rounded-lg"
               >
                 Kaydet
               </button>
               <button
                 onClick={() => setIsEditing(false)}
-                className="px-4 py-2 bg-(--color-btn-bg) hover:bg-(--color-btn-hover) text-(--color-text-primary) text-xs font-bold rounded-lg transition-all"
+                className="lb-press px-4 py-2 border lb-rule text-xs font-medium rounded-lg"
               >
                 İptal
               </button>
@@ -313,10 +313,10 @@ export function WorkoutDetailModal({
         ) : (
           <div className="space-y-2 mb-5">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-(--color-text-muted)">Setler</h4>
+              <h4 className="text-xs font-semibold">Setler</h4>
               <button
                 onClick={startEditing}
-                className="px-2 py-1 text-xs font-bold bg-(--color-accent) text-white hover:bg-(--color-accent-hover) rounded transition-all"
+                className="lb-press px-2 py-1 text-xs font-medium border lb-rule rounded"
               >
                 {isEmpty ? '+ Veri Ekle' : '✎ Düzenle'}
               </button>
@@ -329,28 +329,28 @@ export function WorkoutDetailModal({
                 const intensityDelta = prevSet ? getIntensityDelta(set.intensity, prevSet.intensity) : null;
 
                 return (
-                  <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-(--color-bg-input) border border-(--color-border)">
-                    <span className="text-xs font-bold text-(--color-accent) w-8">S{idx + 1}</span>
+                  <div key={idx} className="flex items-center gap-3 p-3 rounded-lg bg-(--color-bg-input) border lb-rule">
+                    <span className="lb-figure text-xs font-semibold text-(--color-text-secondary) w-8">S{idx + 1}</span>
                     <div className="flex-1 flex items-center gap-2">
-                      <span className="font-bold text-sm">{set.weight}kg</span>
-                      <span className="text-(--color-text-muted)">×</span>
-                      <span className="font-bold text-sm">{set.reps}</span>
+                      <span className="lb-figure font-semibold text-sm">{set.weight}kg</span>
+                      <span className="text-(--color-text-secondary)">×</span>
+                      <span className="lb-figure font-semibold text-sm">{set.reps}</span>
                       <span className="text-xs px-1.5 py-0.5 rounded bg-(--color-btn-bg) font-semibold text-(--color-text-secondary)">
                         {intensityLabels[set.intensity] || set.intensity}
                       </span>
                     </div>
                     {weightDelta && weightDelta.value !== 0 && (
-                      <span className={`text-xs font-bold ${weightDelta.color}`}>
+                      <span className={`lb-figure text-xs font-semibold ${weightDelta.color}`}>
                         {weightDelta.icon}{Math.abs(weightDelta.value)}kg
                       </span>
                     )}
                     {repsDelta && repsDelta.value !== 0 && (
-                      <span className={`text-xs font-bold ${repsDelta.color}`}>
+                      <span className={`lb-figure text-xs font-semibold ${repsDelta.color}`}>
                         {repsDelta.icon}{Math.abs(repsDelta.value)}rep
                       </span>
                     )}
                     {intensityDelta && intensityDelta.value !== 0 && (
-                      <span className={`text-xs font-bold ${intensityDelta.color}`}>
+                      <span className={`lb-figure text-xs font-semibold ${intensityDelta.color}`}>
                         {intensityDelta.icon}RIR
                       </span>
                     )}
@@ -358,18 +358,18 @@ export function WorkoutDetailModal({
                 );
               })
             ) : (
-              <p className="text-xs text-(--color-text-muted) italic">Veri yok — düzenle'ye tıklayarak ekle</p>
+              <p className="lb-label italic">Veri yok — düzenle'ye tıklayarak ekle</p>
             )}
           </div>
         )}
 
         {/* Previous Week Comparison Summary */}
         {previousSets && previousSets.length > 0 && previousWeek !== undefined && (
-          <div className="mb-5 p-3 rounded-xl bg-(--color-bg-input) border border-(--color-border)">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-(--color-text-muted) mb-2">
+          <div className="mb-5 p-3 rounded-lg bg-(--color-bg-input) border lb-rule">
+            <h4 className="text-xs font-semibold mb-2">
               Önceki Hafta (H{previousWeek})
             </h4>
-            <div className="text-xs font-set text-(--color-text-secondary)">
+            <div className="lb-figure text-xs text-(--color-text-secondary)">
               {previousSets.map((s, i) => (
                 <span key={i}>
                   {i > 0 && ' | '}
@@ -381,13 +381,13 @@ export function WorkoutDetailModal({
         )}
 
         {/* Week Notes */}
-        <div className="p-3 rounded-xl bg-(--color-bg-input) border border-(--color-border)">
+        <div className="p-3 rounded-lg bg-(--color-bg-input) border lb-rule">
           <div className="flex items-center justify-between mb-1">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-(--color-text-muted)">Not</h4>
+            <h4 className="text-xs font-semibold">Not</h4>
             {!isEditingNotes && (
               <button
                 onClick={() => { setEditingNotes(weekNotes || ''); setIsEditingNotes(true); }}
-                className="text-xs font-bold text-(--color-accent) hover:underline"
+                className="lb-press text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary) hover:underline"
               >
                 {weekNotes ? 'Düzenle' : '+ Not Ekle'}
               </button>
@@ -405,13 +405,13 @@ export function WorkoutDetailModal({
               <div className="flex gap-2">
                 <button
                   onClick={handleSaveNotes}
-                  className="px-3 py-1.5 bg-(--color-accent) hover:bg-(--color-accent-hover) text-white text-xs font-bold rounded-lg"
+                  className="lb-press px-3 py-1.5 bg-(--color-text-primary) text-(--color-bg-primary) text-xs font-semibold rounded-lg"
                 >
                   Kaydet
                 </button>
                 <button
                   onClick={() => setIsEditingNotes(false)}
-                  className="px-3 py-1.5 bg-(--color-btn-bg) hover:bg-(--color-btn-hover) text-(--color-text-primary) text-xs font-bold rounded-lg"
+                  className="lb-press px-3 py-1.5 border lb-rule text-xs font-medium rounded-lg"
                 >
                   İptal
                 </button>
@@ -419,7 +419,7 @@ export function WorkoutDetailModal({
             </div>
           ) : (
             <p className="text-sm text-(--color-text-secondary) leading-relaxed">
-              {weekNotes || <span className="italic text-(--color-text-muted)">Not yok</span>}
+              {weekNotes || <span className="italic text-(--color-text-secondary)">Not yok</span>}
             </p>
           )}
         </div>

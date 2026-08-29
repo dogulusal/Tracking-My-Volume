@@ -92,12 +92,12 @@ export function Export() {
   return (
     <PageContainer>
       <div className="mb-6">
-        <h1 className="text-3xl md:text-4xl font-black tracking-tight">Dışa / İçe Aktarma</h1>
+        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Dışa / içe aktarma</h1>
       </div>
       <div className="space-y-6 max-w-lg">
         {/* Backup automation */}
-        <div className="bg-(--color-bg-card) rounded-xl p-5 border border-(--color-border) shadow-sm">
-          <h3 className="font-extrabold text-lg mb-2">Yedek Otomasyonu</h3>
+        <div className="rounded-lg p-5 border lb-rule">
+          <h3 className="font-semibold text-base mb-2">Yedek otomasyonu</h3>
           <div className="flex items-center gap-2 mb-3">
             <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
               isCurrentWeekBackedUp
@@ -154,7 +154,7 @@ export function Export() {
               quickBackup('quick');
               setImportMessage({ type: 'success', text: 'Hizli yedek indirildi.' });
             }}
-            className="px-5 py-2.5 bg-(--color-accent) hover:bg-(--color-accent-hover) text-white text-sm font-bold rounded-lg transition-all hover:scale-105 active:scale-95"
+            className="lb-press px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg"
           >
             Hizli Yedek Al
           </button>
@@ -172,25 +172,25 @@ export function Export() {
         )}
 
         {/* Export All */}
-        <div className="bg-(--color-bg-card) rounded-xl p-5 border border-(--color-border) shadow-sm">
-          <h3 className="font-extrabold text-lg mb-2">Tüm Veriyi İndir</h3>
+        <div className="rounded-lg p-5 border lb-rule">
+          <h3 className="font-semibold text-base mb-2">Tüm veriyi indir</h3>
           <p className="text-sm text-(--color-text-secondary) mb-3">
             Tüm programlar ve antrenman kayıtlarını JSON olarak indir.
           </p>
           <button
             onClick={exportAll}
-            className="px-5 py-2.5 bg-(--color-accent) hover:bg-(--color-accent-hover) text-white text-sm font-bold rounded-lg transition-all hover:scale-105 active:scale-95"
+            className="lb-press px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg"
           >
             📥 JSON İndir
           </button>
         </div>
 
         {/* Export Range */}
-        <div className="bg-(--color-bg-card) rounded-xl p-5 border border-(--color-border) shadow-sm">
-          <h3 className="font-extrabold text-lg mb-2">Hafta Aralığı İndir</h3>
+        <div className="rounded-lg p-5 border lb-rule">
+          <h3 className="font-semibold text-base mb-2">Hafta aralığı indir</h3>
           <div className="flex items-center gap-3 mb-3">
             <div className="flex items-center gap-1">
-              <label className="text-xs text-(--color-text-muted)">Başlangıç:</label>
+              <label className="lb-label">Başlangıç:</label>
               <input
                 type="number"
                 value={fromWeek}
@@ -200,7 +200,7 @@ export function Export() {
               />
             </div>
             <div className="flex items-center gap-1">
-              <label className="text-xs text-(--color-text-muted)">Bitiş:</label>
+              <label className="lb-label">Bitiş:</label>
               <input
                 type="number"
                 value={toWeek}
@@ -212,15 +212,15 @@ export function Export() {
           </div>
           <button
             onClick={() => exportRange(fromWeek, toWeek)}
-            className="px-5 py-2.5 bg-(--color-btn-bg) hover:bg-(--color-btn-hover) text-(--color-text-primary) text-sm font-bold rounded-lg transition-all hover:scale-105 active:scale-95"
+            className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg"
           >
             Aralığı İndir
           </button>
         </div>
 
         {/* Import */}
-        <div className="bg-(--color-bg-card) rounded-xl p-5 border border-(--color-border) shadow-sm">
-          <h3 className="font-extrabold text-lg mb-2">Veri Yükle (JSON)</h3>
+        <div className="rounded-lg p-5 border lb-rule">
+          <h3 className="font-semibold text-base mb-2">Veri yükle (JSON)</h3>
           <p className="text-sm text-(--color-text-secondary) mb-3">
             Daha önce dışa aktarılmış bir JSON dosyasını yükle. Mevcut verinin üzerine yazılır.
           </p>
@@ -229,13 +229,13 @@ export function Export() {
             type="file"
             accept=".json"
             onChange={handleImport}
-            className="block w-full text-sm text-(--color-text-muted) file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-(--color-btn-bg) file:text-(--color-text-primary) hover:file:bg-(--color-btn-hover)"
+            className="block w-full text-sm text-(--color-text-secondary) file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border file:border-solid file:text-sm file:font-medium file:bg-transparent file:text-(--color-text-primary)"
           />
         </div>
 
         {/* Text/Spreadsheet Import */}
-        <div className="bg-(--color-bg-card) rounded-xl p-5 border border-(--color-border) shadow-sm">
-          <h3 className="font-extrabold text-lg mb-2">📋 Tablo/Spreadsheet'ten Yükle</h3>
+        <div className="rounded-lg p-5 border lb-rule">
+          <h3 className="font-semibold text-base mb-2">Tablo/spreadsheet'ten yükle</h3>
           <p className="text-sm text-(--color-text-secondary) mb-3">
             Excel, Google Sheets veya herhangi bir tablodan kopyala-yapıştır ile veri yükle.
             Format: <code className="text-xs bg-(--color-bg-input) px-1 rounded">Egzersiz | Set | H0 | H1 | H2 | ...</code>
@@ -243,14 +243,14 @@ export function Export() {
           {!showTextImport ? (
             <button
               onClick={() => setShowTextImport(true)}
-              className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold rounded-lg transition-all hover:scale-105 active:scale-95"
+              className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg"
             >
               📋 Tablo Yapıştır
             </button>
           ) : (
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-(--color-text-muted) block mb-1">Program Adı:</label>
+                <label className="lb-label block mb-1">Program Adı:</label>
                 <input
                   type="text"
                   value={programName}
@@ -260,7 +260,7 @@ export function Export() {
                 />
               </div>
               <div>
-                <label className="text-xs text-(--color-text-muted) block mb-1">Başlangıç Haftası:</label>
+                <label className="lb-label block mb-1">Başlangıç Haftası:</label>
                 <input
                   type="number"
                   value={startWeekInput}
@@ -270,7 +270,7 @@ export function Export() {
                 />
               </div>
               <div>
-                <label className="text-xs text-(--color-text-muted) block mb-1">Tablo Verisi (Tab/virgül ile ayrılmış):</label>
+                <label className="lb-label block mb-1">Tablo Verisi (Tab/virgül ile ayrılmış):</label>
                 <textarea
                   value={textInput}
                   onChange={e => setTextInput(e.target.value)}
@@ -282,13 +282,13 @@ export function Export() {
               <div className="flex gap-2">
                 <button
                   onClick={handleTextImport}
-                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold rounded-lg transition-all hover:scale-105 active:scale-95"
+                  className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg"
                 >
                   Yükle
                 </button>
                 <button
                   onClick={() => { setShowTextImport(false); setTextInput(''); }}
-                  className="px-5 py-2.5 bg-(--color-btn-bg) hover:bg-(--color-btn-hover) text-(--color-text-primary) text-sm font-bold rounded-lg transition-all"
+                  className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg"
                 >
                   İptal
                 </button>
@@ -298,29 +298,30 @@ export function Export() {
         </div>
 
         {/* PDF Data Import */}
-        <div className="bg-(--color-bg-card) rounded-xl p-5 border border-emerald-900/50 shadow-sm">
-          <h3 className="font-extrabold text-lg text-emerald-400 mb-2">📄 PDF Başlangıç Verisi</h3>
+        <div className="rounded-lg p-5 border lb-rule">
+          <h3 className="font-semibold text-base mb-2">PDF başlangıç verisi</h3>
           <p className="text-sm text-(--color-text-secondary) mb-3">
             Orijinal PDF spreadsheet verilerini yükle (5 program, 19+ hafta).
             Mevcut verinin üzerine yazılır.
           </p>
           <button
             onClick={() => setShowPdfModal(true)}
-            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-lg transition-all hover:scale-105 active:scale-95"
+            className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg"
           >
             📄 PDF Verisini Yükle
           </button>
         </div>
 
         {/* Reset */}
-        <div className="bg-(--color-bg-card) rounded-xl p-5 border border-red-900/50 shadow-sm">
-          <h3 className="font-extrabold text-lg text-red-400 mb-2">Tehlikeli Bölge</h3>
+        <div className="rounded-lg p-5 border" style={{ borderColor: 'var(--lb-drop)' }}>
+          <h3 className="font-semibold text-base mb-2" style={{ color: 'var(--lb-drop)' }}>Tehlikeli bölge</h3>
           <p className="text-sm text-(--color-text-secondary) mb-3">
             Tüm verileri sıfırla. Bu işlem geri alınamaz.
           </p>
           <button
             onClick={() => setShowResetModal(true)}
-            className="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white text-sm font-bold rounded-lg transition-all hover:scale-105 active:scale-95"
+            className="lb-press px-5 py-2.5 border text-sm font-semibold rounded-lg"
+            style={{ borderColor: 'var(--lb-drop)', color: 'var(--lb-drop)' }}
           >
             🗑️ Veriyi Sıfırla
           </button>

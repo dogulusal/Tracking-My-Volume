@@ -103,25 +103,25 @@ function PhaseSettingsModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-(--color-bg-card) border border-(--color-border) rounded-xl p-6 w-full max-w-md neon-card">
-        <h3 className="text-lg font-bold text-(--color-text-primary) mb-4 neon-glow">Faz Ayarlari</h3>
+      <div className="bg-(--color-bg-card) border lb-rule rounded-lg p-6 w-full max-w-md">
+        <h3 className="text-lg font-semibold mb-4">Faz ayarları</h3>
         <div className="space-y-3">
           {editPhases.map(phase => (
             <div key={phase.id} className="flex items-center gap-2">
-              <input type="text" value={phase.name} onChange={e => updatePhase(phase.id, 'name', e.target.value)} className="flex-1 px-2 py-1.5 bg-(--color-bg-input) border border-(--color-border) rounded-md text-sm text-(--color-text-primary) focus:outline-none focus:border-(--color-accent)" />
-              <input type="number" value={phase.startWeek} onChange={e => updatePhase(phase.id, 'startWeek', Number(e.target.value))} className="w-16 px-2 py-1.5 bg-(--color-bg-input) border border-(--color-border) rounded-md text-sm text-(--color-text-primary) text-center focus:outline-none focus:border-(--color-accent)" />
-              <span className="text-(--color-text-muted) text-xs">-</span>
-              <input type="number" value={phase.endWeek ?? ''} onChange={e => updatePhase(phase.id, 'endWeek', e.target.value === '' ? null : Number(e.target.value))} className="w-16 px-2 py-1.5 bg-(--color-bg-input) border border-(--color-border) rounded-md text-sm text-(--color-text-primary) text-center focus:outline-none focus:border-(--color-accent)" placeholder="inf" />
+              <input type="text" value={phase.name} onChange={e => updatePhase(phase.id, 'name', e.target.value)} className="flex-1 px-2 py-1.5 bg-(--color-bg-input) border lb-rule rounded-md text-sm focus:outline-none focus:border-(--color-text-primary)" />
+              <input type="number" value={phase.startWeek} onChange={e => updatePhase(phase.id, 'startWeek', Number(e.target.value))} className="lb-figure w-16 px-2 py-1.5 bg-(--color-bg-input) border lb-rule rounded-md text-sm text-center focus:outline-none focus:border-(--color-text-primary)" />
+              <span className="lb-label">-</span>
+              <input type="number" value={phase.endWeek ?? ''} onChange={e => updatePhase(phase.id, 'endWeek', e.target.value === '' ? null : Number(e.target.value))} className="lb-figure w-16 px-2 py-1.5 bg-(--color-bg-input) border lb-rule rounded-md text-sm text-center focus:outline-none focus:border-(--color-text-primary)" placeholder="inf" />
               {editPhases.length > 1 && (
-                <button onClick={() => removePhase(phase.id)} className="text-(--color-status-decreased) hover:text-red-400 text-sm font-bold">x</button>
+                <button onClick={() => removePhase(phase.id)} aria-label={`${phase.name} fazını sil`} className="lb-press text-sm font-semibold px-1.5 py-1 rounded" style={{ color: 'var(--lb-drop)' }}>✕</button>
               )}
             </div>
           ))}
         </div>
-        <button onClick={addPhase} className="mt-3 text-xs font-semibold text-(--color-accent) hover:text-(--color-accent-hover)">+ Faz Ekle</button>
+        <button onClick={addPhase} className="lb-press mt-3 text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)">+ Faz ekle</button>
         <div className="flex justify-end gap-2 mt-6">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-(--color-text-secondary) hover:text-(--color-text-primary) rounded-lg">Iptal</button>
-          <button onClick={() => onSave(editPhases)} className="px-4 py-2 text-sm font-bold bg-(--color-accent) text-[#050a0a] rounded-lg btn-neon">Kaydet</button>
+          <button onClick={onClose} className="lb-press px-4 py-2 text-sm font-medium text-(--color-text-secondary) hover:text-(--color-text-primary) rounded-lg">İptal</button>
+          <button onClick={() => onSave(editPhases)} className="lb-press px-4 py-2 text-sm font-semibold bg-(--color-text-primary) text-(--color-bg-primary) rounded-lg">Kaydet</button>
         </div>
       </div>
     </div>
@@ -144,18 +144,18 @@ function StatusBarView({ data }: { data: DataPoint[] }) {
           return (
             <div key={point.week} className="flex flex-col items-center gap-1.5 min-w-[42px] flex-1">
               <div
-                className="flex-1 w-full rounded-md border flex flex-col items-center justify-center px-1 py-2 transition-all hover:scale-105"
-                style={{ background: bg, borderColor: color, boxShadow: isEmpty ? 'none' : `0 0 8px ${color}33`, opacity: isEmpty ? 0.4 : 1 }}
+                className="flex-1 w-full rounded-md border flex flex-col items-center justify-center px-1 py-2"
+                style={{ background: bg, borderColor: color, opacity: isEmpty ? 0.4 : 1 }}
               >
                 {!isEmpty && (
                   <>
-                    <span className="text-[11px] font-bold font-mono" style={{ color }}>{point.weight}kg</span>
-                    <span className="text-[9px] text-(--color-text-secondary)">x{point.reps}</span>
+                    <span className="lb-figure text-[11px] font-semibold" style={{ color }}>{point.weight}kg</span>
+                    <span className="lb-figure text-[9px] text-(--color-text-secondary)">×{point.reps}</span>
                   </>
                 )}
                 {isEmpty && <span className="text-[9px] text-(--color-text-secondary)">-</span>}
               </div>
-              <span className="text-[10px] font-semibold text-(--color-text-secondary)">{point.week}</span>
+              <span className="lb-figure text-[10px] font-medium text-(--color-text-secondary)">{point.week}</span>
             </div>
           );
         })}
@@ -176,17 +176,16 @@ function StreakDotsView({ data }: { data: DataPoint[] }) {
           return (
             <div key={point.week} className="flex flex-col items-center gap-2 min-w-[42px] flex-1 relative z-10">
               <div
-                className="w-6 h-6 rounded-full border-2 transition-all hover:scale-125"
+                className="w-6 h-6 rounded-full border-2"
                 style={{
-                  background: isEmpty ? '#1f2937' : color,
-                  borderColor: isEmpty ? '#374151' : color,
-                  boxShadow: isEmpty ? 'none' : `0 0 10px ${color}66`,
+                  background: isEmpty ? 'var(--color-bg-input)' : color,
+                  borderColor: isEmpty ? 'var(--color-border)' : color,
                   opacity: isEmpty ? 0.4 : 1,
                 }}
               />
-              <span className="text-[10px] font-semibold text-(--color-text-secondary)">{point.week}</span>
+              <span className="lb-figure text-[10px] font-medium text-(--color-text-secondary)">{point.week}</span>
               {!isEmpty && (
-                <span className="text-[9px] font-mono text-(--color-text-secondary)">{point.weight}x{point.reps}</span>
+                <span className="lb-figure text-[9px] text-(--color-text-secondary)">{point.weight}×{point.reps}</span>
               )}
             </div>
           );
@@ -258,7 +257,7 @@ export function Charts() {
     if (data.every(d => d.status === 'empty')) {
       return (
         <div className="flex items-center justify-center py-12">
-          <p className="text-(--color-text-muted) text-sm font-semibold">Bu faz icin veri yok.</p>
+          <p className="lb-label">Bu faz için veri yok.</p>
         </div>
       );
     }
@@ -268,8 +267,8 @@ export function Charts() {
   return (
     <PageContainer>
       <div className="mb-6">
-        <h1 className="text-3xl md:text-4xl font-black tracking-tight neon-glow">Progressive Overload</h1>
-        <p className="text-(--color-text-secondary) text-sm mt-1">Faz bazli status trend analizi</p>
+        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Progressive Overload</h1>
+        <p className="lb-label mt-1">Faz bazlı status trend analizi</p>
       </div>
 
       {/* Controls */}
@@ -277,7 +276,7 @@ export function Charts() {
         <select
           value={selectedProgramId}
           onChange={e => { setSelectedProgramId(e.target.value); setSelectedExerciseId(''); }}
-          className="px-4 py-2.5 bg-(--color-bg-input) border border-(--color-border) rounded-lg text-sm font-semibold text-(--color-text-primary) focus:outline-none focus:border-(--color-accent) focus:ring-1 focus:ring-(--color-accent)"
+          className="px-4 py-2.5 bg-(--color-bg-input) border lb-rule rounded-lg text-sm font-medium focus:outline-none focus:border-(--color-text-primary)"
         >
           {programs.slice().sort((a, b) => a.order - b.order).map(p => (
             <option key={p.id} value={p.id}>{p.name}</option>
@@ -287,7 +286,7 @@ export function Charts() {
         <select
           value={selectedExerciseId}
           onChange={e => setSelectedExerciseId(e.target.value)}
-          className="px-4 py-2.5 bg-(--color-bg-input) border border-(--color-border) rounded-lg text-sm font-semibold text-(--color-text-primary) focus:outline-none focus:border-(--color-accent) focus:ring-1 focus:ring-(--color-accent)"
+          className="px-4 py-2.5 bg-(--color-bg-input) border lb-rule rounded-lg text-sm font-medium focus:outline-none focus:border-(--color-text-primary)"
         >
           <option value="">Egzersiz sec...</option>
           {exercises.map(e => (<option key={e.id} value={e.id}>{e.name}</option>))}
@@ -295,8 +294,9 @@ export function Charts() {
 
         <button
           onClick={() => setShowSettings(true)}
-          className="ml-auto p-2 rounded-lg border border-(--color-border) hover:border-(--color-accent) text-(--color-text-muted) hover:text-(--color-accent) transition-colors"
-          title="Faz Ayarlari"
+          className="lb-press ml-auto p-2 rounded-lg border lb-rule text-(--color-text-secondary)"
+          aria-label="Faz ayarları"
+          title="Faz ayarları"
         >⚙</button>
       </div>
 
@@ -306,36 +306,36 @@ export function Charts() {
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-3 text-xs font-semibold">
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full inline-block" style={{ background: COLOR_UP, boxShadow: `0 0 6px ${COLOR_UP}` }} />Artis
+                <span className="w-3 h-3 rounded-full inline-block" style={{ background: COLOR_UP }} />Artış
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full inline-block" style={{ background: COLOR_SAME }} />Ayni
+                <span className="w-3 h-3 rounded-full inline-block" style={{ background: COLOR_SAME }} />Aynı
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full inline-block" style={{ background: COLOR_DOWN, boxShadow: `0 0 6px ${COLOR_DOWN}` }} />Dusus
+                <span className="w-3 h-3 rounded-full inline-block" style={{ background: COLOR_DOWN }} />Düşüş
               </span>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="flex rounded-lg border border-(--color-border) overflow-hidden text-xs font-semibold">
+              <div className="flex rounded-lg border lb-rule overflow-hidden text-xs font-semibold">
                 <button
                   onClick={() => setDataViewMode('bars')}
-                  className={`px-3 py-1.5 transition-colors ${dataViewMode === 'bars' ? 'bg-(--color-accent) text-[#050a0a]' : 'text-(--color-text-secondary) hover:text-(--color-text-primary)'}`}
+                  className={`lb-press px-3 py-1.5 ${dataViewMode === 'bars' ? 'bg-(--color-text-primary) text-(--color-bg-primary)' : 'text-(--color-text-secondary)'}`}
                 >Bar</button>
                 <button
                   onClick={() => setDataViewMode('dots')}
-                  className={`px-3 py-1.5 transition-colors ${dataViewMode === 'dots' ? 'bg-(--color-accent) text-[#050a0a]' : 'text-(--color-text-secondary) hover:text-(--color-text-primary)'}`}
-                >Dots</button>
+                  className={`lb-press px-3 py-1.5 ${dataViewMode === 'dots' ? 'bg-(--color-text-primary) text-(--color-bg-primary)' : 'text-(--color-text-secondary)'}`}
+                >Nokta</button>
               </div>
 
               <select
                 value={chartViewMode}
                 onChange={e => handleViewModeChange(e.target.value as ChartViewMode)}
-                className="px-2 py-1.5 bg-(--color-bg-input) border border-(--color-border) rounded-lg text-xs font-semibold text-(--color-text-primary) focus:outline-none focus:border-(--color-accent)"
+                className="px-2 py-1.5 bg-(--color-bg-input) border lb-rule rounded-lg text-xs font-medium focus:outline-none focus:border-(--color-text-primary)"
               >
                 <option value="tabs">Tab</option>
-                <option value="side-by-side">Yan Yana</option>
-                <option value="stacked">Alt Alta</option>
+                <option value="side-by-side">Yan yana</option>
+                <option value="stacked">Alt alta</option>
               </select>
             </div>
           </div>
@@ -348,20 +348,20 @@ export function Charts() {
                   <button
                     key={phase.id}
                     onClick={() => setActivePhaseId(phase.id)}
-                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                    className={`lb-press px-4 py-2 rounded-lg text-xs border-b-2 ${
                       activePhaseId === phase.id
-                        ? 'bg-(--color-accent) text-[#050a0a] btn-neon'
-                        : 'bg-(--color-btn-bg) text-(--color-text-secondary) hover:text-(--color-text-primary) hover:bg-(--color-btn-hover)'
+                        ? 'font-semibold border-(--color-text-primary)'
+                        : 'font-medium border-transparent text-(--color-text-secondary) hover:text-(--color-text-primary)'
                     }`}
                   >
                     {phase.name} (H{phase.startWeek}-H{phase.endWeek ?? 'inf'})
                   </button>
                 ))}
               </div>
-              <div className="bg-(--color-bg-card) rounded-xl p-5 border border-(--color-border) neon-card">
+              <div className="rounded-lg p-5 border lb-rule">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold text-(--color-text-primary)">
-                    {selectedExerciseName} - {phases.find(p => p.id === activePhaseId)?.name}
+                  <h3 className="text-sm font-semibold">
+                    {selectedExerciseName} — {phases.find(p => p.id === activePhaseId)?.name}
                   </h3>
                 </div>
                 {phases.find(p => p.id === activePhaseId) && renderPhaseContent(phases.find(p => p.id === activePhaseId)!)}
@@ -373,10 +373,10 @@ export function Charts() {
           {chartViewMode === 'side-by-side' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {phases.map(phase => (
-                <div key={phase.id} className="bg-(--color-bg-card) rounded-xl p-5 border border-(--color-border) neon-card">
+                <div key={phase.id} className="rounded-lg p-5 border lb-rule">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-bold text-(--color-text-primary)">{selectedExerciseName} - {phase.name}</h3>
-                    <span className="text-xs font-semibold text-(--color-text-muted)">H{phase.startWeek}-H{phase.endWeek ?? 'inf'}</span>
+                    <h3 className="text-sm font-semibold">{selectedExerciseName} — {phase.name}</h3>
+                    <span className="lb-figure text-xs text-(--color-text-secondary)">H{phase.startWeek}-H{phase.endWeek ?? 'inf'}</span>
                   </div>
                   {renderPhaseContent(phase)}
                 </div>
@@ -388,10 +388,10 @@ export function Charts() {
           {chartViewMode === 'stacked' && (
             <div className="grid gap-4">
               {phases.map(phase => (
-                <div key={phase.id} className="bg-(--color-bg-card) rounded-xl p-5 border border-(--color-border) neon-card">
+                <div key={phase.id} className="rounded-lg p-5 border lb-rule">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-bold text-(--color-text-primary)">{selectedExerciseName} - {phase.name}</h3>
-                    <span className="text-xs font-semibold text-(--color-text-muted)">H{phase.startWeek}-H{phase.endWeek ?? 'inf'}</span>
+                    <h3 className="text-sm font-semibold">{selectedExerciseName} — {phase.name}</h3>
+                    <span className="lb-figure text-xs text-(--color-text-secondary)">H{phase.startWeek}-H{phase.endWeek ?? 'inf'}</span>
                   </div>
                   {renderPhaseContent(phase)}
                 </div>
@@ -402,9 +402,9 @@ export function Charts() {
       )}
 
       {!selectedExerciseId && (
-        <div className="bg-(--color-bg-card) rounded-xl p-5 border border-(--color-border) neon-card">
+        <div className="rounded-lg p-5 border lb-rule">
           <div className="flex flex-col items-center justify-center py-16">
-            <p className="text-(--color-text-muted) text-lg font-bold">Bir egzersiz secin</p>
+            <p className="text-(--color-text-secondary) text-sm">Bir egzersiz seçin</p>
           </div>
         </div>
       )}
