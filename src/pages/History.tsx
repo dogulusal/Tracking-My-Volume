@@ -374,18 +374,18 @@ export function History() {
     <PageContainer>
       {/* Title + Settings Toggle */}
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-3xl md:text-4xl font-black tracking-tight">Antrenman Geçmişi</h1>
+        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Antrenman Geçmişi</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={incrementWeek}
-            className="px-3 py-1.5 bg-(--color-accent) hover:bg-(--color-accent-hover) text-white text-xs font-bold rounded-lg transition-all hover:scale-105 active:scale-95"
+            className="lb-press px-3 py-1.5 border lb-rule text-xs font-semibold rounded-lg"
           >
             + Yeni Hafta
           </button>
           <button
             onClick={() => setShowColorSettings(s => !s)}
-            className={`p-2 rounded-lg transition-all text-lg ${
-              showColorSettings ? 'bg-(--color-accent) text-white' : 'bg-(--color-btn-bg) text-(--color-text-muted) hover:text-(--color-text-primary)'
+            className={`lb-press p-2 rounded-lg text-lg border ${
+              showColorSettings ? 'lb-rule-strong' : 'lb-rule text-(--color-text-secondary)'
             }`}
             title="Renk Ayarları"
           >
@@ -396,34 +396,34 @@ export function History() {
 
       {/* Color Settings Panel */}
       {showColorSettings && (
-        <div className="mb-5 bg-(--color-bg-card) rounded-xl border border-(--color-border) p-5 shadow-sm">
+        <div className="mb-5 border lb-rule rounded-lg p-5">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-black uppercase tracking-wider">Renk Ayarları</h3>
+            <h3 className="text-sm font-semibold">Renk ayarları</h3>
             <button
               onClick={resetAllOverrides}
-              className="text-xs font-bold text-(--color-accent) hover:underline"
+              className="text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary) hover:underline"
             >
-              Tüm Overrideları Sıfırla
+              Tüm overrideları sıfırla
             </button>
           </div>
-          <p className="text-xs text-(--color-text-secondary) mb-3">
-            Hücrelere tıklayarak renkleri tek tek değiştirebilirsin. Otomatik renkler: ağırlık/tekrar artarsa veya aynı kilo/tekrarda RIR iyileşirse <span className="text-emerald-400 font-bold">yeşil</span>, düşerse <span className="text-rose-400 font-bold">kırmızı</span>, aynıysa <span className="text-(--color-text-muted) font-bold">gri</span>.
+          <p className="lb-label mb-3">
+            Hücrelere tıklayarak renkleri tek tek değiştirebilirsin. Otomatik renkler: ağırlık/tekrar artarsa veya aynı kilo/tekrarda RIR iyileşirse <span style={{ color: 'var(--lb-gain)' }} className="font-semibold">yeşil</span>, düşerse <span style={{ color: 'var(--lb-drop)' }} className="font-semibold">kırmızı</span>, aynıysa <span className="font-semibold">gri</span>.
           </p>
-          <div className="p-3 rounded-xl bg-(--color-bg-input) border border-(--color-border)">
+          <div className="p-3 rounded-lg bg-(--color-bg-input) border lb-rule">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs font-black uppercase tracking-wider">
-                Durum Renkleri ({isDark ? 'koyu tema' : 'açık tema'})
+              <h4 className="text-xs font-semibold">
+                Durum renkleri ({isDark ? 'koyu tema' : 'açık tema'})
               </h4>
               {hasCustomStatusColors && (
                 <button
                   onClick={resetStatusColors}
-                  className="text-xs font-bold text-(--color-accent) hover:underline"
+                  className="text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary) hover:underline"
                 >
-                  Varsayılana Dön
+                  Varsayılana dön
                 </button>
               )}
             </div>
-            <p className="text-xs text-(--color-text-secondary) mb-2.5">
+            <p className="lb-label mb-2.5">
               Kareye tıklayıp rengi değiştir. Koyu ve açık tema renkleri ayrı tutulur.
             </p>
             <div className="flex flex-wrap gap-3">
@@ -434,7 +434,7 @@ export function History() {
                     value={getStatusBgColor(opt.value)}
                     onChange={e => setStatusBgColor(opt.value, e.target.value)}
                     aria-label={`${opt.label} rengi`}
-                    className="w-6 h-6 rounded cursor-pointer bg-transparent border border-(--color-border) p-0"
+                    className="w-6 h-6 rounded cursor-pointer bg-transparent border lb-rule p-0"
                   />
                   {opt.label}
                 </label>
@@ -442,13 +442,13 @@ export function History() {
             </div>
           </div>
 
-          <div className="mt-4 p-3 rounded-xl bg-(--color-bg-input) border border-(--color-border)">
-            <h4 className="text-xs font-black uppercase tracking-wider mb-3">Toplu Renk Uygula (Görünür 4 Hafta)</h4>
+          <div className="mt-4 p-3 rounded-lg bg-(--color-bg-input) border lb-rule">
+            <h4 className="text-xs font-semibold mb-3">Toplu renk uygula (görünür 4 hafta)</h4>
             <div className="grid md:grid-cols-[160px_1fr_1fr] gap-2 mb-2">
               <select
                 value={bulkColorStatus}
                 onChange={(e) => setBulkColorStatus(e.target.value as ExerciseStatus)}
-                className="px-2 py-1.5 text-xs bg-(--color-bg-primary) border border-(--color-border) rounded-lg focus:outline-none"
+                className="px-2 py-1.5 text-xs bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
               >
                 {STATUS_OPTIONS.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -459,49 +459,49 @@ export function History() {
                 <select
                   value={bulkRowExerciseId}
                   onChange={(e) => setBulkRowExerciseId(e.target.value)}
-                  className="flex-1 px-2 py-1.5 text-xs bg-(--color-bg-primary) border border-(--color-border) rounded-lg focus:outline-none"
+                  className="flex-1 px-2 py-1.5 text-xs bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
                 >
-                  <option value="">Satır Seç</option>
+                  <option value="">Satır seç</option>
                   {allExerciseIds.map(id => (
                     <option key={id} value={id}>{getExerciseName(id)}</option>
                   ))}
                 </select>
-                <button onClick={applyRowColor} className="px-2 py-1.5 text-xs font-bold rounded bg-(--color-accent) text-white">Renk</button>
-                <button onClick={clearRowColor} className="px-2 py-1.5 text-xs font-bold rounded bg-(--color-btn-bg)">Renk Sıfırla</button>
-                <button onClick={deleteRowData} className="px-2 py-1.5 text-xs font-bold rounded bg-rose-900 text-white hover:bg-rose-800">Veri Sil</button>
+                <button onClick={applyRowColor} className="lb-press px-2 py-1.5 text-xs font-medium rounded border lb-rule">Renk</button>
+                <button onClick={clearRowColor} className="lb-press px-2 py-1.5 text-xs font-medium rounded border lb-rule">Renk sıfırla</button>
+                <button onClick={deleteRowData} className="lb-press px-2 py-1.5 text-xs font-medium rounded border" style={{ borderColor: 'var(--lb-drop)', color: 'var(--lb-drop)' }}>Veri sil</button>
               </div>
 
               <div className="flex gap-2">
                 <select
                   value={bulkColumnWeek ?? ''}
                   onChange={(e) => setBulkColumnWeek(e.target.value === '' ? null : Number(e.target.value))}
-                  className="flex-1 px-2 py-1.5 text-xs bg-(--color-bg-primary) border border-(--color-border) rounded-lg focus:outline-none"
+                  className="flex-1 px-2 py-1.5 text-xs bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
                 >
-                  <option value="">Sütun Seç</option>
+                  <option value="">Sütun seç</option>
                   {visibleWeeks.map(week => (
                     <option key={week} value={week}>H{getDisplayWeek(week)}</option>
                   ))}
                 </select>
-                <button onClick={applyColumnColor} className="px-2 py-1.5 text-xs font-bold rounded bg-(--color-accent) text-white">Renk</button>
-                <button onClick={clearColumnColor} className="px-2 py-1.5 text-xs font-bold rounded bg-(--color-btn-bg)">Renk Sıfırla</button>
-                <button onClick={deleteColumnData} className="px-2 py-1.5 text-xs font-bold rounded bg-rose-900 text-white hover:bg-rose-800">Veri Sil</button>
+                <button onClick={applyColumnColor} className="lb-press px-2 py-1.5 text-xs font-medium rounded border lb-rule">Renk</button>
+                <button onClick={clearColumnColor} className="lb-press px-2 py-1.5 text-xs font-medium rounded border lb-rule">Renk sıfırla</button>
+                <button onClick={deleteColumnData} className="lb-press px-2 py-1.5 text-xs font-medium rounded border" style={{ borderColor: 'var(--lb-drop)', color: 'var(--lb-drop)' }}>Veri sil</button>
               </div>
             </div>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-(--color-border)">
+          <div className="mt-4 pt-4 border-t lb-rule">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-black uppercase tracking-wider">Egzersiz / Set Düzenle</h4>
+              <h4 className="text-sm font-semibold">Egzersiz / set düzenle</h4>
               <button
                 onClick={() => setShowProgramEditor(v => !v)}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-(--color-btn-bg) text-(--color-text-secondary) hover:bg-(--color-btn-hover)"
+                className="lb-press px-3 py-1.5 rounded-lg text-xs font-medium border lb-rule"
               >
                 {showProgramEditor ? 'Kapat' : 'Aç'}
               </button>
             </div>
 
             {showProgramEditor && selectedProgram && (
-              <div className="p-3 bg-(--color-bg-input) border border-(--color-border) rounded-xl">
+              <div className="p-3 bg-(--color-bg-input) border lb-rule rounded-lg">
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -509,11 +509,11 @@ export function History() {
                   }}
                 >
                   <div className="flex flex-wrap items-center gap-2 mb-3">
-                    <label className="text-xs font-bold">Hafta</label>
+                    <label className="text-xs font-medium">Hafta</label>
                     <select
                       value={editorWeek ?? ''}
                       onChange={(e) => setEditorWeek(e.target.value === '' ? null : Number(e.target.value))}
-                      className="px-2 py-1.5 text-xs bg-(--color-bg-primary) border border-(--color-border) rounded-lg focus:outline-none"
+                      className="px-2 py-1.5 text-xs bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
                     >
                       {visibleWeeks.map(week => (
                         <option key={week} value={week}>H{getDisplayWeek(week)}</option>
@@ -533,19 +533,19 @@ export function History() {
                           defaultSets: getExerciseSets(id) ?? 1,
                         })));
                       }}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-(--color-btn-bg) hover:bg-(--color-btn-hover)"
+                      className="lb-press px-3 py-1.5 rounded-lg text-xs font-medium border lb-rule"
                     >
                       Yenile
                     </button>
                     <button
                       type="submit"
-                      className="ml-auto px-3 py-1.5 rounded-lg text-xs font-bold bg-(--color-accent) text-white hover:bg-(--color-accent-hover)"
+                      className="lb-press ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold border lb-rule-strong"
                     >
                       Kaydet
                     </button>
                   </div>
 
-                  <p className="text-xs text-(--color-text-secondary) mb-2">Liste, aktif program + görünür haftadaki satırlarla eşleşir. Ok tuşlarıyla satır sırasını değiştir, sonra Kaydet.</p>
+                  <p className="lb-label mb-2">Liste, aktif program + görünür haftadaki satırlarla eşleşir. Ok tuşlarıyla satır sırasını değiştir, sonra Kaydet.</p>
 
                   <div className="grid gap-2 max-h-64 overflow-auto pr-1">
                     {programEdits.map((row, rowIdx) => (
@@ -556,7 +556,7 @@ export function History() {
                             onClick={() => setProgramEdits(prev => moveItem(prev, rowIdx, -1))}
                             disabled={rowIdx === 0}
                             aria-label={`${row.name} satırını yukarı taşı`}
-                            className="px-1.5 leading-none text-xs rounded bg-(--color-bg-primary) border border-(--color-border) text-(--color-text-secondary) hover:text-(--color-text-primary) disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="lb-press px-1.5 leading-none text-xs rounded border lb-rule text-(--color-text-secondary) disabled:opacity-30 disabled:cursor-not-allowed"
                           >
                             ▲
                           </button>
@@ -565,7 +565,7 @@ export function History() {
                             onClick={() => setProgramEdits(prev => moveItem(prev, rowIdx, 1))}
                             disabled={rowIdx === programEdits.length - 1}
                             aria-label={`${row.name} satırını aşağı taşı`}
-                            className="px-1.5 leading-none text-xs rounded bg-(--color-bg-primary) border border-(--color-border) text-(--color-text-secondary) hover:text-(--color-text-primary) disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="lb-press px-1.5 leading-none text-xs rounded border lb-rule text-(--color-text-secondary) disabled:opacity-30 disabled:cursor-not-allowed"
                           >
                             ▼
                           </button>
@@ -576,7 +576,7 @@ export function History() {
                             const val = e.target.value;
                             setProgramEdits(prev => prev.map(p => p.id === row.id ? { ...p, name: val } : p));
                           }}
-                          className="px-3 py-2 text-sm bg-(--color-bg-primary) border border-(--color-border) rounded-lg focus:border-(--color-accent) focus:outline-none"
+                          className="px-3 py-2 text-sm bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
                         />
                         <input
                           type="number"
@@ -586,7 +586,7 @@ export function History() {
                             const val = Number.parseInt(e.target.value, 10);
                             setProgramEdits(prev => prev.map(p => p.id === row.id ? { ...p, defaultSets: Number.isFinite(val) ? val : p.defaultSets } : p));
                           }}
-                          className="px-2 py-2 text-sm text-center bg-(--color-bg-primary) border border-(--color-border) rounded-lg focus:border-(--color-accent) focus:outline-none"
+                          className="px-2 py-2 text-sm text-center bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
                         />
                       </div>
                     ))}
@@ -598,16 +598,16 @@ export function History() {
         </div>
       )}
 
-      {/* Program Filter */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
+      {/* Program Filter — current program marked by underline, not a fill */}
+      <div className="flex flex-wrap items-center gap-1 mb-4">
         {programs.sort((a, b) => a.order - b.order).map(p => (
           <button
             key={p.id}
             onClick={() => { setSelectedProgramId(p.id); setPageStart(0); }}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+            className={`lb-press px-3 py-2 rounded-lg text-sm border-b-2 ${
               selectedProgramId === p.id
-                ? 'bg-(--color-accent) text-white shadow-lg shadow-(--color-accent-glow) scale-105'
-                : 'bg-(--color-btn-bg) text-(--color-text-secondary) hover:bg-(--color-btn-hover) hover:scale-105'
+                ? 'font-semibold border-(--color-text-primary)'
+                : 'font-medium border-transparent text-(--color-text-secondary) hover:text-(--color-text-primary)'
             }`}
           >
             {p.name}
@@ -617,7 +617,7 @@ export function History() {
 
       {/* Phase selector (if multiple phases exist) */}
       {phases.length > 1 && (
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-1 mb-3">
           {phases.map((phase, idx) => (
             <button
               key={idx}
@@ -629,10 +629,10 @@ export function History() {
                   : 0;
                 setPageStart(last);
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`lb-press px-3 py-1.5 rounded-lg text-xs ${
                 selectedPhaseIdx === idx
-                  ? 'bg-(--color-accent) text-white'
-                  : 'bg-(--color-btn-bg) text-(--color-text-secondary) hover:bg-(--color-btn-hover)'
+                  ? 'font-semibold text-(--color-text-primary)'
+                  : 'font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)'
               }`}
             >
               {phase.label}
@@ -646,11 +646,11 @@ export function History() {
         <button
           onClick={() => setPageStart(s => Math.max(0, s - PAGE_SIZE))}
           disabled={pageStart === 0}
-          className="px-3 py-1.5 text-sm font-semibold bg-(--color-btn-bg) rounded-lg hover:bg-(--color-btn-hover) disabled:opacity-30 text-(--color-text-primary) transition-all"
+          className="lb-press px-3 py-1.5 text-sm font-medium border lb-rule rounded-lg disabled:opacity-30"
         >
           ← Önceki
         </button>
-        <span className="text-sm font-bold text-(--color-text-secondary)">
+        <span className="lb-label">
           {isMobile && visibleWeeks.length === 1
             ? `H${getDisplayWeek(visibleWeeks[0] ?? currentPhase.baseWeek)}`
             : `H${getDisplayWeek(visibleWeeks[0] ?? currentPhase.baseWeek)} — H${getDisplayWeek(visibleWeeks[visibleWeeks.length - 1] ?? currentPhase.baseWeek)}`
@@ -659,7 +659,7 @@ export function History() {
         <button
           onClick={() => setPageStart(s => s + PAGE_SIZE)}
           disabled={pageStart + PAGE_SIZE >= currentPhase.weeks.length}
-          className="px-3 py-1.5 text-sm font-semibold bg-(--color-btn-bg) rounded-lg hover:bg-(--color-btn-hover) disabled:opacity-30 text-(--color-text-primary) transition-all"
+          className="lb-press px-3 py-1.5 text-sm font-medium border lb-rule rounded-lg disabled:opacity-30"
         >
           Sonraki →
         </button>
@@ -667,29 +667,29 @@ export function History() {
 
       {/* Table / Accordion */}
       {programs.length === 0 ? (
-        <p className="text-(--color-text-muted)">Henüz program yok.</p>
+        <p className="text-(--color-text-secondary)">Henüz program yok.</p>
       ) : isMobile ? (
         /* ── Mobile: Week-by-week list ── */
-        <div className="space-y-3">
+        <div className="space-y-5">
           {visibleWeeks.map(weekNum => {
             const weekLog = getWeekLog(weekNum);
             const weekExercises = weekLog?.exercises ?? [];
 
             return (
-              <div key={weekNum} className="bg-(--color-bg-card) border border-(--color-border) rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-black tracking-wider">H{getDisplayWeek(weekNum)}</h3>
+              <div key={weekNum}>
+                <div className="flex items-center justify-between pb-2 border-b lb-rule-strong mb-3">
+                  <h3 className="text-sm font-semibold">H{getDisplayWeek(weekNum)}</h3>
                   {weekLog?.isHoliday ? (
-                    <span className="text-xs font-bold px-2 py-1 rounded-md bg-amber-800 text-amber-200">Tatil</span>
+                    <span className="lb-label font-semibold">Tatil</span>
                   ) : (
-                    <span className="text-xs font-semibold text-(--color-text-muted)">{weekExercises.length} egzersiz</span>
+                    <span className="lb-label">{weekExercises.length} egzersiz</span>
                   )}
                 </div>
 
                 {weekLog?.isHoliday ? (
                   <div className="text-sm text-(--color-text-secondary) p-3 rounded-lg bg-(--color-bg-input)">Bu hafta tatil olarak işaretlenmiş.</div>
                 ) : weekExercises.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     {weekExercises.map(exercise => {
                       const prevWithinPhase = getPrevExerciseWithinPhase(weekNum, exercise.exerciseId);
                       const prevLog = prevWithinPhase?.log;
@@ -697,12 +697,12 @@ export function History() {
                         ? calculateExerciseStatus(exercise.sets, prevLog.sets)
                         : 'new';
                       const statusColor = status === 'improved'
-                        ? 'bg-emerald-800 text-emerald-200'
+                        ? 'var(--lb-gain)'
                         : status === 'decreased'
-                          ? 'bg-rose-800 text-rose-200'
+                          ? 'var(--lb-drop)'
                           : status === 'new'
-                            ? 'bg-blue-800 text-blue-200'
-                            : 'bg-(--color-bg-card) text-(--color-text-secondary)';
+                            ? 'var(--color-text-primary)'
+                            : 'var(--color-text-secondary)';
 
                       return (
                         <button
@@ -720,28 +720,28 @@ export function History() {
                               autoStatus: status,
                             });
                           }}
-                          className="w-full text-left p-3 rounded-xl bg-(--color-bg-input) border border-(--color-border) active:scale-[0.99] transition-all"
+                          className="lb-press w-full text-left px-2 py-2.5 -mx-2 rounded-lg border-b lb-rule"
                         >
                           {/* Exercise name row */}
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-bold text-(--color-text-primary)">{exercise.exerciseName}</span>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor}`}>
-                              {status === 'improved' ? '↑ İlerleme' : status === 'decreased' ? '↓ Düşüş' : status === 'new' ? '★ Yeni' : '= Aynı'}
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-sm font-semibold">{exercise.exerciseName}</span>
+                            <span className="text-[11px] font-semibold" style={{ color: statusColor }}>
+                              {status === 'improved' ? '▲ İlerleme' : status === 'decreased' ? '▼ Düşüş' : status === 'new' ? '★ Yeni' : '= Aynı'}
                             </span>
                           </div>
                           {/* Set pills */}
                           <div className="flex flex-wrap gap-1.5">
                             {exercise.sets.map((s, si) => (
-                              <span key={si} className="text-[11px] font-set font-semibold px-2 py-1 rounded-lg bg-(--color-bg-card) text-(--color-text-secondary) border border-(--color-border)">
+                              <span key={si} className="lb-figure text-[11px] font-semibold px-2 py-1 rounded-md bg-(--color-bg-input) text-(--color-text-secondary) border lb-rule">
                                 {s.weight}×{s.reps} {formatIntensityLabel(String(s.intensity))}
                               </span>
                             ))}
                           </div>
                           {/* Comparison with previous week */}
                           {prevLog && (
-                            <div className="flex flex-wrap gap-1.5 mt-1.5 opacity-50">
+                            <div className="flex flex-wrap gap-1.5 mt-1.5 opacity-60">
                               {prevLog.sets.map((s, si) => (
-                                <span key={si} className="text-[10px] font-set px-2 py-0.5 rounded-lg bg-(--color-bg-input) text-(--color-text-muted) border border-(--color-border)/50">
+                                <span key={si} className="lb-figure text-[10px] px-2 py-0.5 rounded-md text-(--color-text-secondary) border lb-rule">
                                   {s.weight}×{s.reps} {formatIntensityLabel(String(s.intensity))}
                                 </span>
                               ))}
@@ -759,18 +759,18 @@ export function History() {
           })}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-(--color-border) shadow-sm [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-(--color-border)">
+        <div className="overflow-x-auto rounded-lg border lb-rule [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-(--color-border)">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-(--color-bg-card)">
-                <th className="sticky left-0 bg-(--color-bg-card) z-10 px-3 py-3 text-left font-bold text-(--color-text-primary) border-r border-(--color-border) min-w-[140px]">
+                <th className="sticky left-0 bg-(--color-bg-card) z-10 px-3 py-3 text-left font-semibold border-r lb-rule min-w-[140px]">
                   Egzersiz
                 </th>
-                <th className="px-3 py-3 text-center font-bold text-(--color-text-primary) border-r border-(--color-border) min-w-[60px]">
+                <th className="px-3 py-3 text-center font-semibold border-r lb-rule min-w-[60px]">
                   Set
                 </th>
                 {visibleWeeks.map(w => (
-                  <th key={w} className="px-3 py-3 text-center font-bold text-(--color-text-primary) min-w-[120px]">
+                  <th key={w} className="px-3 py-3 text-center font-semibold min-w-[120px]">
                     H{getDisplayWeek(w)}
                   </th>
                 ))}
@@ -778,11 +778,11 @@ export function History() {
             </thead>
             <tbody>
               {allExerciseIds.map(exerciseId => (
-                <tr key={exerciseId} className="border-t border-(--color-border)">
-                  <td className="sticky left-0 bg-(--color-bg-primary) z-10 px-3 py-2.5 font-bold text-xs border-r border-(--color-border)">
+                <tr key={exerciseId} className="border-t lb-rule">
+                  <td className="sticky left-0 bg-(--color-bg-primary) z-10 px-3 py-2.5 font-medium text-xs border-r lb-rule">
                     {getExerciseName(exerciseId)}
                   </td>
-                  <td className="px-3 py-2.5 text-center font-bold text-xs border-r border-(--color-border) text-(--color-text-secondary)">
+                  <td className="lb-figure px-3 py-2.5 text-center text-xs border-r lb-rule text-(--color-text-secondary)">
                     {getExerciseSets(exerciseId) ?? '—'}
                   </td>
                   {visibleWeeks.map(weekNum => {
@@ -822,12 +822,12 @@ export function History() {
                           });
                         }}
                         style={{ backgroundColor: bgColor }}
-                        className="px-2 py-2.5 text-center font-set text-sm cursor-pointer border-l border-(--color-border) transition-all hover:scale-[1.02] hover:shadow-sm font-bold whitespace-pre-line leading-5"
+                        className="lb-press lb-figure px-2 py-2.5 text-center text-sm cursor-pointer border-l lb-rule font-semibold whitespace-pre-line leading-5"
                       >
                         {weekLog?.isHoliday ? null : log ? (
                           formatSets(log.sets)
                         ) : (
-                          <span className="text-(--color-text-muted)">—</span>
+                          <span className="text-(--color-text-secondary)">—</span>
                         )}
                       </td>
                     );
@@ -841,12 +841,12 @@ export function History() {
 
       {/* Week Notes */}
       {weekNotes.length > 0 && (
-        <div className="mt-5 bg-(--color-bg-card) rounded-xl border border-(--color-border) p-5 shadow-sm">
-          <h3 className="text-sm font-black text-(--color-text-primary) mb-3 uppercase tracking-wider">Notlar</h3>
+        <div className="mt-6 pt-5 border-t lb-rule-strong">
+          <h3 className="text-sm font-semibold mb-3">Notlar</h3>
           <div className="grid gap-2.5">
             {weekNotes.map(({ week, notes }) => (
-              <div key={week} className="flex gap-3 items-start text-sm">
-                <span className="shrink-0 font-mono text-xs font-bold bg-(--color-accent) text-white px-2 py-1 rounded-md shadow-sm">
+              <div key={week} className="flex gap-3 items-baseline text-sm">
+                <span className="lb-figure shrink-0 text-xs font-semibold text-(--color-text-secondary)">
                   H{getDisplayWeek(week)}
                 </span>
                 <span className="text-(--color-text-secondary) leading-relaxed">{notes}</span>
