@@ -11,8 +11,16 @@ function parseSetEntry(raw: string, lastWeight: number): { set: SetLog; weight: 
   const trimmed = raw.trim();
   if (!trimmed || trimmed === '-' || trimmed === '0' || trimmed.toLowerCase() === 'x') return null;
 
+  // "+1"/"+3" carry RIR the same way pdfImportData reads them; without this the
+  // sheet's own markers all collapsed to rir2 on the way back in.
   const isFailure = /F/i.test(trimmed);
-  const intensity: Intensity = isFailure ? 'failure' : 'rir2';
+  const rirMatch = trimmed.match(/\+(\d+)/);
+  const rir = rirMatch ? parseInt(rirMatch[1], 10) : 0;
+  const intensity: Intensity = isFailure
+    ? 'failure'
+    : rir === 1 ? 'rir1'
+    : rir === 3 ? 'rir3'
+    : 'rir2';
 
   // Remove markers
   const cleaned = trimmed
@@ -75,14 +83,22 @@ interface ParsedRow {
   weekData: string[]; // Raw cell values for each week
 }
 
-export function parseTabularText(text: string): {
+const HOLIDAY_PATTERN = /^(tatil|holiday)$/i;
+
+export interface ParsedTable {
   rows: ParsedRow[];
   weekCount: number;
   notes: Record<number, string>;
-} {
+  /** Week indices whose only content is the holiday marker. Without these a
+   *  holiday week has no sets, so it would vanish on import instead of coming
+   *  back as the "Tatil" column the grid shows. */
+  holidays: number[];
+}
+
+export function parseTabularText(text: string): ParsedTable {
   // Detect delimiter (tab or comma or multiple spaces)
   const lines = text.split('\n').filter(l => l.trim().length > 0);
-  if (lines.length < 2) return { rows: [], weekCount: 0, notes: {} };
+  if (lines.length < 2) return { rows: [], weekCount: 0, notes: {}, holidays: [] };
 
   const delimiter = detectDelimiter(lines[0]);
   const headerCells = splitLine(lines[0], delimiter);
@@ -91,7 +107,7 @@ export function parseTabularText(text: string): {
   const weekStartIndex = headerCells.findIndex(c =>
     /^H\d+$|^W\d+$|^Week\s*\d+$/i.test(c.trim())
   );
-  if (weekStartIndex < 0) return { rows: [], weekCount: 0, notes: {} };
+  if (weekStartIndex < 0) return { rows: [], weekCount: 0, notes: {}, holidays: [] };
 
   const weekCount = headerCells.length - weekStartIndex;
   const rows: ParsedRow[] = [];
@@ -128,7 +144,17 @@ export function parseTabularText(text: string): {
     rows.push({ exerciseName, defaultSets, weekData });
   }
 
-  return { rows, weekCount, notes };
+  const holidays: number[] = [];
+  for (let w = 0; w < weekCount; w++) {
+    const filled = rows
+      .map(row => row.weekData[w]?.trim())
+      .filter((cell): cell is string => Boolean(cell) && cell !== '-');
+    if (filled.length > 0 && filled.every(cell => HOLIDAY_PATTERN.test(cell))) {
+      holidays.push(w);
+    }
+  }
+
+  return { rows, weekCount, notes, holidays };
 }
 
 function detectDelimiter(line: string): string {
@@ -169,7 +195,7 @@ function generateId(prefix: string): string {
 
 export function convertParsedToProgram(
   programName: string,
-  parsed: { rows: ParsedRow[]; weekCount: number; notes: Record<number, string> },
+  parsed: ParsedTable,
   startWeek: number = 0,
 ): { program: Program; weekLogs: WeekLog[] } {
   const programId = generateId('prog');
@@ -222,7 +248,8 @@ export function convertParsedToProgram(
       });
     }
 
-    if (exerciseLogs.length === 0) continue;
+    const isHoliday = parsed.holidays?.includes(w) ?? false;
+    if (exerciseLogs.length === 0 && !isHoliday) continue;
 
     weekLogs.push({
       id: generateId(`wl${w}`),
@@ -232,7 +259,7 @@ export function convertParsedToProgram(
         .toISOString().split('T')[0],
       exercises: exerciseLogs,
       notes: parsed.notes[w] || '',
-      isHoliday: false,
+      isHoliday,
       updatedAt: now,
     });
   }
