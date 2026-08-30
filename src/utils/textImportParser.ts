@@ -100,20 +100,35 @@ export function parseTabularText(text: string): ParsedTable {
   const lines = text.split('\n').filter(l => l.trim().length > 0);
   if (lines.length < 2) return { rows: [], weekCount: 0, notes: {}, holidays: [] };
 
-  const delimiter = detectDelimiter(lines[0]);
-  const headerCells = splitLine(lines[0], delimiter);
+  // The header is looked for rather than assumed to be first: a copied table
+  // carries the program name on a line of its own above it.
+  const isWeekColumn = (cell: string) => /^H\d+$|^W\d+$|^Week\s*\d+$/i.test(cell.trim());
 
-  // Find week columns (H0, H1, H2... or Week 0, Week 1...)
-  const weekStartIndex = headerCells.findIndex(c =>
-    /^H\d+$|^W\d+$|^Week\s*\d+$/i.test(c.trim())
-  );
+  let headerIndex = -1;
+  let headerCells: string[] = [];
+  let weekStartIndex = -1;
+  let delimiter = '\t';
+
+  for (let i = 0; i < lines.length; i++) {
+    const candidateDelimiter = detectDelimiter(lines[i]);
+    const cells = splitLine(lines[i], candidateDelimiter);
+    const found = cells.findIndex(isWeekColumn);
+    if (found >= 0) {
+      headerIndex = i;
+      headerCells = cells;
+      weekStartIndex = found;
+      delimiter = candidateDelimiter;
+      break;
+    }
+  }
+
   if (weekStartIndex < 0) return { rows: [], weekCount: 0, notes: {}, holidays: [] };
 
   const weekCount = headerCells.length - weekStartIndex;
   const rows: ParsedRow[] = [];
   const notes: Record<number, string> = {};
 
-  for (let i = 1; i < lines.length; i++) {
+  for (let i = headerIndex + 1; i < lines.length; i++) {
     const cells = splitLine(lines[i], delimiter);
     const exerciseName = cells[0]?.trim();
 
@@ -131,8 +146,10 @@ export function parseTabularText(text: string): ParsedTable {
       continue;
     }
 
-    // Skip non-exercise rows
+    // Skip non-exercise rows. FAZ is written for the reader's benefit; phases
+    // are global state, not a per-program row, so it is not read back.
     if (/base kilo|header/i.test(exerciseName)) continue;
+    if (/^FAZ$/i.test(exerciseName)) continue;
 
     const defaultSets = parseInt(cells[1]?.trim()) || 1;
     const weekData: string[] = [];

@@ -33,6 +33,7 @@ export function Export() {
   const { programs } = usePrograms();
   const ctx = useContext(AppContext);
   const exerciseRowOrder = ctx?.state.exerciseRowOrder;
+  const phases = ctx?.state.phases;
 
   // Sheets export state
   const [sheetProgramId, setSheetProgramId] = useState<string>(ALL_PROGRAMS);
@@ -70,6 +71,7 @@ export function Export() {
         weekLogs,
         fromWeek: from,
         toWeek: to,
+        phases,
         rowOrders: exerciseRowOrder,
       });
     }
@@ -80,9 +82,10 @@ export function Export() {
       weekLogs,
       fromWeek: from,
       toWeek: to,
+      phases,
       rowOrder: exerciseRowOrder?.[program.id],
     });
-  }, [sheetProgramId, sheetFrom, sheetTo, programs, weekLogs, exerciseRowOrder]);
+  }, [sheetProgramId, sheetFrom, sheetTo, programs, weekLogs, exerciseRowOrder, phases]);
 
   // One tab per program, named after the program — the same shape the sheet
   // already has. Shares the selection above so both buttons send the same thing.
@@ -100,10 +103,11 @@ export function Export() {
         weekLogs,
         fromWeek: from,
         toWeek: to,
+        phases,
         rowOrder: exerciseRowOrder?.[program.id],
       }),
     }));
-  }, [sheetProgramId, sheetFrom, sheetTo, programs, weekLogs, exerciseRowOrder]);
+  }, [sheetProgramId, sheetFrom, sheetTo, programs, weekLogs, exerciseRowOrder, phases]);
 
   const sentWeek = Math.max(sheetFrom, sheetTo);
 

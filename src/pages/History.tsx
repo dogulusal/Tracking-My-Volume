@@ -8,6 +8,9 @@ import { WorkoutDetailModal } from '@/components/shared/WorkoutDetailModal';
 import { calculateExerciseStatus } from '@/utils/statusCalculator';
 import { formatSets } from '@/utils/formatters';
 import { moveItem, applySavedOrder } from '@/utils/reorder';
+import { buildSheetTsv } from '@/utils/sheetExport';
+import { copyText } from '@/utils/clipboard';
+import { useLastSheetExport } from '@/hooks/useLastSheetExport';
 import { AppContext } from '@/context/AppContext';
 import type { ExerciseLog, ExerciseStatus } from '@/types';
 
@@ -64,6 +67,8 @@ export function History() {
     } catch { /* ignore */ }
     return programs[0]?.id || '';
   });
+  const { recordExport } = useLastSheetExport();
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [showColorSettings, setShowColorSettings] = useState(false);
   const [showProgramEditor, setShowProgramEditor] = useState(false);
   const [programEdits, setProgramEdits] = useState<Array<{ id: string; name: string; defaultSets: number }>>([]);
@@ -162,6 +167,28 @@ export function History() {
 
   const savedRowOrder = exerciseRowOrder?.[selectedProgramId];
 
+  /**
+   * Copies the phase currently on screen. The phase is the unit the page is
+   * organised around, so "what got copied" is whatever the headline says —
+   * copying the paginated window instead would send one or four weeks and
+   * quietly leave the rest of the mezo behind.
+   */
+  const handleCopyPhase = async () => {
+    if (!selectedProgram || !currentPhase || currentPhase.weeks.length === 0) return;
+    const lastWeek = currentPhase.weeks[currentPhase.weeks.length - 1];
+    const tsv = buildSheetTsv({
+      program: selectedProgram,
+      weekLogs,
+      fromWeek: currentPhase.weeks[0],
+      toWeek: lastWeek,
+      phases: contextPhases,
+      rowOrder: savedRowOrder,
+    });
+    const copied = await copyText(tsv);
+    setCopyState(copied ? 'copied' : 'failed');
+    if (copied) recordExport(lastWeek);
+  };
+
   // Get all exercise IDs for visible weeks
   const allExerciseIds = useMemo(() => {
     const ids = new Set<string>();
@@ -200,6 +227,8 @@ export function History() {
   };
 
   useEffect(() => {
+    // Whatever was copied belongs to the weeks that were on screen then.
+    setCopyState('idle');
     if (visibleWeeks.length === 0) {
       setEditorWeek(null);
       setBulkColumnWeek(null);
@@ -662,6 +691,16 @@ export function History() {
           className="lb-press px-3 py-1.5 text-sm font-medium border lb-rule rounded-lg disabled:opacity-30"
         >
           Sonraki →
+        </button>
+
+        {/* Copies the whole phase, not the page on screen — hence its place next
+            to the phase's own navigation rather than up in the title bar. */}
+        <button
+          onClick={handleCopyPhase}
+          className="lb-press ml-auto px-3 py-1.5 text-sm font-medium border lb-rule rounded-lg"
+          title={`${currentPhase.label} tablosunu Sheets için kopyala`}
+        >
+          {copyState === 'copied' ? '✓ Kopyalandı' : copyState === 'failed' ? '! Kopyalanamadı' : '📋 Kopyala'}
         </button>
       </div>
 

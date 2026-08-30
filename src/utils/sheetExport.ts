@@ -9,7 +9,7 @@
  * the phase-relative one History displays, so that columns stay unique and
  * monotonic in a sheet that keeps growing across mezos.
  */
-import type { Program, SetLog, WeekLog } from '@/types';
+import type { PhaseDefinition, Program, SetLog, WeekLog } from '@/types';
 import { applySavedOrder } from '@/utils/reorder';
 
 const INTENSITY_MARKERS: Record<SetLog['intensity'], string> = {
@@ -48,6 +48,18 @@ export interface SheetTableOptions {
   /** state.exerciseRowOrder[program.id] — keeps the sheet's row order in sync
    *  with the order the user dragged the History rows into. */
   rowOrder?: string[];
+  /** Absolute week numbers alone lose the mezo boundary the History page shows;
+   *  with these a FAZ row carries it into the sheet. */
+  phases?: PhaseDefinition[];
+}
+
+export const PHASE_ROW = 'FAZ';
+export const NOTES_ROW = 'NOTLAR';
+
+function phaseNameForWeek(phases: PhaseDefinition[] | undefined, week: number): string {
+  const match = phases?.find(phase =>
+    week >= phase.startWeek && (phase.endWeek === null || week <= phase.endWeek));
+  return match?.name ?? '';
 }
 
 /**
@@ -61,6 +73,7 @@ export function buildSheetRows({
   fromWeek,
   toWeek,
   rowOrder,
+  phases,
 }: SheetTableOptions): string[][] {
   const weeks: number[] = [];
   for (let w = fromWeek; w <= toWeek; w++) weeks.push(w);
@@ -100,6 +113,12 @@ export function buildSheetRows({
     ['Egzersiz', 'Set', ...weeks.map(w => `H${w}`)],
   ];
 
+  // Directly under the header, where a mezo boundary is read at a glance.
+  const phaseCells = weeks.map(week => phaseNameForWeek(phases, week) || EMPTY_CELL);
+  if (phaseCells.some(cell => cell !== EMPTY_CELL)) {
+    rows.push([PHASE_ROW, '', ...phaseCells]);
+  }
+
   exerciseIds.forEach(exerciseId => {
     const cells = weeks.map(week => {
       const log = logsByWeek.get(week);
@@ -113,7 +132,7 @@ export function buildSheetRows({
 
   const noteCells = weeks.map(week => logsByWeek.get(week)?.notes?.trim() || EMPTY_CELL);
   if (noteCells.some(note => note !== EMPTY_CELL)) {
-    rows.push(['NOTLAR', '', ...noteCells]);
+    rows.push([NOTES_ROW, '', ...noteCells]);
   }
 
   return rows;
@@ -174,13 +193,20 @@ export function mergeSheetRows(existing: string[][] | null, incoming: string[][]
   const oldRows = rowsByName(existingRows);
   const newRows = rowsByName(incoming);
 
-  // Existing order is the user's; anything new lands after it, notes stay last.
+  // Existing order is the user's; anything new lands after it. The two label
+  // rows keep their places instead: the phase under the header, notes at the
+  // bottom, wherever the incoming table happens to put them.
   const isNotes = (name: string) => /^(NOTLAR|NOTES)$/i.test(name);
+  const isPhase = (name: string) => name.trim().toUpperCase() === PHASE_ROW;
+  const isLabelRow = (name: string) => isNotes(name) || isPhase(name);
+
   const names = [
-    ...[...oldRows.keys()].filter(name => !isNotes(name)),
-    ...[...newRows.keys()].filter(name => !isNotes(name) && !oldRows.has(name)),
+    ...[...oldRows.keys()].filter(name => !isLabelRow(name)),
+    ...[...newRows.keys()].filter(name => !isLabelRow(name) && !oldRows.has(name)),
   ];
-  const notesName = [...oldRows.keys(), ...newRows.keys()].find(isNotes);
+  const allNames = [...oldRows.keys(), ...newRows.keys()];
+  const notesName = allNames.find(isNotes);
+  const phaseName = allNames.find(isPhase);
 
   const buildRow = (name: string): string[] => {
     const oldRow = oldRows.get(name);
@@ -199,7 +225,9 @@ export function mergeSheetRows(existing: string[][] | null, incoming: string[][]
     return [name, sets, ...cells];
   };
 
-  const rows = [['Egzersiz', 'Set', ...weeks], ...names.map(buildRow)];
+  const rows = [['Egzersiz', 'Set', ...weeks]];
+  if (phaseName) rows.push(buildRow(phaseName));
+  rows.push(...names.map(buildRow));
   if (notesName) rows.push(buildRow(notesName));
 
   return { rows, unmergeable: false };
@@ -216,8 +244,15 @@ export function rowsToTsv(rows: string[][]): string {
     .join('\n');
 }
 
+/**
+ * The clipboard flavour carries the program name on its own first line, so a
+ * copied table says what it is once it has left the app. The API flavour
+ * (buildSheetRows) deliberately has no such line: there the tab already names
+ * the program, and a title would push the header out of the first row where
+ * mergeSheetRows looks for it.
+ */
 export function buildSheetTsv(options: SheetTableOptions): string {
-  return rowsToTsv(buildSheetRows(options));
+  return `${options.program.name}\n${rowsToTsv(buildSheetRows(options))}`;
 }
 
 /**
@@ -232,17 +267,15 @@ export function buildMultiProgramTsv(
     rowOrders?: Record<string, string[]>;
   },
 ): string {
-  const { weekLogs, fromWeek, toWeek, rowOrders } = options;
+  const { weekLogs, fromWeek, toWeek, rowOrders, phases } = options;
   return programs
-    .map(program => {
-      const table = buildSheetTsv({
-        program,
-        weekLogs,
-        fromWeek,
-        toWeek,
-        rowOrder: rowOrders?.[program.id],
-      });
-      return `${program.name}\n${table}`;
-    })
+    .map(program => buildSheetTsv({
+      program,
+      weekLogs,
+      fromWeek,
+      toWeek,
+      phases,
+      rowOrder: rowOrders?.[program.id],
+    }))
     .join('\n\n');
 }
