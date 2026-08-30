@@ -111,7 +111,9 @@ export function requestAccessToken(clientId: string, silent: boolean): Promise<A
         reject(new Error(error.message || 'Google izin penceresi kapatıldı.'));
       },
     });
-    client.requestAccessToken({ prompt: silent ? 'none' : 'consent' });
+    // '' lets Google skip the consent screen once the grant exists; 'consent'
+    // would force a popup on every fallback, which on iOS is most of them.
+    client.requestAccessToken({ prompt: silent ? 'none' : '' });
   }));
 }
 
@@ -181,11 +183,27 @@ function tabRange(tab: string): string {
   return `'${tab.replace(/'/g, "''")}'`;
 }
 
+/** Everything the tab currently holds, so a write can be merged into it. */
+export async function readTab(
+  token: string,
+  spreadsheetId: string,
+  tab: string,
+): Promise<string[][]> {
+  const result = await sheetsFetch<{ values?: string[][] }>(
+    token,
+    `/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabRange(tab))}`,
+  );
+  return result.values ?? [];
+}
+
 /**
  * Replaces a tab's contents with `values`. The clear comes first so that a
  * shorter export cannot leave last month's rows sitting underneath, and RAW
  * keeps every cell as the literal text of the grid — notably, a note that
  * starts with "=" stays a note instead of becoming a formula.
+ *
+ * Callers merge before writing (see mergeSheetRows), so `values` is expected to
+ * already contain everything the tab should keep.
  */
 export async function writeTab(
   token: string,

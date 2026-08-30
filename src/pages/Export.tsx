@@ -8,8 +8,13 @@ import { AppContext } from '@/context/AppContext';
 import { buildSheetTsv, buildMultiProgramTsv, buildSheetRows } from '@/utils/sheetExport';
 import { copyText } from '@/utils/clipboard';
 import { useGoogleSheets } from '@/hooks/useGoogleSheets';
+import { useLastSheetExport } from '@/hooks/useLastSheetExport';
 
 const ALL_PROGRAMS = 'all';
+
+type SheetConfirm =
+  | { kind: 'tabs'; tabs: string[] }
+  | { kind: 'overwrite'; tabs: string[] };
 
 export function Export() {
   const {
@@ -38,8 +43,9 @@ export function Export() {
 
   // Google Sheets API state
   const sheets = useGoogleSheets();
+  const { lastExport, recordExport } = useLastSheetExport();
   const [showSheetSettings, setShowSheetSettings] = useState(false);
-  const [pendingTabs, setPendingTabs] = useState<string[] | null>(null);
+  const [sheetConfirm, setSheetConfirm] = useState<SheetConfirm | null>(null);
 
   const [fromWeek, setFromWeek] = useState(0);
   const [toWeek, setToWeek] = useState(currentWeek);
@@ -87,6 +93,7 @@ export function Export() {
       ? programs
       : programs.filter(p => p.id === sheetProgramId);
     return selected.map(program => ({
+      programId: program.id,
       tab: program.name,
       values: buildSheetRows({
         program,
@@ -98,21 +105,46 @@ export function Export() {
     }));
   }, [sheetProgramId, sheetFrom, sheetTo, programs, weekLogs, exerciseRowOrder]);
 
-  const handleSheetPush = async (createMissing = false) => {
-    const result = await sheets.push(sheetTargets, { createMissing });
+  const sentWeek = Math.max(sheetFrom, sheetTo);
+
+  /** Picks up where the sheet was left off, up to the week being logged now. */
+  const applySinceLastExport = () => {
+    setSheetFrom(lastExport.week === null ? 0 : Math.min(lastExport.week + 1, currentWeek));
+    setSheetTo(currentWeek);
+    setCopyState('idle');
+  };
+
+  const handleSheetPush = async (options: { createMissing?: boolean; overwriteUnmergeable?: boolean } = {}) => {
+    const result = await sheets.push(sheetTargets, options);
+
     if (result.status === 'needs-tabs') {
-      setPendingTabs(result.missingTabs);
+      setSheetConfirm({ kind: 'tabs', tabs: result.missingTabs });
       return;
     }
-    setPendingTabs(null);
-    if (result.status === 'done') {
-      setImportMessage({
-        type: 'success',
-        text: `${result.tabs.join(', ')} sekmesine yazıldı (${result.updatedCells} hücre).`,
-      });
-    } else {
-      setImportMessage({ type: 'error', text: result.message });
+    if (result.status === 'needs-overwrite') {
+      setSheetConfirm({ kind: 'overwrite', tabs: result.tabs });
+      return;
     }
+    setSheetConfirm(null);
+
+    if (result.status !== 'done') {
+      setImportMessage({ type: 'error', text: result.message });
+      return;
+    }
+
+    if (result.written.length > 0) recordExport(sentWeek);
+
+    // A partial write is reported as one, not rounded up to success.
+    const wrote = result.written.length > 0
+      ? `${result.written.join(', ')} sekmesine yazıldı (${result.updatedCells} hücre).`
+      : 'Hiçbir sekmeye yazılamadı.';
+    const missed = result.failed.length > 0
+      ? ` Başarısız: ${result.failed.map(f => `${f.tab} (${f.message})`).join(', ')}.`
+      : '';
+    setImportMessage({
+      type: result.failed.length > 0 ? 'error' : 'success',
+      text: wrote + missed,
+    });
   };
 
   const handleSheetCopy = async () => {
@@ -122,6 +154,7 @@ export function Export() {
     }
     const copied = await copyText(sheetTsv);
     setCopyState(copied ? 'copied' : 'failed');
+    if (copied) recordExport(sentWeek);
     if (!copied) setShowSheetPreview(true);
   };
 
@@ -306,7 +339,20 @@ export function Export() {
                   className="w-16 px-2 py-1 bg-(--color-bg-input) border border-(--color-border) rounded text-sm focus:outline-none focus:border-(--color-accent)"
                 />
               </div>
+              <button
+                onClick={applySinceLastExport}
+                className="lb-press px-3 py-1.5 border lb-rule text-xs font-medium rounded-lg"
+              >
+                Son gönderimden beri
+              </button>
             </div>
+
+            <p className="lb-label">
+              {lastExport.week === null
+                ? 'Sheet henüz hiç güncellenmedi.'
+                : `Sheet H${lastExport.week}'e kadar güncel` +
+                  (lastExport.at ? ` (${new Date(lastExport.at).toLocaleDateString('tr-TR')}).` : '.')}
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -355,8 +401,8 @@ export function Export() {
             </div>
 
             <p className="text-sm text-(--color-text-secondary) mb-3">
-              Yapıştırmadan, seçili programları sheet'inde kendi adlarını taşıyan sekmelere yazar.
-              Her sekme baştan yazılır.
+              Yapıştırmadan, seçili programları sheet'indeki kendi sekmelerine yazar. Yalnızca
+              gönderdiğin hafta sütunları güncellenir — sheet'teki eski haftalar yerinde kalır.
             </p>
 
             {showSheetSettings && (
@@ -416,6 +462,19 @@ export function Export() {
                   <p className="mt-2 text-xs text-(--color-text-secondary)">
                     Bağlı: <span className="font-semibold">{sheets.meta.title}</span> —
                     sekmeler: {sheets.meta.tabs.join(', ') || 'yok'}
+                  </p>
+                )}
+                {Object.keys(sheets.settings.tabByProgramId).length > 0 && (
+                  <p className="mt-1 text-xs text-(--color-text-secondary)">
+                    Eşleşme:{' '}
+                    {Object.entries(sheets.settings.tabByProgramId)
+                      .map(([programId, tab]) =>
+                        `${programs.find(p => p.id === programId)?.name ?? '(silinmiş)'} → ${tab}`)
+                      .join(', ')}
+                    {' · '}
+                    <button onClick={sheets.forgetTabMapping} className="underline underline-offset-2">
+                      sıfırla
+                    </button>
                   </p>
                 )}
                 {sheets.lastPushAt && (
@@ -599,13 +658,26 @@ export function Export() {
       />
 
       <Modal
-        isOpen={pendingTabs !== null}
-        onClose={() => setPendingTabs(null)}
-        onConfirm={() => { setPendingTabs(null); void handleSheetPush(true); }}
+        isOpen={sheetConfirm?.kind === 'tabs'}
+        onClose={() => setSheetConfirm(null)}
+        onConfirm={() => { setSheetConfirm(null); void handleSheetPush({ createMissing: true }); }}
         title="Sekme oluşturulsun mu?"
-        message={`Sheet'te şu sekmeler yok: ${pendingTabs?.join(', ') ?? ''}. Oluşturup içine yazalım mı? (Mevcut sekmelerin adı programlarınkinden farklıysa, onları eşitlemek daha doğru olur.)`}
+        message={`Sheet'te şu sekmeler yok: ${sheetConfirm?.tabs.join(', ') ?? ''}. Oluşturup içine yazalım mı? (Mevcut sekmelerin adı programlarınkinden farklıysa, onları eşitlemek daha doğru olur.)`}
         confirmText="Oluştur ve gönder"
         confirmVariant="primary"
+      />
+
+      <Modal
+        isOpen={sheetConfirm?.kind === 'overwrite'}
+        onClose={() => setSheetConfirm(null)}
+        onConfirm={() => {
+          setSheetConfirm(null);
+          void handleSheetPush({ createMissing: true, overwriteUnmergeable: true });
+        }}
+        title="Sekmenin üzerine yazılsın mı?"
+        message={`Şu sekmelerin içeriği bu uygulamanın tablosuna benzemiyor: ${sheetConfirm?.tabs.join(', ') ?? ''}. Birleştirilemiyor; devam edersen içindekiler silinip yerine bu tablo yazılır.`}
+        confirmText="Üzerine yaz"
+        confirmVariant="danger"
       />
 
       <Modal
