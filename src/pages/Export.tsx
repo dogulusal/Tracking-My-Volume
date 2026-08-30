@@ -1,8 +1,14 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo, useContext } from 'react';
 import { useExportImport } from '@/hooks/useExportImport';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
+import { usePrograms } from '@/hooks/usePrograms';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Modal } from '@/components/shared/Modal';
+import { AppContext } from '@/context/AppContext';
+import { buildSheetTsv, buildMultiProgramTsv } from '@/utils/sheetExport';
+import { copyText } from '@/utils/clipboard';
+
+const ALL_PROGRAMS = 'all';
 
 export function Export() {
   const {
@@ -17,7 +23,17 @@ export function Export() {
     backupMeta,
     setBackupSettings,
   } = useExportImport();
-  const { currentWeek } = useWeekLogs();
+  const { currentWeek, weekLogs } = useWeekLogs();
+  const { programs } = usePrograms();
+  const ctx = useContext(AppContext);
+  const exerciseRowOrder = ctx?.state.exerciseRowOrder;
+
+  // Sheets export state
+  const [sheetProgramId, setSheetProgramId] = useState<string>(ALL_PROGRAMS);
+  const [sheetFrom, setSheetFrom] = useState(0);
+  const [sheetTo, setSheetTo] = useState(currentWeek);
+  const [showSheetPreview, setShowSheetPreview] = useState(false);
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   const [fromWeek, setFromWeek] = useState(0);
   const [toWeek, setToWeek] = useState(currentWeek);
@@ -33,6 +49,38 @@ export function Export() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isCurrentWeekBackedUp = backupMeta.lastBackupWeek === currentWeek;
+
+  const sheetTsv = useMemo(() => {
+    const from = Math.min(sheetFrom, sheetTo);
+    const to = Math.max(sheetFrom, sheetTo);
+    if (sheetProgramId === ALL_PROGRAMS) {
+      return buildMultiProgramTsv(programs, {
+        weekLogs,
+        fromWeek: from,
+        toWeek: to,
+        rowOrders: exerciseRowOrder,
+      });
+    }
+    const program = programs.find(p => p.id === sheetProgramId);
+    if (!program) return '';
+    return buildSheetTsv({
+      program,
+      weekLogs,
+      fromWeek: from,
+      toWeek: to,
+      rowOrder: exerciseRowOrder?.[program.id],
+    });
+  }, [sheetProgramId, sheetFrom, sheetTo, programs, weekLogs, exerciseRowOrder]);
+
+  const handleSheetCopy = async () => {
+    if (!sheetTsv) {
+      setImportMessage({ type: 'error', text: 'Kopyalanacak veri yok.' });
+      return;
+    }
+    const copied = await copyText(sheetTsv);
+    setCopyState(copied ? 'copied' : 'failed');
+    if (!copied) setShowSheetPreview(true);
+  };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -170,6 +218,87 @@ export function Export() {
             {importMessage.text}
           </div>
         )}
+
+        {/* Google Sheets */}
+        <div className="rounded-lg p-5 border lb-rule">
+          <h3 className="font-semibold text-base mb-2">Sheets'e aktar</h3>
+          <p className="text-sm text-(--color-text-secondary) mb-3">
+            Geçmiş tablosunu panoya kopyalar. Google Sheets'te bir hücreye yapıştırdığında
+            satır ve sütunlara kendiliğinden dağılır.
+          </p>
+
+          <div className="space-y-3 mb-3">
+            <div>
+              <label className="lb-label block mb-1">Program:</label>
+              <select
+                value={sheetProgramId}
+                onChange={e => { setSheetProgramId(e.target.value); setCopyState('idle'); }}
+                className="w-full px-2 py-1.5 bg-(--color-bg-input) border border-(--color-border) rounded text-sm focus:outline-none focus:border-(--color-accent)"
+              >
+                <option value={ALL_PROGRAMS}>Tüm programlar</option>
+                {programs.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                <label className="lb-label">Başlangıç:</label>
+                <input
+                  type="number"
+                  value={sheetFrom}
+                  onChange={e => { setSheetFrom(Number(e.target.value)); setCopyState('idle'); }}
+                  min={0}
+                  className="w-16 px-2 py-1 bg-(--color-bg-input) border border-(--color-border) rounded text-sm focus:outline-none focus:border-(--color-accent)"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <label className="lb-label">Bitiş:</label>
+                <input
+                  type="number"
+                  value={sheetTo}
+                  onChange={e => { setSheetTo(Number(e.target.value)); setCopyState('idle'); }}
+                  min={0}
+                  className="w-16 px-2 py-1 bg-(--color-bg-input) border border-(--color-border) rounded text-sm focus:outline-none focus:border-(--color-accent)"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleSheetCopy}
+              className="lb-press px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg"
+            >
+              📋 Sheets için kopyala
+            </button>
+            <button
+              onClick={() => setShowSheetPreview(v => !v)}
+              className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg"
+            >
+              {showSheetPreview ? 'Önizlemeyi gizle' : 'Önizle'}
+            </button>
+            {copyState === 'copied' && (
+              <span className="text-sm font-semibold text-emerald-300">Kopyalandı</span>
+            )}
+            {copyState === 'failed' && (
+              <span className="text-sm font-semibold text-amber-300">
+                Tarayıcı kopyalamayı engelledi — aşağıdaki metni elle seç.
+              </span>
+            )}
+          </div>
+
+          {showSheetPreview && (
+            <textarea
+              readOnly
+              value={sheetTsv}
+              rows={10}
+              onFocus={e => e.currentTarget.select()}
+              className="mt-3 w-full px-3 py-2 bg-(--color-bg-input) border border-(--color-border) rounded text-xs font-mono whitespace-pre resize-y focus:outline-none focus:border-(--color-accent)"
+            />
+          )}
+        </div>
 
         {/* Export All */}
         <div className="rounded-lg p-5 border lb-rule">
