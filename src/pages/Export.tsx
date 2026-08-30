@@ -5,8 +5,9 @@ import { usePrograms } from '@/hooks/usePrograms';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Modal } from '@/components/shared/Modal';
 import { AppContext } from '@/context/AppContext';
-import { buildSheetTsv, buildMultiProgramTsv } from '@/utils/sheetExport';
+import { buildSheetTsv, buildMultiProgramTsv, buildSheetRows } from '@/utils/sheetExport';
 import { copyText } from '@/utils/clipboard';
+import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 
 const ALL_PROGRAMS = 'all';
 
@@ -34,6 +35,11 @@ export function Export() {
   const [sheetTo, setSheetTo] = useState(currentWeek);
   const [showSheetPreview, setShowSheetPreview] = useState(false);
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  // Google Sheets API state
+  const sheets = useGoogleSheets();
+  const [showSheetSettings, setShowSheetSettings] = useState(false);
+  const [pendingTabs, setPendingTabs] = useState<string[] | null>(null);
 
   const [fromWeek, setFromWeek] = useState(0);
   const [toWeek, setToWeek] = useState(currentWeek);
@@ -71,6 +77,43 @@ export function Export() {
       rowOrder: exerciseRowOrder?.[program.id],
     });
   }, [sheetProgramId, sheetFrom, sheetTo, programs, weekLogs, exerciseRowOrder]);
+
+  // One tab per program, named after the program — the same shape the sheet
+  // already has. Shares the selection above so both buttons send the same thing.
+  const sheetTargets = useMemo(() => {
+    const from = Math.min(sheetFrom, sheetTo);
+    const to = Math.max(sheetFrom, sheetTo);
+    const selected = sheetProgramId === ALL_PROGRAMS
+      ? programs
+      : programs.filter(p => p.id === sheetProgramId);
+    return selected.map(program => ({
+      tab: program.name,
+      values: buildSheetRows({
+        program,
+        weekLogs,
+        fromWeek: from,
+        toWeek: to,
+        rowOrder: exerciseRowOrder?.[program.id],
+      }),
+    }));
+  }, [sheetProgramId, sheetFrom, sheetTo, programs, weekLogs, exerciseRowOrder]);
+
+  const handleSheetPush = async (createMissing = false) => {
+    const result = await sheets.push(sheetTargets, { createMissing });
+    if (result.status === 'needs-tabs') {
+      setPendingTabs(result.missingTabs);
+      return;
+    }
+    setPendingTabs(null);
+    if (result.status === 'done') {
+      setImportMessage({
+        type: 'success',
+        text: `${result.tabs.join(', ')} sekmesine yazıldı (${result.updatedCells} hücre).`,
+      });
+    } else {
+      setImportMessage({ type: 'error', text: result.message });
+    }
+  };
 
   const handleSheetCopy = async () => {
     if (!sheetTsv) {
@@ -298,6 +341,94 @@ export function Export() {
               className="mt-3 w-full px-3 py-2 bg-(--color-bg-input) border border-(--color-border) rounded text-xs font-mono whitespace-pre resize-y focus:outline-none focus:border-(--color-accent)"
             />
           )}
+
+          {/* Direct write over the Sheets API — same selection, no paste step */}
+          <div className="mt-5 pt-5 border-t lb-rule">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <h4 className="font-semibold text-sm">Doğrudan gönder</h4>
+              <button
+                onClick={() => setShowSheetSettings(v => !v)}
+                className="lb-label underline underline-offset-2"
+              >
+                {showSheetSettings ? 'Ayarları gizle' : 'Google ayarları'}
+              </button>
+            </div>
+
+            <p className="text-sm text-(--color-text-secondary) mb-3">
+              Yapıştırmadan, seçili programları sheet'inde kendi adlarını taşıyan sekmelere yazar.
+              Her sekme baştan yazılır.
+            </p>
+
+            {showSheetSettings && (
+              <div className="space-y-3 mb-3 bg-(--color-bg-input) border border-(--color-border) rounded-lg p-3">
+                <div>
+                  <label className="lb-label block mb-1">OAuth istemci kimliği:</label>
+                  <input
+                    type="text"
+                    value={sheets.settings.clientId}
+                    onChange={e => sheets.setSettings({ clientId: e.target.value.trim() })}
+                    placeholder="...apps.googleusercontent.com"
+                    className="w-full px-3 py-2 bg-(--color-bg-primary) border border-(--color-border) rounded text-sm font-mono focus:outline-none focus:border-(--color-accent)"
+                  />
+                </div>
+                <div>
+                  <label className="lb-label block mb-1">Sheet adresi veya kimliği:</label>
+                  <input
+                    type="text"
+                    value={sheets.settings.spreadsheetId}
+                    onChange={e => sheets.setSettings({ spreadsheetId: e.target.value })}
+                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                    className="w-full px-3 py-2 bg-(--color-bg-primary) border border-(--color-border) rounded text-sm font-mono focus:outline-none focus:border-(--color-accent)"
+                  />
+                </div>
+                <p className="text-xs text-(--color-text-secondary) leading-relaxed">
+                  İstemci kimliğini Google Cloud'da kendi projenden alırsın (OAuth istemcisi →
+                  Web uygulaması). İzin verilen JavaScript kaynağına bu uygulamanın adresini
+                  eklemen gerekir. Kimlik gizli bilgi değildir, bu cihazda saklanır.
+                </p>
+              </div>
+            )}
+
+            {!sheets.isConfigured ? (
+              <p className="text-xs font-semibold text-amber-300 bg-amber-900/20 border border-amber-700/40 rounded-lg px-3 py-2">
+                Bu özellik için önce Google ayarlarını doldur.
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => handleSheetPush()}
+                    disabled={sheets.busy !== 'idle'}
+                    className="lb-press px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg disabled:opacity-50"
+                  >
+                    {sheets.busy === 'sending' ? 'Gönderiliyor…' : "Sheets'e gönder"}
+                  </button>
+                  <button
+                    onClick={() => sheets.connect()}
+                    disabled={sheets.busy !== 'idle'}
+                    className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg disabled:opacity-50"
+                  >
+                    {sheets.busy === 'connecting' ? 'Bağlanıyor…' : 'Bağlantıyı sına'}
+                  </button>
+                </div>
+
+                {sheets.meta && (
+                  <p className="mt-2 text-xs text-(--color-text-secondary)">
+                    Bağlı: <span className="font-semibold">{sheets.meta.title}</span> —
+                    sekmeler: {sheets.meta.tabs.join(', ') || 'yok'}
+                  </p>
+                )}
+                {sheets.lastPushAt && (
+                  <p className="mt-1 text-xs text-(--color-text-secondary)">
+                    Son gönderim: {new Date(sheets.lastPushAt).toLocaleString('tr-TR')}
+                  </p>
+                )}
+                {sheets.error && (
+                  <p className="mt-2 text-xs font-semibold text-amber-300">{sheets.error}</p>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         {/* Export All */}
@@ -465,6 +596,16 @@ export function Export() {
         message="Tüm programlar ve antrenman kayıtları silinecek. Bu işlem geri alınamaz. Emin misiniz?"
         confirmText="Evet, Sıfırla"
         confirmVariant="danger"
+      />
+
+      <Modal
+        isOpen={pendingTabs !== null}
+        onClose={() => setPendingTabs(null)}
+        onConfirm={() => { setPendingTabs(null); void handleSheetPush(true); }}
+        title="Sekme oluşturulsun mu?"
+        message={`Sheet'te şu sekmeler yok: ${pendingTabs?.join(', ') ?? ''}. Oluşturup içine yazalım mı? (Mevcut sekmelerin adı programlarınkinden farklıysa, onları eşitlemek daha doğru olur.)`}
+        confirmText="Oluştur ve gönder"
+        confirmVariant="primary"
       />
 
       <Modal
