@@ -432,16 +432,17 @@ export function Export() {
                   />
                 </div>
                 <p className="text-xs text-(--color-text-secondary) leading-relaxed">
-                  İstemci kimliğini Google Cloud'da kendi projenden alırsın (OAuth istemcisi →
-                  Web uygulaması). İzin verilen JavaScript kaynağına bu uygulamanın adresini
-                  eklemen gerekir. Kimlik gizli bilgi değildir, bu cihazda saklanır.
+                  İstemci kimliği bu kurulum için hazır geliyor; değiştirmen gerekmez.
+                  Başka bir Google projesine bağlanacaksan buraya kendi kimliğini yaz —
+                  o projede bu uygulamanın adresi izin verilen JavaScript kaynağı olmalı.
                 </p>
               </div>
             )}
 
             {!sheets.isConfigured ? (
               <p className="text-xs font-semibold text-amber-300 bg-amber-900/20 border border-amber-700/40 rounded-lg px-3 py-2">
-                Bu özellik için önce Google ayarlarını doldur.
+                Sheet adresini gir (Google ayarları). Yazma izni için Google hesabınla
+                bir kez onay vermen istenecek.
               </p>
             ) : (
               <>

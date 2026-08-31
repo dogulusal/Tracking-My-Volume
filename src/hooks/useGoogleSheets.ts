@@ -11,6 +11,7 @@ import {
   type SpreadsheetMeta,
 } from '@/lib/googleSheets';
 import { mergeSheetRows } from '@/utils/sheetExport';
+import { DEFAULT_GOOGLE_CLIENT_ID } from '@/config';
 
 export interface GoogleSheetsSettings {
   /** OAuth client id from the user's own Google Cloud project. */
@@ -30,7 +31,11 @@ const TOKEN_KEY = 'trackingVolume_googleSheetsToken';
 /** Refresh a little early so a long write cannot start on a dying token. */
 const TOKEN_SAFETY_MS = 60_000;
 
-const emptySettings: GoogleSheetsSettings = { clientId: '', spreadsheetId: '', tabByProgramId: {} };
+const emptySettings: GoogleSheetsSettings = {
+  clientId: DEFAULT_GOOGLE_CLIENT_ID,
+  spreadsheetId: '',
+  tabByProgramId: {},
+};
 
 function readSettings(): GoogleSheetsSettings {
   try {
@@ -38,7 +43,7 @@ function readSettings(): GoogleSheetsSettings {
     if (!saved) return emptySettings;
     const parsed = JSON.parse(saved) as Partial<GoogleSheetsSettings>;
     return {
-      clientId: typeof parsed.clientId === 'string' ? parsed.clientId : '',
+      clientId: typeof parsed.clientId === 'string' ? parsed.clientId : DEFAULT_GOOGLE_CLIENT_ID,
       spreadsheetId: typeof parsed.spreadsheetId === 'string' ? parsed.spreadsheetId : '',
       tabByProgramId: parsed.tabByProgramId && typeof parsed.tabByProgramId === 'object'
         ? parsed.tabByProgramId
