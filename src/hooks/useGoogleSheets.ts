@@ -3,6 +3,8 @@ import {
   addTabs,
   extractSpreadsheetId,
   getSpreadsheetMeta,
+  isTokenClientReady,
+  prepareTokenClient,
   readTab,
   requestAccessToken,
   revokeAccessToken,
@@ -142,24 +144,59 @@ export function useGoogleSheets() {
 
   const isConfigured = Boolean(settings.clientId && settings.spreadsheetId);
 
-  /** A usable token, asking Google silently first so the common path is quiet. */
-  const ensureToken = useCallback(async (): Promise<string> => {
+  const remember = useCallback((token: AccessToken) => {
+    tokenRef.current = token;
+    cacheToken(token);
+    return token.value;
+  }, []);
+
+  const hasLiveToken = () => {
     const current = tokenRef.current;
-    if (current && current.expiresAt - TOKEN_SAFETY_MS > Date.now()) return current.value;
+    return Boolean(current && current.expiresAt - TOKEN_SAFETY_MS > Date.now());
+  };
 
-    const remember = (token: AccessToken) => {
-      tokenRef.current = token;
-      cacheToken(token);
-      return token.value;
-    };
+  // Both halves of the work a click cannot afford to wait for: building the
+  // token client, and trying for a token that needs no window. Doing either
+  // after the click spends the gesture the popup depends on.
+  useEffect(() => {
+    if (!settings.clientId) return;
+    let cancelled = false;
 
-    try {
-      return remember(await requestAccessToken(settings.clientId, true));
-    } catch {
-      // No existing grant (or it was revoked) — fall back to asking properly.
-      return remember(await requestAccessToken(settings.clientId, false));
+    prepareTokenClient(settings.clientId)
+      .then(() => {
+        if (cancelled || hasLiveToken()) return;
+        return requestAccessToken(settings.clientId, true)
+          .then(token => { if (!cancelled) remember(token); })
+          .catch(() => {
+            // No standing grant yet; the button will ask for one properly.
+          });
+      })
+      .catch(() => {
+        // Offline, or the script is blocked. connect() reports it when tried.
+      });
+
+    return () => { cancelled = true; };
+  }, [settings.clientId, remember]);
+
+  /**
+   * Returns a token, opening Google's window when there is none.
+   *
+   * Deliberately synchronous up to the point of asking: every caller reaches
+   * here straight from a click, and the first `await` on the way would cost
+   * that click its right to open a window.
+   */
+  const ensureToken = useCallback((): Promise<string> => {
+    const current = tokenRef.current;
+    if (current && current.expiresAt - TOKEN_SAFETY_MS > Date.now()) {
+      return Promise.resolve(current.value);
     }
-  }, [settings.clientId]);
+    if (!isTokenClientReady(settings.clientId)) {
+      return prepareTokenClient(settings.clientId)
+        .then(() => requestAccessToken(settings.clientId, false))
+        .then(remember);
+    }
+    return requestAccessToken(settings.clientId, false).then(remember);
+  }, [remember, settings.clientId]);
 
   const connect = useCallback(async (): Promise<SpreadsheetMeta | null> => {
     if (!isConfigured) {

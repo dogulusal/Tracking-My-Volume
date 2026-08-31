@@ -25,6 +25,10 @@ interface TokenResponse {
 
 interface TokenClient {
   requestAccessToken: (overrides?: { prompt?: string }) => void;
+  /** GIS lets these be swapped per request, which is what allows one client to
+   *  be built ahead of time and reused inside a click. */
+  callback: (response: TokenResponse) => void;
+  error_callback?: (error: { type?: string; message?: string }) => void;
 }
 
 interface GoogleIdentityServices {
@@ -84,37 +88,76 @@ export interface AccessToken {
 }
 
 /**
- * Asks Google for an access token. `silent` reuses an existing grant without
- * showing anything — that is what makes "Gönder" a single tap after the first
- * time. Google refuses a silent request when consent is genuinely needed, and
- * the caller then retries with the prompt.
+ * The token client is built once, ahead of any click.
+ *
+ * This matters more than it looks: a popup only opens if it is asked for in the
+ * same tick as the user's click. Anything awaited first — loading Google's
+ * script, or trying for a silent token — spends that gesture, and the browser
+ * answers the real request with "Failed to open popup window". So preparation
+ * happens on mount and the click itself stays synchronous.
  */
-export function requestAccessToken(clientId: string, silent: boolean): Promise<AccessToken> {
-  return loadGis().then(google => new Promise<AccessToken>((resolve, reject) => {
-    let settled = false;
-    const client = google.accounts.oauth2.initTokenClient({
+let prepared: { clientId: string; client: TokenClient } | null = null;
+
+export async function prepareTokenClient(clientId: string): Promise<void> {
+  if (!clientId || prepared?.clientId === clientId) return;
+  const google = await loadGis();
+  prepared = {
+    clientId,
+    client: google.accounts.oauth2.initTokenClient({
       client_id: clientId,
       scope: SHEETS_SCOPE,
-      callback: (response) => {
-        if (settled) return;
-        settled = true;
-        if (response.access_token) {
-          const lifetime = (response.expires_in ?? 3600) * 1000;
-          resolve({ value: response.access_token, expiresAt: Date.now() + lifetime });
-        } else {
-          reject(new Error(response.error_description || response.error || 'Google izin vermedi.'));
-        }
-      },
-      error_callback: (error) => {
-        if (settled) return;
-        settled = true;
-        reject(new Error(error.message || 'Google izin penceresi kapatıldı.'));
-      },
-    });
+      callback: () => {},
+      error_callback: () => {},
+    }),
+  };
+}
+
+export function isTokenClientReady(clientId: string): boolean {
+  return prepared?.clientId === clientId;
+}
+
+function describeTokenError(error: { type?: string; message?: string }): string {
+  if (error.type === 'popup_failed_to_open') {
+    return 'Tarayıcı Google penceresini engelledi. Adres çubuğundaki engelleme '
+      + 'simgesinden bu siteye izin verip tekrar dene.';
+  }
+  if (error.type === 'popup_closed') {
+    return 'Google penceresi kapatıldı, izin verilmedi.';
+  }
+  return error.message || 'Google izin akışı tamamlanamadı.';
+}
+
+/**
+ * Must be called straight from a click for `silent: false` — see above. A
+ * silent request opens nothing, so it is safe to make at any time.
+ */
+export function requestAccessToken(clientId: string, silent: boolean): Promise<AccessToken> {
+  const entry = prepared?.clientId === clientId ? prepared : null;
+  if (!entry) {
+    return Promise.reject(new Error('Google kimlik kütüphanesi henüz hazır değil, bir an sonra tekrar dene.'));
+  }
+
+  return new Promise<AccessToken>((resolve, reject) => {
+    let settled = false;
+    entry.client.callback = (response) => {
+      if (settled) return;
+      settled = true;
+      if (response.access_token) {
+        const lifetime = (response.expires_in ?? 3600) * 1000;
+        resolve({ value: response.access_token, expiresAt: Date.now() + lifetime });
+      } else {
+        reject(new Error(response.error_description || response.error || 'Google izin vermedi.'));
+      }
+    };
+    entry.client.error_callback = (error) => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(describeTokenError(error)));
+    };
     // '' lets Google skip the consent screen once the grant exists; 'consent'
-    // would force a popup on every fallback, which on iOS is most of them.
-    client.requestAccessToken({ prompt: silent ? 'none' : '' });
-  }));
+    // would force a popup every time.
+    entry.client.requestAccessToken({ prompt: silent ? 'none' : '' });
+  });
 }
 
 export function revokeAccessToken(token: string): void {
