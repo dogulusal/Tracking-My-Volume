@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   addTabs,
   extractSpreadsheetId,
+  formatCells,
   getSpreadsheetMeta,
   isTokenClientReady,
   prepareTokenClient,
@@ -12,6 +13,8 @@ import {
   type AccessToken,
   type SpreadsheetMeta,
 } from '@/lib/googleSheets';
+import { buildFormatRanges, type StatusColorOverrides } from '@/utils/sheetFormat';
+import type { ExerciseStatus } from '@/types';
 import { mergeSheetRows } from '@/utils/sheetExport';
 import { DEFAULT_GOOGLE_CLIENT_ID } from '@/config';
 
@@ -88,6 +91,10 @@ export interface SheetTarget {
   programId: string;
   tab: string;
   values: string[][];
+  /** Cell statuses keyed by statusKey(); drives the colours written after. */
+  statuses: Map<string, ExerciseStatus>;
+  /** Week column labels this send covers — nothing outside them is recoloured. */
+  weekLabels: string[];
 }
 
 export interface PushFailure {
@@ -105,6 +112,8 @@ export interface PushOptions {
   createMissing?: boolean;
   /** Write over tabs whose existing contents could not be merged. */
   overwriteUnmergeable?: boolean;
+  /** The user's own status palette, when they have changed it. */
+  statusColors?: StatusColorOverrides;
 }
 
 export function useGoogleSheets() {
@@ -150,33 +159,15 @@ export function useGoogleSheets() {
     return token.value;
   }, []);
 
-  const hasLiveToken = () => {
-    const current = tokenRef.current;
-    return Boolean(current && current.expiresAt - TOKEN_SAFETY_MS > Date.now());
-  };
-
-  // Both halves of the work a click cannot afford to wait for: building the
-  // token client, and trying for a token that needs no window. Doing either
-  // after the click spends the gesture the popup depends on.
+  // Building the token client is the one thing that can be done ahead of time.
+  // Asking for a token cannot: GIS opens a popup even when asked quietly, so
+  // anything on this path outside a click would be blocked on sight.
   useEffect(() => {
     if (!settings.clientId) return;
-    let cancelled = false;
-
-    prepareTokenClient(settings.clientId)
-      .then(() => {
-        if (cancelled || hasLiveToken()) return;
-        return requestAccessToken(settings.clientId, true)
-          .then(token => { if (!cancelled) remember(token); })
-          .catch(() => {
-            // No standing grant yet; the button will ask for one properly.
-          });
-      })
-      .catch(() => {
-        // Offline, or the script is blocked. connect() reports it when tried.
-      });
-
-    return () => { cancelled = true; };
-  }, [settings.clientId, remember]);
+    prepareTokenClient(settings.clientId).catch(() => {
+      // Offline, or the script is blocked; connect() reports it when tried.
+    });
+  }, [settings.clientId]);
 
   /**
    * Returns a token, opening Google's window when there is none.
@@ -192,10 +183,10 @@ export function useGoogleSheets() {
     }
     if (!isTokenClientReady(settings.clientId)) {
       return prepareTokenClient(settings.clientId)
-        .then(() => requestAccessToken(settings.clientId, false))
+        .then(() => requestAccessToken(settings.clientId))
         .then(remember);
     }
-    return requestAccessToken(settings.clientId, false).then(remember);
+    return requestAccessToken(settings.clientId).then(remember);
   }, [remember, settings.clientId]);
 
   const connect = useCallback(async (): Promise<SpreadsheetMeta | null> => {
@@ -255,18 +246,21 @@ export function useGoogleSheets() {
         tab: settings.tabByProgramId[target.programId] ?? target.tab,
       }));
 
+      const titles = new Set(info.tabs.map(tab => tab.title));
       const missingTabs = [...new Set(
-        resolved.filter(t => !info.tabs.includes(t.tab)).map(t => t.tab),
+        resolved.filter(t => !titles.has(t.tab)).map(t => t.tab),
       )];
       if (missingTabs.length > 0) {
         if (!options.createMissing) return { status: 'needs-tabs', missingTabs };
-        await addTabs(token, settings.spreadsheetId, missingTabs);
-        info.tabs = [...info.tabs, ...missingTabs];
+        const created = await addTabs(token, settings.spreadsheetId, missingTabs);
+        info.tabs = [...info.tabs, ...created];
         setMeta({ ...info });
       }
+      const sheetIdOf = (title: string) =>
+        info.tabs.find(tab => tab.title === title)?.sheetId;
 
       // Merge first, so an unmergeable tab can be reported before anything is written.
-      const prepared: { tab: string; programId: string; values: string[][] }[] = [];
+      const prepared: (SheetTarget & { values: string[][] })[] = [];
       const conflicts: string[] = [];
       const failed: PushFailure[] = [];
 
@@ -280,7 +274,7 @@ export function useGoogleSheets() {
             conflicts.push(target.tab);
             continue;
           }
-          prepared.push({ tab: target.tab, programId: target.programId, values: merged.rows });
+          prepared.push({ ...target, values: merged.rows });
         } catch (e) {
           failed.push({ tab: target.tab, message: e instanceof Error ? e.message : 'okunamadı' });
         }
@@ -293,6 +287,14 @@ export function useGoogleSheets() {
       for (const item of prepared) {
         try {
           updatedCells += await writeTab(token, settings.spreadsheetId, item.tab, item.values);
+
+          // Colours are a second pass: values land even if formatting fails,
+          // and a failure here is worth reporting rather than swallowing.
+          const sheetId = sheetIdOf(item.tab);
+          if (sheetId !== undefined) {
+            await formatCells(token, settings.spreadsheetId, sheetId,
+              buildFormatRanges(item.values, item.weekLabels, item.statuses, options.statusColors));
+          }
           written.push(item.tab);
         } catch (e) {
           failed.push({ tab: item.tab, message: e instanceof Error ? e.message : 'yazılamadı' });

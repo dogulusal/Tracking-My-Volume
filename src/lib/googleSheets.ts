@@ -1,3 +1,5 @@
+import type { CellFormatRange } from '@/utils/sheetFormat';
+
 /**
  * Minimal Google Sheets v4 client for the "send to my sheet" button.
  *
@@ -128,10 +130,15 @@ function describeTokenError(error: { type?: string; message?: string }): string 
 }
 
 /**
- * Must be called straight from a click for `silent: false` — see above. A
- * silent request opens nothing, so it is safe to make at any time.
+ * Must be called straight from a click.
+ *
+ * There is no quiet variant to fall back on: GIS opens a popup even for
+ * `prompt: 'none'` (measured — it calls window.open with display=popup), so an
+ * attempt made on page load is simply a blocked popup and a warning icon in the
+ * address bar. Asking only on a real click is the only version of this that
+ * behaves. The token is cached for the session so the ask stays rare.
  */
-export function requestAccessToken(clientId: string, silent: boolean): Promise<AccessToken> {
+export function requestAccessToken(clientId: string): Promise<AccessToken> {
   const entry = prepared?.clientId === clientId ? prepared : null;
   if (!entry) {
     return Promise.reject(new Error('Google kimlik kütüphanesi henüz hazır değil, bir an sonra tekrar dene.'));
@@ -154,9 +161,9 @@ export function requestAccessToken(clientId: string, silent: boolean): Promise<A
       settled = true;
       reject(new Error(describeTokenError(error)));
     };
-    // '' lets Google skip the consent screen once the grant exists; 'consent'
-    // would force a popup every time.
-    entry.client.requestAccessToken({ prompt: silent ? 'none' : '' });
+    // '' lets Google skip the consent screen once the grant exists, so a repeat
+    // ask is a popup that opens and closes by itself.
+    entry.client.requestAccessToken({ prompt: '' });
   });
 }
 
@@ -192,31 +199,88 @@ async function sheetsFetch<T>(
   return response.json() as Promise<T>;
 }
 
+export interface SheetTab {
+  title: string;
+  /** Formatting is addressed by numeric id, not by name. */
+  sheetId: number;
+}
+
 export interface SpreadsheetMeta {
   title: string;
-  tabs: string[];
+  tabs: SheetTab[];
 }
 
 export async function getSpreadsheetMeta(token: string, spreadsheetId: string): Promise<SpreadsheetMeta> {
   const data = await sheetsFetch<{
     properties?: { title?: string };
-    sheets?: { properties?: { title?: string } }[];
-  }>(token, `/${encodeURIComponent(spreadsheetId)}?fields=properties.title,sheets.properties.title`);
+    sheets?: { properties?: { title?: string; sheetId?: number } }[];
+  }>(token, `/${encodeURIComponent(spreadsheetId)}?fields=properties.title,sheets.properties(title,sheetId)`);
 
   return {
     title: data.properties?.title ?? '(isimsiz)',
     tabs: (data.sheets ?? [])
-      .map(sheet => sheet.properties?.title)
-      .filter((title): title is string => Boolean(title)),
+      .map(sheet => sheet.properties)
+      .filter((props): props is { title: string; sheetId: number } =>
+        Boolean(props?.title) && typeof props?.sheetId === 'number')
+      .map(props => ({ title: props.title, sheetId: props.sheetId })),
   };
 }
 
-export async function addTabs(token: string, spreadsheetId: string, titles: string[]): Promise<void> {
-  if (titles.length === 0) return;
-  await sheetsFetch(token, `/${encodeURIComponent(spreadsheetId)}:batchUpdate`, {
+export async function addTabs(
+  token: string,
+  spreadsheetId: string,
+  titles: string[],
+): Promise<SheetTab[]> {
+  if (titles.length === 0) return [];
+  const result = await sheetsFetch<{
+    replies?: { addSheet?: { properties?: { title?: string; sheetId?: number } } }[];
+  }>(token, `/${encodeURIComponent(spreadsheetId)}:batchUpdate`, {
     method: 'POST',
     body: JSON.stringify({
       requests: titles.map(title => ({ addSheet: { properties: { title } } })),
+    }),
+  });
+
+  // The reply carries the new ids, which the colouring pass needs straight away.
+  return (result.replies ?? [])
+    .map(reply => reply.addSheet?.properties)
+    .filter((props): props is { title: string; sheetId: number } =>
+      Boolean(props?.title) && typeof props?.sheetId === 'number')
+    .map(props => ({ title: props.title, sheetId: props.sheetId }));
+}
+
+/**
+ * Paints cell backgrounds, one request per row range. Only the ranges given are
+ * touched — a column the app did not send keeps whatever colour it has, which
+ * is the same promise the value merge makes.
+ */
+export async function formatCells(
+  token: string,
+  spreadsheetId: string,
+  sheetId: number,
+  ranges: CellFormatRange[],
+): Promise<void> {
+  if (ranges.length === 0) return;
+  await sheetsFetch(token, `/${encodeURIComponent(spreadsheetId)}:batchUpdate`, {
+    method: 'POST',
+    body: JSON.stringify({
+      requests: ranges.map(range => ({
+        updateCells: {
+          range: {
+            sheetId,
+            startRowIndex: range.rowIndex,
+            endRowIndex: range.rowIndex + 1,
+            startColumnIndex: range.startColumnIndex,
+            endColumnIndex: range.startColumnIndex + range.colors.length,
+          },
+          rows: [{
+            values: range.colors.map(backgroundColor => ({
+              userEnteredFormat: { backgroundColor },
+            })),
+          }],
+          fields: 'userEnteredFormat.backgroundColor',
+        },
+      })),
     }),
   });
 }

@@ -8,6 +8,8 @@ import { AppContext } from '@/context/AppContext';
 import { buildSheetTsv, buildMultiProgramTsv, buildSheetRows } from '@/utils/sheetExport';
 import { copyText } from '@/utils/clipboard';
 import { useGoogleSheets } from '@/hooks/useGoogleSheets';
+import { useColorSettings } from '@/hooks/useColorSettings';
+import { buildStatusMap } from '@/utils/sheetFormat';
 import { useLastSheetExport } from '@/hooks/useLastSheetExport';
 
 const ALL_PROGRAMS = 'all';
@@ -34,6 +36,8 @@ export function Export() {
   const ctx = useContext(AppContext);
   const exerciseRowOrder = ctx?.state.exerciseRowOrder;
   const phases = ctx?.state.phases;
+  const statusColors = ctx?.state.statusColors;
+  const { getCellOverride } = useColorSettings();
 
   // Sheets export state
   const [sheetProgramId, setSheetProgramId] = useState<string>(ALL_PROGRAMS);
@@ -95,9 +99,13 @@ export function Export() {
     const selected = sheetProgramId === ALL_PROGRAMS
       ? programs
       : programs.filter(p => p.id === sheetProgramId);
+    const weekLabels: string[] = [];
+    for (let week = from; week <= to; week++) weekLabels.push(`H${week}`);
+
     return selected.map(program => ({
       programId: program.id,
       tab: program.name,
+      weekLabels,
       values: buildSheetRows({
         program,
         weekLogs,
@@ -106,8 +114,17 @@ export function Export() {
         phases,
         rowOrder: exerciseRowOrder?.[program.id],
       }),
+      // Same comparison the History grid paints with, carried to the sheet.
+      statuses: buildStatusMap({
+        program,
+        weekLogs,
+        fromWeek: from,
+        toWeek: to,
+        phases,
+        getCellOverride,
+      }),
     }));
-  }, [sheetProgramId, sheetFrom, sheetTo, programs, weekLogs, exerciseRowOrder, phases]);
+  }, [sheetProgramId, sheetFrom, sheetTo, programs, weekLogs, exerciseRowOrder, phases, getCellOverride]);
 
   const sentWeek = Math.max(sheetFrom, sheetTo);
 
@@ -119,7 +136,7 @@ export function Export() {
   };
 
   const handleSheetPush = async (options: { createMissing?: boolean; overwriteUnmergeable?: boolean } = {}) => {
-    const result = await sheets.push(sheetTargets, options);
+    const result = await sheets.push(sheetTargets, { ...options, statusColors });
 
     if (result.status === 'needs-tabs') {
       setSheetConfirm({ kind: 'tabs', tabs: result.missingTabs });
@@ -466,7 +483,7 @@ export function Export() {
                 {sheets.meta && (
                   <p className="mt-2 text-xs text-(--color-text-secondary)">
                     Bağlı: <span className="font-semibold">{sheets.meta.title}</span> —
-                    sekmeler: {sheets.meta.tabs.join(', ') || 'yok'}
+                    sekmeler: {sheets.meta.tabs.map(tab => tab.title).join(', ') || 'yok'}
                   </p>
                 )}
                 {Object.keys(sheets.settings.tabByProgramId).length > 0 && (
