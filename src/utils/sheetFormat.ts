@@ -3,15 +3,31 @@
  * them — same comparison, same phase boundary, same manual overrides — so the
  * sheet and the app never disagree about what counts as progress.
  *
- * The light palette is used: a spreadsheet is a light surface. Editing the
- * colours in History's ⚙️ panel while the app is in light mode changes what
- * gets written here too.
+ * The sheet keeps its own palette. The app's surfaces are deliberately muted;
+ * the sheet has been colour-coded by hand for months in saturated Google Sheets
+ * colours, and that is the look being continued here. A status the user has
+ * explicitly repainted in History's ⚙️ panel still overrides it — that panel
+ * would otherwise be lying about what it controls.
  */
 import type { ExerciseStatus, PhaseDefinition, Program, WeekLog } from '@/types';
 import { calculateExerciseStatus } from '@/utils/statusCalculator';
-import { DEFAULT_STATUS_BG_COLORS } from '@/hooks/useColorSettings';
 
 export type StatusColorOverrides = Partial<Record<ExerciseStatus, { dark: string; light: string }>>;
+
+/**
+ * The colours the sheet already uses, read off it rather than invented. Change
+ * a value here and the next send repaints in the new colour.
+ */
+export const SHEET_STATUS_COLORS: Record<ExerciseStatus, string> = {
+  improved: '#00ff00',
+  decreased: '#ff0000',
+  same: '#cccccc',
+  holiday: '#a64d79',
+  removed: '#000000',
+  // Nothing to compare against in the first week of a mezo, so the sheet leaves
+  // those cells plain rather than claiming a direction.
+  new: '#ffffff',
+};
 
 export interface StatusMapOptions {
   program: Program;
@@ -111,8 +127,9 @@ export function hexToRgb(hex: string): RgbColor {
 }
 
 export function statusColor(status: ExerciseStatus, overrides?: StatusColorOverrides): RgbColor {
-  const pair = overrides?.[status] ?? DEFAULT_STATUS_BG_COLORS[status];
-  return hexToRgb(pair.light);
+  // An in-app repaint of a status still wins, so the ⚙️ panel is not a lie.
+  const override = overrides?.[status]?.light;
+  return hexToRgb(override ?? SHEET_STATUS_COLORS[status]);
 }
 
 /** Groups column indices into contiguous runs, one API range per run. */
