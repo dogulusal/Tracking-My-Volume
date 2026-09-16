@@ -6,7 +6,7 @@
  * Bump CACHE when the logic below changes; asset filenames are content-hashed,
  * so the version is not needed for ordinary deploys.
  */
-const CACHE = 'tmv-v4';
+const CACHE = 'tmv-v5';
 
 /** Every SPA route is served by the same document, so the shell has one key. */
 const SHELL = new URL('./', self.registration.scope).href;
