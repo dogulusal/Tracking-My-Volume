@@ -70,7 +70,19 @@ export interface PhaseDefinition {
 
 // ─── App State ────────────────────────────────────────
 
+export interface ProgramVersion {
+  phaseId: string;
+  fromWeek: number; // phase-relative, inclusive until the next version
+  programs: Program[];
+  plans: Plan[];
+  activePlanId: string | null;
+}
+
 export interface AppState {
+  phaseRecordTransitions?: Record<string, boolean>;
+  programVersions?: ProgramVersion[];
+  sheetColumnMappings?: Record<string, import('@/utils/sheetTemplate').SheetMapping>;
+  googleSheetsSettings?: GoogleSheetsPreferences;
   programs: Program[];
   plans: Plan[];
   activePlanId: string | null;
@@ -90,13 +102,20 @@ export interface AppState {
 // ─── Reducer Actions ──────────────────────────────────
 
 export type AppAction =
-  | { type: 'ADD_PROGRAM'; payload: Program }
-  | { type: 'UPDATE_PROGRAM'; payload: Program }
-  | { type: 'DELETE_PROGRAM'; payload: string }
-  | { type: 'ADD_PLAN'; payload: Plan }
-  | { type: 'UPDATE_PLAN'; payload: Plan }
-  | { type: 'DELETE_PLAN'; payload: string }
-  | { type: 'SET_ACTIVE_PLAN'; payload: string }
+  | { type: 'REMOVE_PHASE_EXERCISE'; payload: { phaseId: string; programId: string; exerciseId: string } }
+  | { type: 'CONFIGURE_PHASE_TRANSITION'; payload: { previousPhaseId: string; lastWeek: number; nextId: string } }
+  | { type: 'COPY_PHASE_PROGRAM'; payload: { week: number; sourceWeek: number } }
+  | { type: 'SET_SHEET_MAPPINGS'; payload: NonNullable<AppState['sheetColumnMappings']> }
+  | { type: 'START_NEXT_PHASE'; payload: { id: string; startAt?: 'next' | 'current' } }
+  | { type: 'CLEAR_HISTORY_DATA'; payload: { programId: string; weeks: number[]; exerciseId?: string; updatedAt: string } }
+  | { type: 'SET_GOOGLE_SHEETS_SETTINGS'; payload: GoogleSheetsPreferences }
+  | { type: 'ADD_PROGRAM'; atWeek?: number; payload: Program }
+  | { type: 'UPDATE_PROGRAM'; atWeek?: number; payload: Program; syncCurrentLog?: boolean }
+  | { type: 'DELETE_PROGRAM'; atWeek?: number; payload: string }
+  | { type: 'ADD_PLAN'; atWeek?: number; payload: Plan }
+  | { type: 'UPDATE_PLAN'; atWeek?: number; payload: Plan }
+  | { type: 'DELETE_PLAN'; atWeek?: number; payload: string }
+  | { type: 'SET_ACTIVE_PLAN'; atWeek?: number; payload: string }
   | { type: 'SAVE_WORKOUT'; payload: WeekLog }
   | { type: 'UPDATE_WORKOUT'; payload: WeekLog }
   | { type: 'DELETE_WORKOUT'; payload: string }
@@ -112,6 +131,11 @@ export type AppAction =
 // ─── Export Format ────────────────────────────────────
 
 export interface ExportData {
+  phaseRecordTransitions?: AppState['phaseRecordTransitions'];
+  dataVersion?: number;
+  programVersions?: ProgramVersion[];
+  sheetColumnMappings?: AppState['sheetColumnMappings'];
+  googleSheetsSettings?: GoogleSheetsPreferences;
   exportDate: string;
   version: string;
   programs: Program[];
@@ -120,4 +144,11 @@ export interface ExportData {
   weekLogs: WeekLog[];
   currentWeek: number;
   phases?: PhaseDefinition[];
+}
+
+/** Non-secret preferences only. Google credentials never enter synced state. */
+export interface GoogleSheetsPreferences {
+  clientId: string;
+  spreadsheetId: string;
+  tabByProgramId: Record<string, string>;
 }

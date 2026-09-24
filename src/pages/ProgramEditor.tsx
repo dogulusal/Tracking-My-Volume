@@ -1,5 +1,8 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { AppContext } from '@/context/AppContext';
+import { phaseAt } from '@/utils/programVersions';
+import { NumberInput } from '@/components/shared/NumberInput';
+import { useState, useContext, useEffect, useRef } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePrograms } from '@/hooks/usePrograms';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { moveItem } from '@/utils/reorder';
@@ -16,7 +19,12 @@ function generateId(name: string): string {
 export function ProgramEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { programs, addProgram, updateProgram } = usePrograms();
+  const ctx = useContext(AppContext)!;
+  const [params] = useSearchParams();
+  const requestedWeek = Number(params.get('week'));
+  const week = params.has('week') && Number.isInteger(requestedWeek) && requestedWeek >= 0 ? requestedWeek : ctx.state.currentWeek;
+  const phase = phaseAt(ctx.state, week);
+  const { programs, addProgram, updateProgram } = usePrograms(week);
 
   const existingProgram = id ? programs.find(p => p.id === id) : undefined;
 
@@ -25,6 +33,17 @@ export function ProgramEditor() {
     existingProgram?.exercises || []
   );
   const [order, setOrder] = useState(existingProgram?.order || programs.length + 1);
+  const loadedEditorKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (id && !existingProgram) return;
+    const key = `${week}:${id ?? 'new'}`;
+    if (loadedEditorKey.current === key) return;
+    loadedEditorKey.current = key;
+    setName(existingProgram?.name ?? '');
+    setExercises(existingProgram?.exercises ?? []);
+    setOrder(existingProgram?.order ?? programs.length + 1);
+  }, [id, week, existingProgram, programs.length]);
 
   const addExercise = () => {
     setExercises([
@@ -52,14 +71,7 @@ export function ProgramEditor() {
   };
 
   const removeExercise = (index: number) => {
-    const exercise = exercises[index];
-    // If exercise has no established id (new), remove completely
-    if (exercise.id.startsWith('new_')) {
-      setExercises(exercises.filter((_, i) => i !== index));
-    } else {
-      // Soft-delete: mark as inactive
-      updateExercise(index, 'isActive', false);
-    }
+    setExercises(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSave = () => {
@@ -76,11 +88,14 @@ export function ProgramEditor() {
         name,
         order,
         exercises: finalExercises,
-      });
+      }, true);
+      ctx.dispatch({ type: 'SET_EXERCISE_ROW_ORDER', payload: {
+        programId: existingProgram.id, exerciseIds: finalExercises.map(exercise => exercise.id),
+      } });
     } else {
       addProgram({ name, order, exercises: finalExercises });
     }
-    navigate('/programs');
+    navigate(`/programs?week=${week}`);
   };
 
   return (
@@ -90,6 +105,7 @@ export function ProgramEditor() {
           {existingProgram ? 'Programı düzenle' : 'Yeni program'}
         </h1>
       </div>
+      <p className="lb-label mb-4">{phase?.name} · H{week - (phase?.startWeek ?? 0)} için düzenleniyor. Değişiklikler bir sonraki program sürümüne kadar geçerli olur. Önceki haftalar ve diğer fazlar korunur.</p>
       <div className="space-y-6 max-w-2xl">
         {/* Program Name */}
         <div>
@@ -122,6 +138,7 @@ export function ProgramEditor() {
         {/* Exercises */}
         <div>
           <h2 className="text-base font-semibold mb-3">Egzersizler</h2>
+          <p className="lb-label mb-3">Sil düğmesi egzersizi programdan tamamen kaldırır. Geçmiş kayıtları korunur. Değişiklikler Kaydet ile uygulanır.</p>
           <div className="space-y-3">
             {exercises.map((exercise, idx) => (
               <div
@@ -159,20 +176,20 @@ export function ProgramEditor() {
                 />
                 <div className="flex items-center gap-1">
                   <label className="lb-label">Set</label>
-                  <input
-                    type="number"
+                  <NumberInput
+
                     value={exercise.defaultSets}
-                    onChange={e => updateExercise(idx, 'defaultSets', Number(e.target.value))}
+                    onValueChange={value => updateExercise(idx, 'defaultSets', value)}
                     min={1}
                     className="lb-figure w-14 px-2 py-1 bg-(--color-bg-input) border lb-rule rounded text-sm focus:outline-none focus:border-(--color-text-primary)"
                   />
                 </div>
                 <div className="flex items-center gap-1">
                   <label className="lb-label">Kg</label>
-                  <input
-                    type="number"
+                  <NumberInput
+
                     value={exercise.defaultWeight}
-                    onChange={e => updateExercise(idx, 'defaultWeight', Number(e.target.value))}
+                    onValueChange={value => updateExercise(idx, 'defaultWeight', value)}
                     min={0}
                     step={0.5}
                     className="lb-figure w-16 px-2 py-1 bg-(--color-bg-input) border lb-rule rounded text-sm focus:outline-none focus:border-(--color-text-primary)"
@@ -180,23 +197,28 @@ export function ProgramEditor() {
                 </div>
                 <div className="flex items-center gap-1">
                   <label className="lb-label">Rep</label>
-                  <input
-                    type="number"
+                  <NumberInput
+
                     value={exercise.defaultReps}
-                    onChange={e => updateExercise(idx, 'defaultReps', Number(e.target.value))}
+                    onValueChange={value => updateExercise(idx, 'defaultReps', value)}
                     min={0}
                     className="lb-figure w-14 px-2 py-1 bg-(--color-bg-input) border lb-rule rounded text-sm focus:outline-none focus:border-(--color-text-primary)"
                   />
                 </div>
                 <button
                   onClick={() => removeExercise(idx)}
-                  className="lb-press p-1 rounded"
+                  className="lb-press px-3 py-2 min-h-11 border lb-rule rounded-lg text-sm font-semibold"
                   style={{ color: 'var(--lb-drop)' }}
-                  aria-label={exercise.isActive ? `${exercise.name || 'Egzersiz'} devre dışı bırak` : `${exercise.name || 'Egzersiz'} sil`}
-                  title={exercise.isActive ? 'Devre dışı bırak' : 'Sil'}
+                  aria-label={`${exercise.name || 'Egzersiz'} sil`}
+                  title="Sil"
                 >
-                  ✕
+                  Sil
                 </button>
+                {!exercise.isActive && (
+                  <button onClick={() => updateExercise(idx, 'isActive', true)} className="lb-press px-3 py-2 text-xs border lb-rule rounded-lg">
+                    Geri al
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -218,7 +240,7 @@ export function ProgramEditor() {
             Kaydet
           </button>
           <button
-            onClick={() => navigate('/programs')}
+            onClick={() => navigate(`/programs?week=${week}`)}
             className="px-8 py-3 bg-(--color-btn-bg) hover:bg-(--color-btn-hover) text-(--color-text-primary) font-bold rounded-xl transition-all"
           >
             İptal

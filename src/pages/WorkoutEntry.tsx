@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { AppContext } from '@/context/AppContext';
+import { useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePrograms } from '@/hooks/usePrograms';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { formatSet } from '@/utils/formatters';
 import { moveItem } from '@/utils/reorder';
+import { syncExerciseLogs, syncProgramFromWorkout } from '@/utils/exerciseSync';
 import type { SetLog, Intensity, ExerciseLog } from '@/types';
 
 const INTENSITY_OPTIONS: { value: Intensity; label: string }[] = [
@@ -49,14 +51,20 @@ function formatTimer(totalSec: number): string {
 export function WorkoutEntry() {
   const { programId, weekNumber: weekParam } = useParams();
   const navigate = useNavigate();
-  const { getProgramById, updateProgram } = usePrograms();
-  const { getLogForWeek, getPreviousLog, saveWorkout, setHoliday } = useWeekLogs();
+  const [searchParams] = useSearchParams();
+  const returnPath = searchParams.get('from') === 'history' ? '/history' : '/';
+  const { getProgramById, updateProgram } = usePrograms(Number(weekParam) || 0);
+  const { getLogForWeek, getPreviousLog, saveWorkout } = useWeekLogs();
   const isMobile = useIsMobileDevice();
 
   const weekNumber = Number(weekParam) || 0;
+  const ctx = useContext(AppContext);
+  const phase = ctx?.state.phases.find(p => weekNumber >= p.startWeek && (p.endWeek === null || weekNumber <= p.endWeek));
+  const displayWeek = weekNumber - (phase?.startWeek ?? 0);
   const program = getProgramById(programId || '');
   const existingLog = getLogForWeek(programId || '', weekNumber);
-  const previousLog = getPreviousLog(programId || '', weekNumber);
+  const previousCandidate = getPreviousLog(programId || '', weekNumber);
+  const previousLog = previousCandidate && previousCandidate.weekNumber >= (phase?.startWeek ?? 0) ? previousCandidate : null;
 
   const [isHoliday, setIsHoliday] = useState(existingLog?.isHoliday || false);
   const [notes, setNotes] = useState(existingLog?.notes || '');
@@ -65,6 +73,10 @@ export function WorkoutEntry() {
   );
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>([]);
   const [isDirty, setIsDirty] = useState(false);
+  const [expandedExercise, setExpandedExercise] = useState<string | null | undefined>(undefined);
+  const [showAllExercises, setShowAllExercises] = useState(false);
+  const [completedSets, setCompletedSets] = useState<Record<string, boolean>>({});
+  const [draftStatus, setDraftStatus] = useState<'idle' | 'saved' | 'error'>('idle');
   const [restDurationSec, setRestDurationSec] = useState<number>(() => {
     const saved = localStorage.getItem(REST_TIMER_KEY);
     const parsed = saved ? Number(saved) : 90;
@@ -93,6 +105,7 @@ export function WorkoutEntry() {
   const [timerJustFinished, setTimerJustFinished] = useState(false);
   const [setInputDrafts, setSetInputDrafts] = useState<Record<string, string>>({});
   const [orderDiffersFromProgram, setOrderDiffersFromProgram] = useState(false);
+  const editedExerciseIdsRef = useRef<Set<string>>(new Set());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerTotalRef = useRef(restDurationSec);
   const timerEndAtRef = useRef<number | null>(null);
@@ -130,14 +143,19 @@ export function WorkoutEntry() {
           date?: string;
           isHoliday?: boolean;
           savedAt?: string;
+          completedSets?: Record<string, boolean>;
         };
         const draftIsStale =
           existingLog?.updatedAt != null &&
           draft.savedAt != null &&
           existingLog.updatedAt > draft.savedAt;
 
-        if (Array.isArray(draft.exerciseLogs) && draft.exerciseLogs.length > 0 && !draftIsStale) {
-          setExerciseLogs(draft.exerciseLogs);
+        if (Array.isArray(draft.exerciseLogs) && !draftIsStale) {
+          setExerciseLogs(syncExerciseLogs(program, draft.exerciseLogs, ex => ({
+            exerciseId: ex.id, exerciseName: ex.name,
+            sets: Array.from({ length: ex.defaultSets }, () => ({ weight: ex.defaultWeight, reps: ex.defaultReps, intensity: 'failure' as Intensity })),
+          })));
+          if (draft.completedSets && typeof draft.completedSets === 'object') setCompletedSets(draft.completedSets);
           if (typeof draft.notes === 'string') setNotes(draft.notes);
           if (typeof draft.date === 'string') setDate(draft.date);
           if (typeof draft.isHoliday === 'boolean') setIsHoliday(draft.isHoliday);
@@ -151,8 +169,11 @@ export function WorkoutEntry() {
     }
 
     // 2) Previously saved week
-    if (existingLog && existingLog.exercises.length > 0) {
-      setExerciseLogs(existingLog.exercises);
+    if (existingLog) {
+      setExerciseLogs(syncExerciseLogs(program, existingLog.exercises, ex => ({
+        exerciseId: ex.id, exerciseName: ex.name,
+        sets: Array.from({ length: ex.defaultSets }, () => ({ weight: ex.defaultWeight, reps: ex.defaultReps, intensity: 'failure' as Intensity })),
+      })));
       setNotes(existingLog.notes || '');
       setDate(existingLog.date);
       setIsHoliday(existingLog.isHoliday || false);
@@ -171,9 +192,9 @@ export function WorkoutEntry() {
             exerciseName: ex.name,
             // Weight/reps are a useful starting point; intensity is not — it
             // describes the set you actually performed, so it resets to F.
-            sets: previousSets.map(set => ({
-              weight: set.weight,
-              reps: set.reps,
+            sets: Array.from({ length: ex.defaultSets }, (_, index) => ({
+              weight: (previousSets[index] ?? previousSets[previousSets.length - 1]).weight,
+              reps: (previousSets[index] ?? previousSets[previousSets.length - 1]).reps,
               intensity: 'failure' as Intensity,
             })),
           };
@@ -195,11 +216,14 @@ export function WorkoutEntry() {
   // Draft save to localStorage — survives iOS evicting the page on app switch
   useEffect(() => {
     if (!isDirty) return;
-    localStorage.setItem(
-      draftKey,
-      JSON.stringify({ exerciseLogs, notes, date, isHoliday, savedAt: new Date().toISOString() })
-    );
-  }, [exerciseLogs, notes, date, isHoliday, isDirty, draftKey]);
+    try {
+      localStorage.setItem(
+        draftKey,
+        JSON.stringify({ exerciseLogs, notes, date, isHoliday, completedSets, savedAt: new Date().toISOString() })
+      );
+      setDraftStatus('saved');
+    } catch { setDraftStatus('error'); }
+  }, [exerciseLogs, notes, date, isHoliday, isDirty, draftKey, completedSets]);
 
   useEffect(() => {
     localStorage.setItem(REST_TIMER_KEY, String(restDurationSec));
@@ -222,6 +246,7 @@ export function WorkoutEntry() {
 
   const updateSet = useCallback((exerciseIdx: number, setIdx: number, field: keyof SetLog, value: number | Intensity) => {
     setExerciseLogs(prev => {
+      if (prev[exerciseIdx]) editedExerciseIdsRef.current.add(prev[exerciseIdx].exerciseId);
       const updated = [...prev];
       const exercise = { ...updated[exerciseIdx] };
       const sets = [...exercise.sets];
@@ -300,6 +325,16 @@ export function WorkoutEntry() {
     });
   }, [getSetInputKey, parseSetInput, setInputDrafts, updateSet]);
 
+  const renderRepStepper = (exerciseIdx: number, setIdx: number, reps: number) => (
+    <span className="flex shrink-0 gap-1">
+      {([-1, 1] as const).map(delta => <button key={delta} type="button"
+        aria-label={`Set ${setIdx + 1} Rep ${delta > 0 ? 'artır' : 'azalt'}`}
+        onPointerDown={e => e.preventDefault()}
+        onClick={() => handleSetFieldChange(exerciseIdx, setIdx, 'reps', String(Math.max(0, reps + delta)))}
+        className="lb-press w-10 h-11 rounded-lg border lb-rule text-lg font-semibold">{delta > 0 ? '+' : '−'}</button>)}
+    </span>
+  );
+
   const handleSetFieldFocus = useCallback((exerciseIdx: number, setIdx: number, field: 'weight' | 'reps', currentValue: number) => {
     if (currentValue !== 0) return;
     const key = getSetInputKey(exerciseIdx, setIdx, field);
@@ -316,6 +351,7 @@ export function WorkoutEntry() {
 
   const addSet = useCallback((exerciseIdx: number) => {
     setExerciseLogs(prev => {
+      if (prev[exerciseIdx]) editedExerciseIdsRef.current.add(prev[exerciseIdx].exerciseId);
       const updated = [...prev];
       const exercise = { ...updated[exerciseIdx] };
       const lastSet = exercise.sets[exercise.sets.length - 1];
@@ -331,8 +367,7 @@ export function WorkoutEntry() {
     setIsDirty(true);
   }, []);
 
-  // Reorders THIS week only — the program keeps its own order until the user
-  // explicitly pushes this one onto it with the button below the list.
+  // The saved week and the program use the same order after Kaydet.
   const moveExercise = useCallback((exerciseIdx: number, delta: number) => {
     setExerciseLogs(prev => {
       const next = moveItem(prev, exerciseIdx, delta);
@@ -343,21 +378,17 @@ export function WorkoutEntry() {
     setIsDirty(true);
   }, []);
 
-  const applyOrderToProgram = useCallback(() => {
-    if (!program) return;
-    const position = new Map(exerciseLogs.map((e, i) => [e.exerciseId, i]));
-    // Exercises not in this week's log (inactive, or added later) keep their
-    // relative order and sit after the ones the user just arranged.
-    const reordered = [...program.exercises].sort((a, b) => {
-      const ai = position.get(a.id) ?? Number.MAX_SAFE_INTEGER;
-      const bi = position.get(b.id) ?? Number.MAX_SAFE_INTEGER;
-      return ai - bi;
-    });
-    updateProgram({ ...program, exercises: reordered });
-    setOrderDiffersFromProgram(false);
-  }, [program, exerciseLogs, updateProgram]);
-
   const removeSet = useCallback((exerciseIdx: number, setIdx: number) => {
+    const exerciseId = exerciseLogs[exerciseIdx].exerciseId;
+    editedExerciseIdsRef.current.add(exerciseId);
+    setCompletedSets(prev => {
+      const next = { ...prev };
+      for (let i = setIdx; i < exerciseLogs[exerciseIdx].sets.length; i++) {
+        next[`${exerciseId}:${i}`] = prev[`${exerciseId}:${i + 1}`] ?? false;
+      }
+      return next;
+    });
+    setSetInputDrafts({});
     setExerciseLogs(prev => {
       const updated = [...prev];
       const exercise = { ...updated[exerciseIdx] };
@@ -367,27 +398,31 @@ export function WorkoutEntry() {
       return updated;
     });
     setIsDirty(true);
-  }, []);
+  }, [exerciseLogs]);
 
   const handleSave = () => {
     if (!programId) return;
-
-    if (isHoliday) {
-      setHoliday(programId, weekNumber);
-    } else {
-      saveWorkout({
-        weekNumber,
-        programId,
-        date,
-        exercises: exerciseLogs,
-        notes,
-        isHoliday: false,
-        updatedAt: new Date().toISOString(),
-      });
+    if (program) {
+      const updated = syncProgramFromWorkout(program, exerciseLogs, editedExerciseIdsRef.current, orderDiffersFromProgram);
+      if (updated !== program) {
+        updateProgram(updated);
+        if (orderDiffersFromProgram) ctx?.dispatch({ type: 'SET_EXERCISE_ROW_ORDER', payload: {
+          programId: program.id, exerciseIds: updated.exercises.map(exercise => exercise.id),
+        } });
+      }
     }
 
+    saveWorkout({
+      weekNumber,
+      programId,
+      date,
+      exercises: exerciseLogs,
+      notes,
+      isHoliday,
+      updatedAt: new Date().toISOString(),
+    });
     localStorage.removeItem(draftKey);
-    navigate('/');
+    navigate(returnPath);
   };
 
   const addRecentDuration = useCallback((seconds: number) => {
@@ -628,13 +663,13 @@ export function WorkoutEntry() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate(returnPath)}
             className="lb-press text-sm font-medium text-(--color-text-secondary) hover:text-(--color-text-primary) mb-1"
           >
             ← Geri
           </button>
           <h1 className="text-2xl font-semibold tracking-tight">{program.name}</h1>
-          <p className="lb-label">Hafta {weekNumber}</p>
+          <p className="lb-label">{phase?.name} · H{displayWeek}</p>
         </div>
         <input
           type="date"
@@ -657,7 +692,8 @@ export function WorkoutEntry() {
 
       {/* Rest timer control */}
       {!isHoliday && (
-        <div className="mb-6 rounded-lg border lb-rule overflow-hidden">
+        <details className="mb-6 rounded-lg border lb-rule overflow-hidden">
+          <summary className="lb-press cursor-pointer px-4 py-3 text-sm font-semibold">Set arası dinlenme · {formatDurationLabel(restDurationSec)} <span className="lb-label ml-2">Ayarlar</span></summary>
 
           {/* Header row */}
           <div className="flex items-center justify-between px-5 py-3.5 border-b lb-rule">
@@ -757,7 +793,7 @@ export function WorkoutEntry() {
             </p>
 
           </div>
-        </div>
+        </details>
       )}
 
 
@@ -765,10 +801,22 @@ export function WorkoutEntry() {
       {/* Exercise Cards */}
       {!isHoliday && (
         <div className="space-y-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="lb-label">{exerciseLogs.length} egzersiz · {exerciseLogs.reduce((count, e) => count + e.sets.filter((_, i) => completedSets[`${e.exerciseId}:${i}`]).length, 0)}/{exerciseLogs.reduce((count, e) => count + e.sets.length, 0)} set işaretlendi</p>
+            <button onClick={() => setShowAllExercises(!showAllExercises)} className="lb-press text-xs px-3 py-2 border lb-rule rounded-lg">{showAllExercises ? 'Tek egzersiz göster' : 'Tümünü aç'}</button>
+          </div>
           {exerciseLogs.map((exercise, exIdx) => (
             <div key={exercise.exerciseId} className="pb-5 border-b lb-rule">
               <div className="flex items-center gap-2 mb-4">
-                <h3 className="font-semibold text-base flex-1">{exercise.exerciseName}</h3>
+                <h3 className="font-semibold text-base flex-1 min-w-0">
+                  <button className="lb-press w-full text-left py-2 rounded-lg" aria-expanded={showAllExercises || (expandedExercise === undefined ? exIdx === 0 : expandedExercise === exercise.exerciseId)} aria-controls={`exercise-${exercise.exerciseId}`} onClick={() => {
+                    setShowAllExercises(false);
+                    setExpandedExercise((expandedExercise === undefined ? exIdx === 0 : expandedExercise === exercise.exerciseId) ? null : exercise.exerciseId);
+                  }}>
+                    <span className="lb-label mr-3">{String(exIdx + 1).padStart(2, '0')}</span>{exercise.exerciseName}
+                    <span className="lb-label block mt-1">{exercise.sets.length} set · {exercise.sets.filter((_, i) => completedSets[`${exercise.exerciseId}:${i}`]).length} işaretlendi {showAllExercises || (expandedExercise === undefined ? exIdx === 0 : expandedExercise === exercise.exerciseId) ? '−' : '+'}</span>
+                  </button>
+                </h3>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
@@ -793,13 +841,14 @@ export function WorkoutEntry() {
                 </div>
               </div>
 
+              <div id={`exercise-${exercise.exerciseId}`} hidden={!(showAllExercises || (expandedExercise === undefined ? exIdx === 0 : expandedExercise === exercise.exerciseId))}>
               {/* Sets */}
               <div className="space-y-2.5 md:space-y-2.5">
                 {exercise.sets.map((set, setIdx) => {
                   const prevSet = getPreviousSetRef(exercise.exerciseId, setIdx);
                   return isMobile ? (
                     /* ── Mobile: Card layout ── */
-                    <div key={setIdx} className="rounded-lg p-4 border lb-rule relative">
+                    <div key={setIdx} className="rounded-lg p-3 border lb-rule relative">
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-sm font-semibold">Set {setIdx + 1}</span>
                         {prevSet && (
@@ -841,9 +890,10 @@ export function WorkoutEntry() {
                             />
                             <span className="lb-label absolute right-3 top-1/2 -translate-y-1/2">rep</span>
                           </div>
+                          <div className="flex justify-end mt-2">{renderRepStepper(exIdx, setIdx, set.reps)}</div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="lb-label mr-1">RIR</span>
                         {/* Which RIR you picked is a selection, not a gain/drop —
                             neutral fill reads faster mid-set than accent anyway. */}
@@ -861,9 +911,16 @@ export function WorkoutEntry() {
                           </button>
                         ))}
                         <button
-                          onClick={() => startRestTimer()}
+                          onClick={() => {
+                            const key = `${exercise.exerciseId}:${setIdx}`;
+                            setCompletedSets(prev => ({ ...prev, [key]: !prev[key] }));
+                            setIsDirty(true);
+                            if (!completedSets[key]) startRestTimer();
+                          }}
+                          aria-pressed={!!completedSets[`${exercise.exerciseId}:${setIdx}`]}
+                          aria-label={`Set ${setIdx + 1} ${completedSets[`${exercise.exerciseId}:${setIdx}`] ? 'işaretini kaldır' : 'tamamla ve dinlenmeyi başlat'}`}
                           className={`lb-press w-11 h-11 rounded-lg text-sm font-semibold border ${
-                            timerActive ? 'bg-(--color-text-primary) text-(--color-bg-primary) border-transparent' : 'lb-rule text-(--color-text-secondary)'
+                            completedSets[`${exercise.exerciseId}:${setIdx}`] ? 'bg-(--color-text-primary) text-(--color-bg-primary) border-transparent' : 'lb-rule text-(--color-text-secondary)'
                           }`}
                           title="Set bitti — dinlenme sayacını başlat"
                         >
@@ -915,6 +972,7 @@ export function WorkoutEntry() {
                           className="lb-figure w-14 px-2 py-1.5 bg-(--color-bg-input) border lb-rule rounded-lg text-sm font-semibold focus:outline-none focus:border-(--color-text-primary)"
                         />
                         <span className="lb-label">rep</span>
+                        {renderRepStepper(exIdx, setIdx, set.reps)}
                       </div>
 
                       {/* Intensity */}
@@ -933,9 +991,16 @@ export function WorkoutEntry() {
                           </button>
                         ))}
                         <button
-                          onClick={() => startRestTimer()}
+                          onClick={() => {
+                            const key = `${exercise.exerciseId}:${setIdx}`;
+                            setCompletedSets(prev => ({ ...prev, [key]: !prev[key] }));
+                            setIsDirty(true);
+                            if (!completedSets[key]) startRestTimer();
+                          }}
+                          aria-pressed={!!completedSets[`${exercise.exerciseId}:${setIdx}`]}
+                          aria-label={`Set ${setIdx + 1} ${completedSets[`${exercise.exerciseId}:${setIdx}`] ? 'işaretini kaldır' : 'tamamla ve dinlenmeyi başlat'}`}
                           className={`lb-press w-8 h-8 rounded-lg text-xs font-semibold border ${
-                            timerActive ? 'bg-(--color-text-primary) text-(--color-bg-primary) border-transparent' : 'lb-rule text-(--color-text-secondary)'
+                            completedSets[`${exercise.exerciseId}:${setIdx}`] ? 'bg-(--color-text-primary) text-(--color-bg-primary) border-transparent' : 'lb-rule text-(--color-text-secondary)'
                           }`}
                           title="Set bitti — dinlenme sayacını başlat"
                         >
@@ -973,21 +1038,16 @@ export function WorkoutEntry() {
               >
                 + Set ekle
               </button>
+              {exIdx < exerciseLogs.length - 1 && <button onClick={() => { setShowAllExercises(false); setExpandedExercise(exerciseLogs[exIdx + 1].exerciseId); }} className="lb-press mt-3 ml-4 text-xs font-semibold px-3 py-2 border lb-rule rounded-lg">Sonraki egzersiz →</button>}
+              </div>
             </div>
           ))}
 
           {orderDiffersFromProgram && (
             <div className="flex flex-wrap items-center gap-3 p-4 rounded-lg bg-(--color-bg-input) border lb-rule">
               <span className="lb-label flex-1 min-w-[200px]">
-                Sırayı bu hafta için değiştirdin. Programın kalıcı sırası aynı kaldı.
+                Yeni hareket sırası Kaydet ile programa ve sonraki haftalara uygulanacak.
               </span>
-              <button
-                type="button"
-                onClick={applyOrderToProgram}
-                className="lb-press px-4 py-2 rounded-lg text-xs font-semibold border lb-rule-strong"
-              >
-                Programa da uygula
-              </button>
             </div>
           )}
         </div>
@@ -1009,19 +1069,22 @@ export function WorkoutEntry() {
 
       {/* Save Button — the page's one primary action, so it gets the solid
           fill. Neutral, because saving isn't a gain or a drop. */}
-      <button
-        onClick={handleSave}
-        className="lb-press mt-6 w-full sm:w-auto px-10 py-3.5 bg-(--color-text-primary) text-(--color-bg-primary) font-semibold text-base rounded-lg"
-      >
-        Kaydet
-      </button>
+      <div className="h-28" />
+      <div className={`fixed left-0 right-0 z-40 bg-(--color-bg-card) border-t lb-rule p-3 ${isMobile ? 'bottom-[calc(4rem+env(safe-area-inset-bottom))]' : 'bottom-0'}`}>
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+          <div className="min-w-0"><p className="text-sm font-semibold truncate">{program.name} · H{displayWeek}</p>
+            <p role="status" className="lb-label mt-1">{draftStatus === 'error' ? 'Taslak kaydedilemedi' : isDirty && draftStatus === 'saved' ? 'Taslak bu cihazda saklandı' : existingLog ? 'Kayıt düzenleniyor' : 'Kaydet ile antrenmanı tamamla'}</p>
+          </div>
+          <button onClick={handleSave} className="lb-press shrink-0 px-6 py-3 bg-(--color-text-primary) text-(--color-bg-primary) font-semibold rounded-lg">Kaydet</button>
+        </div>
+      </div>
 
       {/* Floating rest timer */}
       <div
         className={`fixed z-50 transition-all duration-300 ${
           (timerActive || timerJustFinished) ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
         } ${
-          isMobile ? 'bottom-20 left-4 right-4' : 'bottom-6 right-6 w-72'
+          isMobile ? 'bottom-[calc(10rem+env(safe-area-inset-bottom))] left-4 right-4' : 'bottom-24 right-6 w-72'
         }`}
       >
         {timerJustFinished && !timerActive ? (

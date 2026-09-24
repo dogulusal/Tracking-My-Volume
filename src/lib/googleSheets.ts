@@ -1,4 +1,7 @@
-import type { CellFormatRange } from '@/utils/sheetFormat';
+import { foregroundForRgb, type CellFormatRange } from '@/utils/sheetFormat';
+import { buildPhaseTemplateRequests, type PhaseSheetLayout } from '@/utils/sheetTemplate';
+import { buildWeekRequests, columnLetters, type ColumnCell } from '@/utils/sheetColumn';
+import { buildSheetLayoutRequests } from '@/utils/sheetLayout';
 
 /**
  * Minimal Google Sheets v4 client for the "send to my sheet" button.
@@ -171,6 +174,10 @@ export function revokeAccessToken(token: string): void {
   window.google?.accounts.oauth2.revoke(token);
 }
 
+export class SheetsApiError extends Error {
+  constructor(message: string, public status: number) { super(message); }
+}
+
 async function sheetsFetch<T>(
   token: string,
   path: string,
@@ -193,7 +200,7 @@ async function sheetsFetch<T>(
     } catch {
       // Non-JSON error body; the status code is all we have.
     }
-    throw new Error(detail);
+    throw new SheetsApiError(detail, response.status);
   }
 
   return response.json() as Promise<T>;
@@ -275,10 +282,15 @@ export async function formatCells(
           },
           rows: [{
             values: range.colors.map(backgroundColor => ({
-              userEnteredFormat: { backgroundColor },
+              userEnteredFormat: {
+                backgroundColor,
+                textFormat: { foregroundColorStyle: { rgbColor: foregroundForRgb(backgroundColor) } },
+                horizontalAlignment: 'CENTER',
+                verticalAlignment: 'MIDDLE',
+              },
             })),
           }],
-          fields: 'userEnteredFormat.backgroundColor',
+          fields: 'userEnteredFormat.backgroundColor,userEnteredFormat.textFormat.foregroundColorStyle,userEnteredFormat.horizontalAlignment,userEnteredFormat.verticalAlignment',
         },
       })),
     }),
@@ -337,4 +349,47 @@ export function extractSpreadsheetId(input: string): string {
   const trimmed = input.trim();
   const match = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
   return match ? match[1] : trimmed;
+}
+
+export async function writeWeekColumn(token: string, spreadsheetId: string, tab: SheetTab, column: number, cells: ColumnCell[]): Promise<void> {
+  return writeWeekColumns(token, spreadsheetId, [{ tab, column, cells }]);
+}
+
+export async function writeWeekColumns(token: string, spreadsheetId: string, targets: { tab: SheetTab; column: number; cells: ColumnCell[] }[]): Promise<void> {
+  const requests = buildWeekRequests(targets.map(t => ({ ...t, sheetId: t.tab.sheetId })));
+  const layoutRequests: unknown[] = [];
+  // Check every table before the single atomic write.
+  for (const { tab, column, cells } of targets) {
+    const header = cells[0];
+    const address = `${tabRange(tab.title)}!${columnLetters(column)}${header.row}`;
+    const existing = await sheetsFetch<{ values?: string[][] }>(token,
+      `/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(address)}`);
+    const label = String(existing.values?.[0]?.[0] ?? '').trim();
+    if (label && label !== header.value) throw new Error(`${tab.title}: hedef başlık ${label}; gönderilen ${header.value}. Başlık hücresini kontrol et.`);
+  }
+  for (const sheetId of new Set(targets.filter(t => t.cells.some(c => c.kind === 'note')).map(t => t.tab.sheetId))) {
+    const group = targets.filter(t => t.tab.sheetId === sheetId);
+    const rows = (await readTab(token, spreadsheetId, group[0].tab.title)).map(row => row.map(value => String(value ?? '')));
+    for (const target of group) for (const cell of target.cells) {
+      while (rows.length < cell.row) rows.push([]);
+      const row = rows[cell.row - 1];
+      while (row.length <= target.column) row.push('');
+      row[target.column] = cell.value;
+    }
+    layoutRequests.push(...buildSheetLayoutRequests(sheetId, rows, Math.max(...group.map(t => t.column))));
+  }
+  await sheetsFetch(token, `/${encodeURIComponent(spreadsheetId)}:batchUpdate`, {
+    method: 'POST', body: JSON.stringify({ requests: [...layoutRequests, ...requests] }),
+  });
+}
+
+export async function createPhaseTemplate(token: string, spreadsheetId: string, layout: PhaseSheetLayout): Promise<SheetTab> {
+  const meta = await getSpreadsheetMeta(token, spreadsheetId);
+  if (meta.tabs.some(tab => tab.title.toLocaleLowerCase() === layout.title.toLocaleLowerCase())) throw new Error('Bu isimde bir sekme zaten var. Mevcut sekmeye aktarım yap veya yeni sekmeye farklı bir ad ver.');
+  let sheetId = Math.floor(Math.random() * 2_000_000_000);
+  while (meta.tabs.some(tab => tab.sheetId === sheetId)) sheetId++;
+  await sheetsFetch(token, `/${encodeURIComponent(spreadsheetId)}:batchUpdate`, {
+    method: 'POST', body: JSON.stringify({ requests: buildPhaseTemplateRequests(sheetId, layout) }),
+  });
+  return { sheetId, title: layout.title };
 }

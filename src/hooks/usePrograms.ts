@@ -1,21 +1,26 @@
+import { useMemo } from 'react';
+import { programVersionAt } from '@/utils/programVersions';
 import { useContext } from 'react';
 import { AppContext } from '@/context/AppContext';
 import type { Program, ExerciseDefinition } from '@/types';
 
-export function usePrograms() {
+export function usePrograms(atWeek?: number) {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('usePrograms must be used within AppProvider');
   const { state, dispatch } = ctx;
 
-  return {
-    programs: state.programs,
+  const week = atWeek ?? state.currentWeek;
+  const scope = useMemo(() => programVersionAt(state, week), [state, week]);
 
-    getProgramById: (id: string) => state.programs.find(p => p.id === id),
+  return {
+    programs: scope.programs,
+
+    getProgramById: (id: string) => scope.programs.find(p => p.id === id),
 
     addProgram: (program: Omit<Program, 'id' | 'createdAt' | 'updatedAt'>) => {
       const now = new Date().toISOString();
       dispatch({
-        type: 'ADD_PROGRAM',
+        type: 'ADD_PROGRAM', atWeek: week,
         payload: {
           ...program,
           id: crypto.randomUUID(),
@@ -25,25 +30,25 @@ export function usePrograms() {
       });
     },
 
-    updateProgram: (program: Program) => {
+    updateProgram: (program: Program, syncCurrentLog = false) => {
       dispatch({
-        type: 'UPDATE_PROGRAM',
+        type: 'UPDATE_PROGRAM', atWeek: week, syncCurrentLog,
         payload: { ...program, updatedAt: new Date().toISOString() },
       });
     },
 
     deleteProgram: (id: string) => {
-      dispatch({ type: 'DELETE_PROGRAM', payload: id });
+      dispatch({ type: 'DELETE_PROGRAM', atWeek: week, payload: id });
     },
 
     toggleExercise: (programId: string, exerciseId: string) => {
-      const program = state.programs.find(p => p.id === programId);
+      const program = scope.programs.find(p => p.id === programId);
       if (!program) return;
       const updatedExercises = program.exercises.map((e: ExerciseDefinition) =>
         e.id === exerciseId ? { ...e, isActive: !e.isActive } : e
       );
       dispatch({
-        type: 'UPDATE_PROGRAM',
+        type: 'UPDATE_PROGRAM', atWeek: week,
         payload: { ...program, exercises: updatedExercises, updatedAt: new Date().toISOString() },
       });
     },

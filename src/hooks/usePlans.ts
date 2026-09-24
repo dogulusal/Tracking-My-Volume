@@ -1,26 +1,30 @@
+import { useMemo } from 'react';
+import { programVersionAt } from '@/utils/programVersions';
 import { useContext } from 'react';
 import { AppContext } from '@/context/AppContext';
 import type { Plan } from '@/types';
 
-export function usePlans() {
+export function usePlans(atWeek?: number) {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('usePlans must be used within AppProvider');
   const { state, dispatch } = ctx;
 
-  const activePlan = state.plans.find(p => p.id === state.activePlanId) ?? state.plans[0] ?? null;
+  const week = atWeek ?? state.currentWeek;
+  const scope = useMemo(() => programVersionAt(state, week), [state, week]);
+  const activePlan = scope.plans.find(p => p.id === scope.activePlanId) ?? scope.plans[0] ?? null;
 
   const activePlanPrograms = activePlan
-    ? state.programs.filter(p => activePlan.programIds.includes(p.id))
+    ? scope.programs.filter(p => activePlan.programIds.includes(p.id))
         .sort((a, b) => activePlan.programIds.indexOf(a.id) - activePlan.programIds.indexOf(b.id))
     : [];
 
   return {
-    plans: state.plans,
-    activePlanId: state.activePlanId,
+    plans: scope.plans,
+    activePlanId: scope.activePlanId,
     activePlan,
     activePlanPrograms,
 
-    setActivePlan: (id: string) => dispatch({ type: 'SET_ACTIVE_PLAN', payload: id }),
+    setActivePlan: (id: string) => dispatch({ type: 'SET_ACTIVE_PLAN', atWeek: week, payload: id }),
 
     addPlan: (name: string, programIds: string[]) => {
       const now = new Date().toISOString();
@@ -31,17 +35,17 @@ export function usePlans() {
         createdAt: now,
         updatedAt: now,
       };
-      dispatch({ type: 'ADD_PLAN', payload: newPlan });
-      dispatch({ type: 'SET_ACTIVE_PLAN', payload: newPlan.id });
+      dispatch({ type: 'ADD_PLAN', atWeek: week, payload: newPlan });
+      dispatch({ type: 'SET_ACTIVE_PLAN', atWeek: week, payload: newPlan.id });
       return newPlan;
     },
 
     updatePlan: (plan: Plan) => {
-      dispatch({ type: 'UPDATE_PLAN', payload: { ...plan, updatedAt: new Date().toISOString() } });
+      dispatch({ type: 'UPDATE_PLAN', atWeek: week, payload: { ...plan, updatedAt: new Date().toISOString() } });
     },
 
     deletePlan: (id: string) => {
-      dispatch({ type: 'DELETE_PLAN', payload: id });
+      dispatch({ type: 'DELETE_PLAN', atWeek: week, payload: id });
     },
   };
 }

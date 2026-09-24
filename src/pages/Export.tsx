@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useContext } from 'react';
+import { useState, useRef, useMemo, useContext, useEffect } from 'react';
 import { useExportImport } from '@/hooks/useExportImport';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
 import { usePrograms } from '@/hooks/usePrograms';
@@ -48,6 +48,10 @@ export function Export() {
 
   // Google Sheets API state
   const sheets = useGoogleSheets();
+  const [sheetAddressDraft, setSheetAddressDraft] = useState(sheets.settings.spreadsheetId);
+  const [googleClientDraft, setGoogleClientDraft] = useState(sheets.settings.clientId);
+  useEffect(() => setSheetAddressDraft(sheets.settings.spreadsheetId), [sheets.settings.spreadsheetId]);
+  useEffect(() => setGoogleClientDraft(sheets.settings.clientId), [sheets.settings.clientId]);
   const { lastExport, recordExport } = useLastSheetExport();
   const [showSheetSettings, setShowSheetSettings] = useState(false);
   const [sheetConfirm, setSheetConfirm] = useState<SheetConfirm | null>(null);
@@ -77,6 +81,7 @@ export function Export() {
         toWeek: to,
         phases,
         rowOrders: exerciseRowOrder,
+        state: ctx?.state,
       });
     }
     const program = programs.find(p => p.id === sheetProgramId);
@@ -88,8 +93,9 @@ export function Export() {
       toWeek: to,
       phases,
       rowOrder: exerciseRowOrder?.[program.id],
+      state: ctx?.state,
     });
-  }, [sheetProgramId, sheetFrom, sheetTo, programs, weekLogs, exerciseRowOrder, phases]);
+  }, [sheetProgramId, sheetFrom, sheetTo, programs, weekLogs, exerciseRowOrder, phases, ctx]);
 
   // One tab per program, named after the program — the same shape the sheet
   // already has. Shares the selection above so both buttons send the same thing.
@@ -113,6 +119,7 @@ export function Export() {
         toWeek: to,
         phases,
         rowOrder: exerciseRowOrder?.[program.id],
+        state: ctx?.state,
       }),
       // Same comparison the History grid paints with, carried to the sheet.
       statuses: buildStatusMap({
@@ -124,7 +131,7 @@ export function Export() {
         getCellOverride,
       }),
     }));
-  }, [sheetProgramId, sheetFrom, sheetTo, programs, weekLogs, exerciseRowOrder, phases, getCellOverride]);
+  }, [sheetProgramId, sheetFrom, sheetTo, programs, weekLogs, exerciseRowOrder, phases, getCellOverride, ctx]);
 
   const sentWeek = Math.max(sheetFrom, sheetTo);
 
@@ -321,7 +328,8 @@ export function Export() {
           <h3 className="font-semibold text-base mb-2">Sheets'e aktar</h3>
           <p className="text-sm text-(--color-text-secondary) mb-3">
             Geçmiş tablosunu panoya kopyalar. Google Sheets'te bir hücreye yapıştırdığında
-            satır ve sütunlara kendiliğinden dağılır.
+            satır ve sütunlara kendiliğinden dağılır. Hareketin sonuçları tek satırda kalır;
+            altındaki SIRA satırı haftadan haftaya kaçıncı sırada olduğunu gösterir.
           </p>
 
           <div className="space-y-3 mb-3">
@@ -432,8 +440,9 @@ export function Export() {
                   <label className="lb-label block mb-1">OAuth istemci kimliği:</label>
                   <input
                     type="text"
-                    value={sheets.settings.clientId}
-                    onChange={e => sheets.setSettings({ clientId: e.target.value.trim() })}
+                    value={googleClientDraft}
+                    onChange={e => setGoogleClientDraft(e.target.value)}
+                    onBlur={() => { if (googleClientDraft.trim() && googleClientDraft !== sheets.settings.clientId) sheets.setSettings({ clientId: googleClientDraft }); }}
                     placeholder="...apps.googleusercontent.com"
                     className="w-full px-3 py-2 bg-(--color-bg-primary) border border-(--color-border) rounded text-sm font-mono focus:outline-none focus:border-(--color-accent)"
                   />
@@ -442,8 +451,9 @@ export function Export() {
                   <label className="lb-label block mb-1">Sheet adresi veya kimliği:</label>
                   <input
                     type="text"
-                    value={sheets.settings.spreadsheetId}
-                    onChange={e => sheets.setSettings({ spreadsheetId: e.target.value })}
+                    value={sheetAddressDraft}
+                    onChange={e => setSheetAddressDraft(e.target.value)}
+                    onBlur={() => { if (sheetAddressDraft.trim() && sheetAddressDraft !== sheets.settings.spreadsheetId) sheets.setSettings({ spreadsheetId: sheetAddressDraft }); }}
                     placeholder="https://docs.google.com/spreadsheets/d/..."
                     className="w-full px-3 py-2 bg-(--color-bg-primary) border border-(--color-border) rounded text-sm font-mono focus:outline-none focus:border-(--color-accent)"
                   />

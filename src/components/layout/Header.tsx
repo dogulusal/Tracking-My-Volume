@@ -4,13 +4,17 @@ import { toggleTheme, isDarkMode } from '@/utils/theme';
 import { useCloudSync } from '@/hooks/useCloudSync';
 import { CloudSyncModal } from '@/components/shared/CloudSyncModal';
 import { ColorThemePicker } from '@/components/shared/ColorThemePicker';
+import { Icon } from '@/components/shared/Icon';
+import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 
 export function Header() {
+  const isMobile = useIsMobileDevice();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const location = useLocation();
   const [dark, setDark] = useState(isDarkMode());
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
-  const { configured, userEmail, githubLogin, syncStatus } = useCloudSync();
+  const { configured, userEmail, githubLogin, syncStatus, authError } = useCloudSync();
 
   useEffect(() => {
     setDark(isDarkMode());
@@ -30,10 +34,10 @@ export function Header() {
   ];
 
   const cloudLabel = !configured
-    ? 'Bulut Kapali'
+    ? 'Bulut kapalı'
     : userEmail
-      ? (syncStatus === 'synced' ? (githubLogin ?? userEmail) : 'Senkron...')
-      : 'Login';
+      ? (syncStatus === 'syncing' || syncStatus === 'auth_loading' ? 'Senkron...' : (githubLogin ?? userEmail))
+      : 'Giriş yap';
   const mobileCloudLabel = cloudLabel.length > 12 ? `${cloudLabel.slice(0, 12)}...` : cloudLabel;
 
   return (
@@ -50,7 +54,7 @@ export function Header() {
 
           {/* Desktop nav — current page marked by an underline, not a fill.
               Accent stays reserved for gain/drop; "where am I" is chrome. */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className={`${isMobile ? 'hidden' : 'flex'} items-center gap-1`}>
             {navLinks.map(link => {
               const isActive = location.pathname === link.to;
               return (
@@ -72,25 +76,36 @@ export function Header() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsCloudModalOpen(true)}
+              title={authError ?? undefined}
+              style={syncStatus === 'error' ? { color: 'var(--lb-drop)', borderColor: 'var(--lb-drop)' } : undefined}
               className="lb-press px-3 py-2 rounded-md text-xs md:text-sm font-medium border lb-rule max-w-[120px] md:max-w-none truncate"
             >
+              {syncStatus === 'error' && <span aria-hidden="true" className="mr-1">!</span>}
               <span className="md:hidden">{mobileCloudLabel}</span>
               <span className="hidden md:inline">{cloudLabel}</span>
             </button>
+            <div className="relative">
+            <button className="lb-press p-2.5 rounded-lg border lb-rule" aria-label="Ayarlar" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}><Icon name="settings" /></button>
+            {settingsOpen && <>
+            <button className="fixed inset-0 z-40 cursor-default" aria-label="Ayarları kapat" onClick={() => setSettingsOpen(false)} />
+            <div className="absolute right-0 top-full mt-2 w-52 bg-(--color-bg-card) border lb-rule rounded-xl shadow-xl p-2 z-50 flex flex-col gap-1">
             <button
-              onClick={() => setIsColorPickerOpen(true)}
-              className="lb-press p-2 rounded-md"
-              aria-label="Renk temasi"
+              onClick={() => { setIsColorPickerOpen(true); setSettingsOpen(false); }}
+              className="lb-press p-3 rounded-md flex items-center gap-3 text-sm"
+              aria-label="Renk teması"
             >
-              🎨
+              <Icon name="palette" /> Renk teması
             </button>
             <button
               onClick={handleToggle}
-              className="lb-press p-2 rounded-md"
-              aria-label="Tema degistir"
+              className="lb-press p-3 rounded-md flex items-center gap-3 text-sm"
+              aria-label="Tema değiştir"
             >
-              {dark ? '☀️' : '🌙'}
+              <Icon name={dark ? 'sun' : 'moon'} /> Tema değiştir
             </button>
+            <Link to="/export" onClick={() => setSettingsOpen(false)} className="lb-press p-3 rounded-md text-sm">Dışa Aktar →</Link>
+            </div></>}
+            </div>
           </div>
         </div>
       </header>

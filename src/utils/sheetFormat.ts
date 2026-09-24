@@ -3,9 +3,9 @@
  * them — same comparison, same phase boundary, same manual overrides — so the
  * sheet and the app never disagree about what counts as progress.
  *
- * The sheet keeps its own palette. The app's surfaces are deliberately muted;
- * the sheet has been colour-coded by hand for months in saturated Google Sheets
- * colours, and that is the look being continued here. A status the user has
+ * The sheet keeps its own palette. The app's surfaces are deliberately muted,
+ * so the exported sheet uses calm tints rather than full-saturation warning
+ * colours. A status the user has
  * explicitly repainted in History's ⚙️ panel still overrides it — that panel
  * would otherwise be lying about what it controls.
  */
@@ -15,18 +15,17 @@ import { calculateExerciseStatus } from '@/utils/statusCalculator';
 export type StatusColorOverrides = Partial<Record<ExerciseStatus, { dark: string; light: string }>>;
 
 /**
- * The colours the sheet already uses, read off it rather than invented. Change
- * a value here and the next send repaints in the new colour.
+ * A restrained, accessible palette for workout progress. Change a value here
+ * and the next send repaints in the new colour.
  */
 export const SHEET_STATUS_COLORS: Record<ExerciseStatus, string> = {
-  improved: '#00ff00',
-  decreased: '#ff0000',
-  same: '#cccccc',
-  holiday: '#a64d79',
-  removed: '#000000',
-  // Nothing to compare against in the first week of a mezo, so the sheet leaves
-  // those cells plain rather than claiming a direction.
-  new: '#ffffff',
+  improved: '#d9ead3',
+  decreased: '#f4cccc',
+  same: '#f1f3f4',
+  holiday: '#f5e6c8',
+  removed: '#434343',
+  // A baseline has no comparison; distinguish it without claiming improvement.
+  new: '#dfe7ec',
 };
 
 export interface StatusMapOptions {
@@ -124,6 +123,12 @@ export function hexToRgb(hex: string): RgbColor {
     green: ((value >> 8) & 255) / 255,
     blue: (value & 255) / 255,
   };
+}
+
+/** Picks legible text for both the built-in palette and user-defined colours. */
+export function foregroundForRgb(color: RgbColor): RgbColor {
+  const luminance = (0.2126 * color.red) + (0.7152 * color.green) + (0.0722 * color.blue);
+  return hexToRgb(luminance < 0.48 ? '#ffffff' : '#24312b');
 }
 
 export function statusColor(status: ExerciseStatus, overrides?: StatusColorOverrides): RgbColor {

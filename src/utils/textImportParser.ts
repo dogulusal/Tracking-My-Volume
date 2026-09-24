@@ -54,7 +54,7 @@ function parseSetEntry(raw: string, lastWeight: number): { set: SetLog; weight: 
 
 // ─── Parse a cell containing one or more sets ─────────
 // Handles: "45x5F|4F", "72.5x6F | 7F", "45 x 5 F"
-export function parseCellToSets(cell: string): SetLog[] {
+export function parseCellToSets(cell: string, expectedSets = 1): SetLog[] {
   if (!cell || cell.trim() === '' || cell.trim() === '-') return [];
 
   const parts = cell.split('|');
@@ -69,6 +69,9 @@ export function parseCellToSets(cell: string): SetLog[] {
     }
   }
 
+  if (parts.length === 1 && sets.length === 1 && Number.isInteger(expectedSets) && expectedSets > 1 && expectedSets <= 100) {
+    return Array.from({ length: expectedSets }, () => ({ ...sets[0] }));
+  }
   return sets;
 }
 
@@ -83,7 +86,7 @@ interface ParsedRow {
   weekData: string[]; // Raw cell values for each week
 }
 
-const HOLIDAY_PATTERN = /^(tatil|holiday)$/i;
+const HOLIDAY_PATTERN = /^(tat[iİ]l|holiday)$/i;
 
 export interface ParsedTable {
   rows: ParsedRow[];
@@ -150,6 +153,7 @@ export function parseTabularText(text: string): ParsedTable {
     // are global state, not a per-program row, so it is not read back.
     if (/base kilo|header/i.test(exerciseName)) continue;
     if (/^FAZ$/i.test(exerciseName)) continue;
+    if (/^SIRA:/i.test(exerciseName)) continue;
 
     const defaultSets = parseInt(cells[1]?.trim()) || 1;
     const weekData: string[] = [];
@@ -255,7 +259,7 @@ export function convertParsedToProgram(
       const cellValue = parsed.rows[r].weekData[w];
       if (!cellValue || cellValue === '-') continue;
 
-      const sets = parseCellToSets(cellValue);
+      const sets = parseCellToSets(cellValue, parsed.rows[r].defaultSets);
       if (sets.length === 0) continue;
 
       exerciseLogs.push({

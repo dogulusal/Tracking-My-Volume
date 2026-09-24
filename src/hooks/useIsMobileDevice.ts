@@ -9,7 +9,7 @@ function detectMobileDevice(): boolean {
   const coarsePointer = window.matchMedia?.('(pointer: coarse)').matches ?? false;
   const narrowViewport = window.matchMedia?.('(max-width: 900px)').matches ?? false;
 
-  return uaMobile || (coarsePointer && narrowViewport);
+  return uaMobile || narrowViewport || coarsePointer;
 }
 
 export function useIsMobileDevice() {

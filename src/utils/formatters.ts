@@ -19,33 +19,21 @@ function formatSetShort(set: SetLog): string {
 }
 
 /**
- * Format multiple sets for display: "45 x 5 F | 50 x 4 F"
+ * Keep sets at the same weight on one line. A weight change starts a new line,
+ * which makes dense History/Sheets cells easier to scan without losing the
+ * user's established pipe separator.
  */
 export function formatSets(sets: SetLog[]): string {
-  const lines: string[] = [];
-  const groups = new Map<number, SetLog[]>();
-
-  sets.forEach(set => {
-    const weightKey = Number(set.weight.toFixed(2));
-    const group = groups.get(weightKey) || [];
-    group.push(set);
-    groups.set(weightKey, group);
-  });
-
-  for (const group of groups.values()) {
-    const uniqueSets = group.filter((set, index, array) =>
-      index === array.findIndex(other =>
-        other.weight === set.weight && other.reps === set.reps && other.intensity === set.intensity
-      )
-    );
-    if (uniqueSets.length === 0) continue;
-
-    const [firstSet, ...restSets] = uniqueSets;
-    const lineParts = [formatSet(firstSet), ...restSets.map(formatSetShort)];
-    lines.push(lineParts.join(' | '));
+  if (sets.length === 0) return '';
+  const first = sets[0];
+  if (sets.every(set => set.weight === first.weight && set.reps === first.reps && set.intensity === first.intensity)) {
+    return formatSet(first);
   }
-
-  return lines.join('\n');
+  return sets.map((set, index) => {
+    if (index === 0) return formatSet(set);
+    const sameWeight = set.weight === sets[index - 1].weight;
+    return `${sameWeight ? ' | ' : '\n'}${sameWeight ? formatSetShort(set) : formatSet(set)}`;
+  }).join('');
 }
 
 /**

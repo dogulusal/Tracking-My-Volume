@@ -1,4 +1,6 @@
-﻿import { useState, useMemo, useContext } from 'react';
+import { programsForPhase } from '@/utils/programVersions';
+import { PhaseSettingsModal } from '@/components/shared/PhaseSettingsModal';
+import { useState, useMemo, useContext, useEffect } from 'react';
 import { usePrograms } from '@/hooks/usePrograms';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -75,59 +77,6 @@ function buildPhaseData(
   return points;
 }
 
-function PhaseSettingsModal({
-  phases,
-  onSave,
-  onClose,
-}: {
-  phases: PhaseDefinition[];
-  onSave: (phases: PhaseDefinition[]) => void;
-  onClose: () => void;
-}) {
-  const [editPhases, setEditPhases] = useState<PhaseDefinition[]>(phases);
-
-  const updatePhase = (id: string, field: keyof PhaseDefinition, value: string | number | null) => {
-    setEditPhases(prev => prev.map(p => (p.id === id ? { ...p, [field]: value } : p)));
-  };
-
-  const addPhase = () => {
-    const lastPhase = editPhases[editPhases.length - 1];
-    const startWeek = lastPhase?.endWeek != null ? lastPhase.endWeek + 1 : 0;
-    setEditPhases([...editPhases, { id: `phase-${Date.now()}`, name: `Faz ${editPhases.length + 1}`, startWeek, endWeek: null }]);
-  };
-
-  const removePhase = (id: string) => {
-    if (editPhases.length <= 1) return;
-    setEditPhases(editPhases.filter(p => p.id !== id));
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-(--color-bg-card) border lb-rule rounded-lg p-6 w-full max-w-md">
-        <h3 className="text-lg font-semibold mb-4">Faz ayarları</h3>
-        <div className="space-y-3">
-          {editPhases.map(phase => (
-            <div key={phase.id} className="flex items-center gap-2">
-              <input type="text" value={phase.name} onChange={e => updatePhase(phase.id, 'name', e.target.value)} className="flex-1 px-2 py-1.5 bg-(--color-bg-input) border lb-rule rounded-md text-sm focus:outline-none focus:border-(--color-text-primary)" />
-              <input type="number" value={phase.startWeek} onChange={e => updatePhase(phase.id, 'startWeek', Number(e.target.value))} className="lb-figure w-16 px-2 py-1.5 bg-(--color-bg-input) border lb-rule rounded-md text-sm text-center focus:outline-none focus:border-(--color-text-primary)" />
-              <span className="lb-label">-</span>
-              <input type="number" value={phase.endWeek ?? ''} onChange={e => updatePhase(phase.id, 'endWeek', e.target.value === '' ? null : Number(e.target.value))} className="lb-figure w-16 px-2 py-1.5 bg-(--color-bg-input) border lb-rule rounded-md text-sm text-center focus:outline-none focus:border-(--color-text-primary)" placeholder="inf" />
-              {editPhases.length > 1 && (
-                <button onClick={() => removePhase(phase.id)} aria-label={`${phase.name} fazını sil`} className="lb-press text-sm font-semibold px-1.5 py-1 rounded" style={{ color: 'var(--lb-drop)' }}>✕</button>
-              )}
-            </div>
-          ))}
-        </div>
-        <button onClick={addPhase} className="lb-press mt-3 text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)">+ Faz ekle</button>
-        <div className="flex justify-end gap-2 mt-6">
-          <button onClick={onClose} className="lb-press px-4 py-2 text-sm font-medium text-(--color-text-secondary) hover:text-(--color-text-primary) rounded-lg">İptal</button>
-          <button onClick={() => onSave(editPhases)} className="lb-press px-4 py-2 text-sm font-semibold bg-(--color-text-primary) text-(--color-bg-primary) rounded-lg">Kaydet</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function StatusBarView({ data }: { data: DataPoint[] }) {
   return (
     <div className="relative py-2">
@@ -142,20 +91,20 @@ function StatusBarView({ data }: { data: DataPoint[] }) {
           const bg = bgByStatus(point.status);
           const isEmpty = point.status === 'empty';
           return (
-            <div key={point.week} className="flex flex-col items-center gap-1.5 min-w-[42px] flex-1">
+            <div key={point.week} className="flex flex-col items-center gap-1.5 min-w-[64px] flex-1">
               <div
                 className="flex-1 w-full rounded-md border flex flex-col items-center justify-center px-1 py-2"
                 style={{ background: bg, borderColor: color, opacity: isEmpty ? 0.4 : 1 }}
               >
                 {!isEmpty && (
                   <>
-                    <span className="lb-figure text-[11px] font-semibold" style={{ color }}>{point.weight}kg</span>
-                    <span className="lb-figure text-[9px] text-(--color-text-secondary)">×{point.reps}</span>
+                    <span className="lb-figure text-xs font-semibold" style={{ color }}>{point.weight}kg</span>
+                    <span className="lb-figure text-xs text-(--color-text-secondary)">×{point.reps}</span>
                   </>
                 )}
-                {isEmpty && <span className="text-[9px] text-(--color-text-secondary)">-</span>}
+                {isEmpty && <span className="text-xs text-(--color-text-secondary)">-</span>}
               </div>
-              <span className="lb-figure text-[10px] font-medium text-(--color-text-secondary)">{point.week}</span>
+              <span className="lb-figure text-xs font-medium text-(--color-text-secondary)">{point.week}</span>
             </div>
           );
         })}
@@ -174,7 +123,7 @@ function StreakDotsView({ data }: { data: DataPoint[] }) {
           const color = colorByStatus(point.status);
           const isEmpty = point.status === 'empty';
           return (
-            <div key={point.week} className="flex flex-col items-center gap-2 min-w-[42px] flex-1 relative z-10">
+            <div key={point.week} className="flex flex-col items-center gap-2 min-w-[64px] flex-1 relative z-10">
               <div
                 className="w-6 h-6 rounded-full border-2"
                 style={{
@@ -183,9 +132,9 @@ function StreakDotsView({ data }: { data: DataPoint[] }) {
                   opacity: isEmpty ? 0.4 : 1,
                 }}
               />
-              <span className="lb-figure text-[10px] font-medium text-(--color-text-secondary)">{point.week}</span>
+              <span className="lb-figure text-xs font-medium text-(--color-text-secondary)">{point.week}</span>
               {!isEmpty && (
-                <span className="lb-figure text-[9px] text-(--color-text-secondary)">{point.weight}×{point.reps}</span>
+                <span className="lb-figure text-xs text-(--color-text-secondary)">{point.weight}×{point.reps}</span>
               )}
             </div>
           );
@@ -196,7 +145,7 @@ function StreakDotsView({ data }: { data: DataPoint[] }) {
 }
 
 export function Charts() {
-  const { programs } = usePrograms();
+  const { programs: initialPrograms } = usePrograms();
   const { weekLogs } = useWeekLogs();
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('Charts must be used within AppProvider');
@@ -204,7 +153,7 @@ export function Charts() {
 
   const phases = state.phases ?? [];
 
-  const [selectedProgramId, setSelectedProgramId] = useState<string>(programs[0]?.id || '');
+  const [selectedProgramId, setSelectedProgramId] = useState<string>(initialPrograms[0]?.id || '');
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>('');
   const [activePhaseId, setActivePhaseId] = useState<string>(phases[0]?.id || '');
   const [chartViewMode, setChartViewMode] = useState<ChartViewMode>(
@@ -213,8 +162,16 @@ export function Charts() {
   const [dataViewMode, setDataViewMode] = useState<DataViewMode>('bars');
   const [showSettings, setShowSettings] = useState(false);
 
+  const programs = useMemo(() => programsForPhase(state, activePhaseId), [state, activePhaseId]);
+
   const selectedProgram = programs.find(p => p.id === selectedProgramId);
   const exercises = selectedProgram?.exercises.filter(e => e.isActive) || [];
+  useEffect(() => {
+    if (!programs.some(p => p.id === selectedProgramId)) {
+      setSelectedProgramId(programs[0]?.id ?? '');
+      setSelectedExerciseId('');
+    } else if (selectedExerciseId && !programs.find(p => p.id === selectedProgramId)?.exercises.some(e => e.id === selectedExerciseId)) setSelectedExerciseId('');
+  }, [programs, selectedProgramId, selectedExerciseId]);
 
   const programLogs = useMemo(
     () => weekLogs.filter(w => w.programId === selectedProgramId).sort((a, b) => a.weekNumber - b.weekNumber),
@@ -237,7 +194,7 @@ export function Charts() {
 
   const selectedExerciseName = selectedExerciseId
     ? exercises.find(e => e.id === selectedExerciseId)?.name
-    : 'Egzersiz Secin';
+    : 'Egzersiz seçin';
 
   const handleViewModeChange = (mode: ChartViewMode) => {
     setChartViewMode(mode);
@@ -268,7 +225,7 @@ export function Charts() {
     <PageContainer>
       <div className="mb-6">
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Progressive Overload</h1>
-        <p className="lb-label mt-1">Faz bazlı status trend analizi</p>
+        <p className="lb-label mt-1">Fazlara göre ilerleme</p>
       </div>
 
       {/* Controls */}
@@ -288,7 +245,7 @@ export function Charts() {
           onChange={e => setSelectedExerciseId(e.target.value)}
           className="px-4 py-2.5 bg-(--color-bg-input) border lb-rule rounded-lg text-sm font-medium focus:outline-none focus:border-(--color-text-primary)"
         >
-          <option value="">Egzersiz sec...</option>
+          <option value="">Egzersiz seç…</option>
           {exercises.map(e => (<option key={e.id} value={e.id}>{e.name}</option>))}
         </select>
 
@@ -321,7 +278,7 @@ export function Charts() {
                 <button
                   onClick={() => setDataViewMode('bars')}
                   className={`lb-press px-3 py-1.5 ${dataViewMode === 'bars' ? 'bg-(--color-text-primary) text-(--color-bg-primary)' : 'text-(--color-text-secondary)'}`}
-                >Bar</button>
+                >Çubuk</button>
                 <button
                   onClick={() => setDataViewMode('dots')}
                   className={`lb-press px-3 py-1.5 ${dataViewMode === 'dots' ? 'bg-(--color-text-primary) text-(--color-bg-primary)' : 'text-(--color-text-secondary)'}`}
@@ -333,7 +290,7 @@ export function Charts() {
                 onChange={e => handleViewModeChange(e.target.value as ChartViewMode)}
                 className="px-2 py-1.5 bg-(--color-bg-input) border lb-rule rounded-lg text-xs font-medium focus:outline-none focus:border-(--color-text-primary)"
               >
-                <option value="tabs">Tab</option>
+                <option value="tabs">Sekme</option>
                 <option value="side-by-side">Yan yana</option>
                 <option value="stacked">Alt alta</option>
               </select>
@@ -410,7 +367,7 @@ export function Charts() {
       )}
 
       {showSettings && (
-        <PhaseSettingsModal phases={phases} onSave={handleSavePhases} onClose={() => setShowSettings(false)} />
+        <PhaseSettingsModal phases={phases} currentWeek={state.currentWeek} onSave={handleSavePhases} onClose={() => setShowSettings(false)} />
       )}
     </PageContainer>
   );

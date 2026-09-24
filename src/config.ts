@@ -13,3 +13,5 @@
  */
 export const DEFAULT_GOOGLE_CLIENT_ID =
   '432627893483-84u8g500n7ae4dafdqcjb9e41co34plm.apps.googleusercontent.com';
+
+export const DEFAULT_SPREADSHEET_ID = '1MXfG_JvxsdwLcFdzSJnoiVC4mJpYYyYZ32gKrEsc4Fs';

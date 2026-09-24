@@ -1,3 +1,7 @@
+import { programVersionAt, programsForPhase } from '@/utils/programVersions';
+import { useNavigate } from 'react-router-dom';
+import { Modal } from '@/components/shared/Modal';
+import { PhaseSettingsModal } from '@/components/shared/PhaseSettingsModal';
 import { useState, useMemo, useEffect, useLayoutEffect, useContext } from 'react';
 import { usePrograms } from '@/hooks/usePrograms';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
@@ -8,10 +12,13 @@ import { WorkoutDetailModal } from '@/components/shared/WorkoutDetailModal';
 import { calculateExerciseStatus } from '@/utils/statusCalculator';
 import { formatSets } from '@/utils/formatters';
 import { moveItem, applySavedOrder } from '@/utils/reorder';
+import { syncExerciseLogs } from '@/utils/exerciseSync';
 import { buildSheetTsv } from '@/utils/sheetExport';
 import { copyText } from '@/utils/clipboard';
 import { useLastSheetExport } from '@/hooks/useLastSheetExport';
 import { AppContext } from '@/context/AppContext';
+import { SheetColumnModal } from '@/components/shared/SheetColumnModal';
+import { SheetWeekModal } from '@/components/shared/SheetWeekModal';
 import type { ExerciseLog, ExerciseStatus } from '@/types';
 
 type HistoryPhase = {
@@ -46,7 +53,11 @@ const STATUS_OPTIONS: { value: ExerciseStatus; label: string }[] = [
 const HISTORY_STATE_KEY = 'history-page-state-v1';
 
 export function History() {
-  const { programs, updateProgram } = usePrograms();
+  const [showNewPhase, setShowNewPhase] = useState(false);
+  const [showPhaseSettings, setShowPhaseSettings] = useState(false);
+  const navigate = useNavigate();
+  const [deletionMessage, setDeletionMessage] = useState('');
+  const { programs: initialPrograms } = usePrograms();
   const { weekLogs, currentWeek, saveWorkout, incrementWeek } = useWeekLogs();
   const {
     getCellColor, setCellColor, removeCellColor, getCellOverride, resetAllOverrides,
@@ -62,13 +73,15 @@ export function History() {
       const saved = localStorage.getItem(HISTORY_STATE_KEY);
       if (saved) {
         const { programId } = JSON.parse(saved) as { programId: string; phaseIdx: number; pageStart: number };
-        if (programId && programs.find(p => p.id === programId)) return programId;
+        if (programId && initialPrograms.find(p => p.id === programId)) return programId;
       }
     } catch { /* ignore */ }
-    return programs[0]?.id || '';
+    return initialPrograms[0]?.id || '';
   });
   const { recordExport } = useLastSheetExport();
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [sheetWeek, setSheetWeek] = useState<number | null>(null);
+  const [fullSheetWeek, setFullSheetWeek] = useState<number | null>(null);
   const [showColorSettings, setShowColorSettings] = useState(false);
   const [showProgramEditor, setShowProgramEditor] = useState(false);
   const [programEdits, setProgramEdits] = useState<Array<{ id: string; name: string; defaultSets: number }>>([]);
@@ -88,7 +101,6 @@ export function History() {
     autoStatus: ExerciseStatus;
   } | null>(null);
 
-  const selectedProgram = programs.find(p => p.id === selectedProgramId);
 
   const programLogs = useMemo(
     () => weekLogs
@@ -126,7 +138,7 @@ export function History() {
   const PAGE_SIZE = isMobile ? 1 : 4;
 
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(0);
-  const currentPhase = phases[selectedPhaseIdx] || phases[0];
+  const currentPhase = useMemo(() => phases[selectedPhaseIdx] || phases[0] || { label: 'Tüm haftalar', weeks: availableWeeks, baseWeek: 0 }, [phases, selectedPhaseIdx, availableWeeks]);
 
   const getDisplayWeek = (weekNum: number): number => weekNum - currentPhase.baseWeek;
 
@@ -138,13 +150,15 @@ export function History() {
   useLayoutEffect(() => {
     if (!phases.length) return;
     // Smart default: last week that has actual workout data (not holiday)
-    const workoutLogs = programLogs.filter(l => !l.isHoliday && (l.exercises?.length ?? 0) > 0);
+    const activePhase = phases.find(p => p.weeks.includes(currentWeek)) ?? phases[phases.length - 1];
+    const workoutLogs = programLogs.filter(l => activePhase.weeks.includes(l.weekNumber) && !l.isHoliday && (l.exercises?.length ?? 0) > 0);
     const lastDataWeek = workoutLogs.length > 0 ? workoutLogs[workoutLogs.length - 1].weekNumber : null;
-    if (lastDataWeek !== null) {
-      const pIdx = phases.findIndex(p => p.weeks.includes(lastDataWeek));
+    const focusWeek = lastDataWeek === null || currentWeek > lastDataWeek ? currentWeek : lastDataWeek;
+    if (focusWeek !== null) {
+      const pIdx = phases.findIndex(p => p.weeks.includes(focusWeek));
       if (pIdx >= 0) {
         const phase = phases[pIdx];
-        const weekIdx = phase.weeks.indexOf(lastDataWeek);
+        const weekIdx = phase.weeks.indexOf(focusWeek);
         setSelectedPhaseIdx(pIdx);
         setPageStart(Math.floor(weekIdx / PAGE_SIZE) * PAGE_SIZE);
         return;
@@ -155,17 +169,30 @@ export function History() {
     setSelectedPhaseIdx(phases.length - 1);
     setPageStart(Math.max(0, Math.floor((lastPhase.weeks.length - 1) / PAGE_SIZE) * PAGE_SIZE));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProgramId]); // Only re-run when program changes, not on every data update
+  }, []); // Choose the current phase on mount; browsing days must preserve the selected phase.
   const visibleWeeks = useMemo(() => {
     return currentPhase.weeks.slice(pageStart, pageStart + PAGE_SIZE);
   }, [currentPhase, pageStart]);
+
+  const scopedWeek = editorWeek !== null && currentPhase.weeks.includes(editorWeek) ? editorWeek : visibleWeeks[visibleWeeks.length - 1] ?? currentPhase.baseWeek;
+  const { programs: scopedPrograms, updateProgram } = usePrograms(scopedWeek);
+  const programs = useMemo(() => ctx ? programsForPhase(ctx.state, contextPhases.find(p => p.startWeek === currentPhase.baseWeek)?.id ?? '') : scopedPrograms,
+    [ctx, contextPhases, currentPhase.baseWeek, scopedPrograms]);
+  const selectedProgram = scopedPrograms.find(p => p.id === selectedProgramId) ?? programs.find(p => p.id === selectedProgramId);
+  useEffect(() => {
+    if (programs.length && !programs.some(p => p.id === selectedProgramId)) setSelectedProgramId(programs[0].id);
+  }, [programs, selectedProgramId]);
 
   // Persist last selected program so it survives tab switches
   useEffect(() => {
     localStorage.setItem(HISTORY_STATE_KEY, JSON.stringify({ programId: selectedProgramId }));
   }, [selectedProgramId]);
 
-  const savedRowOrder = exerciseRowOrder?.[selectedProgramId];
+  // The legacy row order is shared by program ID. It reflects the current
+  // program and must not reorder exercises in the archived phases.
+  const savedRowOrder = selectedPhaseIdx === contextPhases.length - 1
+    ? exerciseRowOrder?.[selectedProgramId]
+    : undefined;
 
   /**
    * Copies the phase currently on screen. The phase is the unit the page is
@@ -183,6 +210,7 @@ export function History() {
       toWeek: lastWeek,
       phases: contextPhases,
       rowOrder: savedRowOrder,
+      state: ctx?.state,
     });
     const copied = await copyText(tsv);
     setCopyState(copied ? 'copied' : 'failed');
@@ -198,10 +226,9 @@ export function History() {
       .forEach(log => {
         log.exercises.forEach(e => ids.add(e.exerciseId));
       });
-    // Fallback: if no logs exist in visible range, show active program exercises
-    if (ids.size === 0) {
-      selectedProgram?.exercises.filter(e => e.isActive).forEach(e => ids.add(e.id));
-    }
+    // A program edit can add an exercise before this week's workout is saved.
+    // Include its definition even when an older log already fills the grid.
+    selectedProgram?.exercises.filter(e => e.isActive).forEach(e => ids.add(e.id));
     // A manual row order, once the user has set one, wins over the order the
     // ids happened to appear in. No saved order → untouched, so nothing moves
     // for anyone who has never reordered.
@@ -210,12 +237,42 @@ export function History() {
 
   const getExerciseName = (exerciseId: string): string => {
     const def = selectedProgram?.exercises.find(e => e.id === exerciseId);
-    return def?.name || exerciseId;
+    return def?.name || programLogs.filter(l => currentPhase.weeks.includes(l.weekNumber)).flatMap(l => l.exercises).find(e => e.exerciseId === exerciseId)?.exerciseName || exerciseId;
   };
 
   const getExerciseSets = (exerciseId: string): number | undefined => {
     return selectedProgram?.exercises.find(e => e.id === exerciseId)?.defaultSets;
   };
+
+  const exercisePositionForWeek = (week: number, exerciseId: string): number | null => {
+    const definition = ctx && programVersionAt(ctx.state, week).programs.find(p => p.id === selectedProgramId);
+    const position = definition?.exercises.filter(ex => ex.isActive).findIndex(ex => ex.id === exerciseId) ?? -1;
+    if (position >= 0) return position + 1;
+    const logged = programLogs.find(log => log.weekNumber === week)?.exercises.findIndex(ex => ex.exerciseId === exerciseId) ?? -1;
+    return logged >= 0 ? logged + 1 : null;
+  };
+
+  const orderHistoryForExercise = (exerciseId: string): string | null => {
+    const periods: { from: number; to: number; position: number }[] = [];
+    for (const week of currentPhase.weeks) {
+      const position = exercisePositionForWeek(week, exerciseId);
+      if (position === null) continue;
+      const last = periods[periods.length - 1];
+      if (last && last.position === position && last.to === week - 1) last.to = week;
+      else periods.push({ from: week, to: week, position });
+    }
+    if (periods.length < 2) return null;
+    return periods.map(period => {
+      const from = `H${getDisplayWeek(period.from)}`;
+      const to = period.to === period.from ? '' : `–H${getDisplayWeek(period.to)}`;
+      return `${from}${to}: ${period.position}`;
+    }).join(' → ');
+  };
+  const orderChanges = [...new Set([
+    ...(selectedProgram?.exercises.map(exercise => exercise.id) ?? []),
+    ...programLogs.filter(log => currentPhase.weeks.includes(log.weekNumber)).flatMap(log => log.exercises.map(exercise => exercise.exerciseId)),
+  ])].map(id => ({ id, name: getExerciseName(id), history: orderHistoryForExercise(id) }))
+    .filter((change): change is { id: string; name: string; history: string } => change.history !== null);
 
   const getExerciseDisplayNameForWeek = (weekNumber: number, exerciseId: string): string => {
     const weekName = programLogs
@@ -284,27 +341,35 @@ export function History() {
   };
 
   const deleteRowData = () => {
-    if (!bulkRowExerciseId) return;
+    if (!bulkRowExerciseId) { setDeletionMessage('Önce silinecek satırı seç.'); return; }
+    ctx?.dispatch({ type: 'CLEAR_HISTORY_DATA', payload: { programId: selectedProgramId, weeks: visibleWeeks, exerciseId: bulkRowExerciseId, updatedAt: new Date().toISOString() } });
+    let count = 0;
     visibleWeeks.forEach(weekNum => {
       const log = programLogs.find(w => w.weekNumber === weekNum);
-      if (!log) return;
-      saveWorkout({
-        ...log,
-        exercises: log.exercises.filter(e => e.exerciseId !== bulkRowExerciseId),
-        updatedAt: new Date().toISOString(),
-      });
+      if (log?.exercises.some(e => e.exerciseId === bulkRowExerciseId)) {
+        count++;
+      }
+      removeCellColor(weekNum, bulkRowExerciseId);
+      const key = `draft-${selectedProgramId}-${weekNum}`;
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const draft = JSON.parse(raw);
+          draft.exerciseLogs = draft.exerciseLogs?.filter((e: ExerciseLog) => e.exerciseId !== bulkRowExerciseId);
+          draft.completedSets = Object.fromEntries(Object.entries(draft.completedSets ?? {}).filter(([key]) => !key.startsWith(`${bulkRowExerciseId}:`)));
+          localStorage.setItem(key, JSON.stringify(draft));
+        }
+      } catch { localStorage.removeItem(key); }
     });
+    setDeletionMessage(count ? `${count} haftadaki egzersiz verisi silindi.` : 'Seçili satırda görünür haftalar için kayıt yok.');
   };
 
   const deleteColumnData = () => {
-    if (bulkColumnWeek === null) return;
-    const log = programLogs.find(w => w.weekNumber === bulkColumnWeek);
-    if (!log) return;
-    saveWorkout({
-      ...log,
-      exercises: [],
-      updatedAt: new Date().toISOString(),
-    });
+    if (bulkColumnWeek === null) { setDeletionMessage('Önce silinecek sütunu seç.'); return; }
+    ctx?.dispatch({ type: 'CLEAR_HISTORY_DATA', payload: { programId: selectedProgramId, weeks: [bulkColumnWeek], updatedAt: new Date().toISOString() } });
+    allExerciseIds.forEach(id => removeCellColor(bulkColumnWeek, id));
+    localStorage.removeItem(`draft-${selectedProgramId}-${bulkColumnWeek}`);
+    setDeletionMessage(`H${getDisplayWeek(bulkColumnWeek)} ${selectedProgram?.name ?? ''} kaydı, notu ve taslağı temizlendi.`);
   };
 
   const saveProgramEdits = () => {
@@ -340,6 +405,13 @@ export function History() {
       });
     });
 
+    const orderedIds = programEdits.map(draft => draft.id);
+    const positions = new Map(orderedIds.map((id, index) => [id, index]));
+    const originalPositions = new Map(updatedExercises.map((exercise, index) => [exercise.id, index]));
+    updatedExercises.sort((a, b) =>
+      (positions.get(a.id) ?? orderedIds.length + originalPositions.get(a.id)!)
+      - (positions.get(b.id) ?? orderedIds.length + originalPositions.get(b.id)!));
+
     updateProgram({
       ...selectedProgram,
       exercises: updatedExercises,
@@ -373,6 +445,40 @@ export function History() {
     setShowProgramEditor(false);
   };
 
+  const removeExerciseFromCurrentPhase = (exerciseId: string, exerciseName: string) => {
+    if (!ctx || !selectedProgram) return;
+    const phase = contextPhases.find(p => p.startWeek === currentPhase.baseWeek);
+    if (!phase) return;
+    const confirmed = window.confirm(
+      `${exerciseName}, ${currentPhase.label} içindeki ${selectedProgram.name} programından ve bu fazdaki geçmiş kayıtlarından silinsin mi?`,
+    );
+    if (!confirmed) return;
+
+    ctx.dispatch({
+      type: 'REMOVE_PHASE_EXERCISE',
+      payload: { phaseId: phase.id, programId: selectedProgram.id, exerciseId },
+    });
+    currentPhase.weeks.forEach(week => {
+      removeCellColor(week, exerciseId);
+      const key = `draft-${selectedProgram.id}-${week}`;
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return;
+        const draft = JSON.parse(raw);
+        draft.exerciseLogs = draft.exerciseLogs?.filter((e: ExerciseLog) => e.exerciseId !== exerciseId);
+        draft.completedSets = Object.fromEntries(
+          Object.entries(draft.completedSets ?? {}).filter(([entryKey]) => !entryKey.startsWith(`${exerciseId}:`)),
+        );
+        localStorage.setItem(key, JSON.stringify(draft));
+      } catch {
+        localStorage.removeItem(key);
+      }
+    });
+    setProgramEdits(prev => prev.filter(row => row.id !== exerciseId));
+    setBulkRowExerciseId(prev => prev === exerciseId ? '' : prev);
+    setDeletionMessage(`${exerciseName}, ${currentPhase.label} içinden tamamen silindi.`);
+  };
+
   const getExerciseLog = (weekNumber: number, exerciseId: string): ExerciseLog | undefined => {
     const log = programLogs.find(w => w.weekNumber === weekNumber);
     return log?.exercises.find(e => e.exerciseId === exerciseId);
@@ -402,9 +508,11 @@ export function History() {
   return (
     <PageContainer>
       {/* Title + Settings Toggle */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap gap-3 items-center justify-between">
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Antrenman Geçmişi</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => setShowPhaseSettings(true)} className="lb-press px-3 py-1.5 border lb-rule text-xs font-semibold rounded-lg">Faz ayarları</button>
+          <button onClick={() => setShowNewPhase(true)} disabled={contextPhases.some(phase => phase.startWeek >= currentWeek)} title="Mevcut hafta yeni fazın H0 haftası olur. Zaten faz başlangıcındaysan yeni bir faz eklenmez." className="lb-press px-3 py-1.5 border lb-rule text-xs font-semibold rounded-lg disabled:opacity-40">+ Yeni faz</button>
           <button
             onClick={incrementWeek}
             className="lb-press px-3 py-1.5 border lb-rule text-xs font-semibold rounded-lg"
@@ -423,6 +531,23 @@ export function History() {
         </div>
       </div>
 
+      <Modal isOpen={showNewPhase} onClose={() => setShowNewPhase(false)} title={`Faz ${contextPhases.length + 1} başlat`}
+        message="Mevcut hafta yeni fazın H0 haftası olacak. Bu haftanın ve sonraki haftaların kayıtları yeni fazda görünür; daha eski haftalar önceki fazlarda kalır. Hiçbir antrenman veya not silinmez. Sheet sekmesi ayrıca seçilir."
+        confirmText="Yeni fazı başlat" onConfirm={() => {
+          ctx?.dispatch({ type: 'START_NEXT_PHASE', payload: { id: crypto.randomUUID(), startAt: 'current' } });
+          setSelectedPhaseIdx(contextPhases.length);
+          setPageStart(0);
+          setShowNewPhase(false);
+        }} />
+      {showPhaseSettings && <PhaseSettingsModal phases={contextPhases} currentWeek={currentWeek} onClose={() => setShowPhaseSettings(false)} onSave={updated => {
+        ctx?.dispatch({ type: 'SET_PHASES', payload: updated });
+        const visible = updated.filter(p => p.startWeek <= currentWeek);
+        const index = visible.findIndex(p => currentWeek >= p.startWeek && (p.endWeek === null || currentWeek <= p.endWeek));
+        setSelectedPhaseIdx(Math.max(0, index));
+        const start = visible[Math.max(0, index)]?.startWeek ?? 0;
+        setPageStart(Math.floor((currentWeek - start) / PAGE_SIZE) * PAGE_SIZE);
+        setShowPhaseSettings(false);
+      }} />}
       {/* Color Settings Panel */}
       {showColorSettings && (
         <div className="mb-5 border lb-rule rounded-lg p-5">
@@ -472,7 +597,7 @@ export function History() {
           </div>
 
           <div className="mt-4 p-3 rounded-lg bg-(--color-bg-input) border lb-rule">
-            <h4 className="text-xs font-semibold mb-3">Toplu renk uygula (görünür 4 hafta)</h4>
+            <h4 className="text-xs font-semibold mb-3">Toplu düzenleme (görünür {visibleWeeks.length} hafta)</h4>
             <div className="grid md:grid-cols-[160px_1fr_1fr] gap-2 mb-2">
               <select
                 value={bulkColorStatus}
@@ -484,11 +609,11 @@ export function History() {
                 ))}
               </select>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2 min-w-0">
                 <select
                   value={bulkRowExerciseId}
                   onChange={(e) => setBulkRowExerciseId(e.target.value)}
-                  className="flex-1 px-2 py-1.5 text-xs bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
+                  className="flex-1 min-w-0 basis-full sm:basis-auto px-2 py-1.5 text-xs bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
                 >
                   <option value="">Satır seç</option>
                   {allExerciseIds.map(id => (
@@ -500,11 +625,11 @@ export function History() {
                 <button onClick={deleteRowData} className="lb-press px-2 py-1.5 text-xs font-medium rounded border" style={{ borderColor: 'var(--lb-drop)', color: 'var(--lb-drop)' }}>Veri sil</button>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2 min-w-0">
                 <select
                   value={bulkColumnWeek ?? ''}
                   onChange={(e) => setBulkColumnWeek(e.target.value === '' ? null : Number(e.target.value))}
-                  className="flex-1 px-2 py-1.5 text-xs bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
+                  className="flex-1 min-w-0 basis-full sm:basis-auto px-2 py-1.5 text-xs bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
                 >
                   <option value="">Sütun seç</option>
                   {visibleWeeks.map(week => (
@@ -578,7 +703,7 @@ export function History() {
 
                   <div className="grid gap-2 max-h-64 overflow-auto pr-1">
                     {programEdits.map((row, rowIdx) => (
-                      <div key={row.id} className="grid grid-cols-[auto_1fr_80px] gap-2">
+                      <div key={row.id} className="grid grid-cols-[auto_minmax(0,1fr)_72px_auto] gap-2">
                         <div className="flex flex-col justify-center gap-0.5">
                           <button
                             type="button"
@@ -617,6 +742,15 @@ export function History() {
                           }}
                           className="px-2 py-2 text-sm text-center bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
                         />
+                        <button
+                          type="button"
+                          onClick={() => removeExerciseFromCurrentPhase(row.id, row.name)}
+                          className="lb-press px-2 py-2 text-xs font-semibold rounded-lg border"
+                          style={{ borderColor: 'var(--lb-drop)', color: 'var(--lb-drop)' }}
+                          title="Bu egzersizi yalnızca seçili fazdan ve o fazın geçmişinden sil"
+                        >
+                          Fazdan sil
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -670,8 +804,16 @@ export function History() {
         </div>
       )}
 
+      <div className="flex flex-wrap items-center gap-3 mb-4 p-3 border lb-rule rounded-lg">
+        <label htmlFor="history-entry-week" className="text-sm">Doldurulacak hafta</label>
+        <select id="history-entry-week" value={editorWeek ?? ''} onChange={e => setEditorWeek(Number(e.target.value))} className="px-3 py-2 border lb-rule rounded-lg bg-(--color-bg-input)">
+          {currentPhase.weeks.map(w => <option key={w} value={w}>H{getDisplayWeek(w)}</option>)}
+        </select>
+        <button disabled={!selectedProgram || editorWeek === null} onClick={() => navigate(`/workout/${selectedProgramId}/week/${editorWeek}?from=history`)} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm font-semibold">Doldur / Düzenle</button>
+      </div>
+      {deletionMessage && <p role="status" className="text-sm mb-4">{deletionMessage}</p>}
       {/* Week Range Navigation */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-3 mb-4">
         <button
           onClick={() => setPageStart(s => Math.max(0, s - PAGE_SIZE))}
           disabled={pageStart === 0}
@@ -693,11 +835,21 @@ export function History() {
           Sonraki →
         </button>
 
+        <select aria-label="Google Sheets'e gönderilecek hafta" className="lb-press ml-auto px-3 py-2 border lb-rule rounded-lg bg-(--color-bg-input) text-sm max-w-full" value="" onChange={e => {
+          const [scope, value] = e.target.value.split(':');
+          if (value !== undefined) (scope === 'all' ? setFullSheetWeek : setSheetWeek)(Number(value));
+        }}>
+          <option value="">Sheets'e gönder…</option>
+          {visibleWeeks.map(week => <optgroup key={week} label={`H${getDisplayWeek(week)}`}>
+            <option value={`one:${week}`}>{selectedProgram?.name} · H{getDisplayWeek(week)}</option>
+            <option value={`all:${week}`}>Tüm antrenmanlar · H{getDisplayWeek(week)}</option>
+          </optgroup>)}
+        </select>
         {/* Copies the whole phase, not the page on screen — hence its place next
             to the phase's own navigation rather than up in the title bar. */}
         <button
           onClick={handleCopyPhase}
-          className="lb-press ml-auto px-3 py-1.5 text-sm font-medium border lb-rule rounded-lg"
+          className="lb-press px-3 py-1.5 text-sm font-medium border lb-rule rounded-lg"
           title={`${currentPhase.label} tablosunu Sheets için kopyala`}
         >
           {copyState === 'copied' ? '✓ Kopyalandı' : copyState === 'failed' ? '! Kopyalanamadı' : '📋 Kopyala'}
@@ -705,6 +857,16 @@ export function History() {
       </div>
 
       {/* Table / Accordion */}
+      {fullSheetWeek !== null && <SheetWeekModal key={fullSheetWeek} programs={programs} week={fullSheetWeek} baseWeek={currentPhase.baseWeek} weekLogs={weekLogs} phases={contextPhases} rowOrders={exerciseRowOrder} getCellOverride={getCellOverride} onClose={() => setFullSheetWeek(null)} />}
+      {sheetWeek !== null && selectedProgram && <SheetColumnModal key={`${selectedProgram.id}:${sheetWeek}`} program={selectedProgram} week={sheetWeek} baseWeek={currentPhase.baseWeek} weekLogs={weekLogs} phases={contextPhases} exerciseIds={allExerciseIds} getCellOverride={getCellOverride} onClose={() => setSheetWeek(null)} />}
+      {orderChanges.length > 0 && (
+        <details className="mb-4 rounded-lg border lb-rule p-3 text-sm">
+          <summary className="cursor-pointer font-medium">Hareket sırası değişimleri ({orderChanges.length})</summary>
+          <ul className="mt-3 space-y-1 text-(--color-text-secondary)">
+            {orderChanges.map(change => <li key={change.id}>{change.name}: {change.history}</li>)}
+          </ul>
+        </details>
+      )}
       {programs.length === 0 ? (
         <p className="text-(--color-text-secondary)">Henüz program yok.</p>
       ) : isMobile ? (
@@ -712,7 +874,10 @@ export function History() {
         <div className="space-y-5">
           {visibleWeeks.map(weekNum => {
             const weekLog = getWeekLog(weekNum);
-            const weekExercises = weekLog?.exercises ?? [];
+            const weekProgram = ctx && programVersionAt(ctx.state, weekNum).programs.find(p => p.id === selectedProgramId);
+            const weekExercises = weekProgram && (weekLog || weekNum === currentWeek)
+              ? syncExerciseLogs(weekProgram, weekLog?.exercises ?? [], ex => ({ exerciseId: ex.id, exerciseName: ex.name, sets: [] }))
+              : weekLog?.exercises ?? [];
 
             return (
               <div key={weekNum}>

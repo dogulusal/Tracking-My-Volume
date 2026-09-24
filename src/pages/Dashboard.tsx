@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import { useMemo } from 'react';
+import { useContext, useMemo, useState } from 'react';
+import { AppContext } from '@/context/AppContext';
 import { usePrograms } from '@/hooks/usePrograms';
 import { usePlans } from '@/hooks/usePlans';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
@@ -11,8 +12,12 @@ import { samplePrograms } from '@/data/sampleProgram';
 const nf = new Intl.NumberFormat('tr-TR');
 
 export function Dashboard() {
+  const [showWorkoutPicker, setShowWorkoutPicker] = useState(false);
   const { activePlan, activePlanPrograms } = usePlans();
   const { weekLogs, currentWeek, incrementWeek } = useWeekLogs();
+  const ctx = useContext(AppContext);
+  const phase = ctx?.state.phases.find(p => currentWeek >= p.startWeek && (p.endWeek === null || currentWeek <= p.endWeek));
+  const weekLabel = `${phase?.name ?? ''} · H${currentWeek - (phase?.startWeek ?? 0)}`;
   const { backupMeta, handleWeekTransitionBackup } = useExportImport();
   const { programs, addProgram } = usePrograms();
 
@@ -70,7 +75,13 @@ export function Dashboard() {
         : log && log.exercises.length > 0
           ? 'done'
           : 'pending';
-      return { program, status, volume: log ? calculateWeeklyVolume(log) : 0 };
+      let hasDraft = false;
+      try {
+        const raw = localStorage.getItem(`draft-${program.id}-${currentWeek}`);
+        const draft = raw ? JSON.parse(raw) : null;
+        hasDraft = Array.isArray(draft?.exerciseLogs) && (!log?.updatedAt || !draft.savedAt || draft.savedAt >= log.updatedAt);
+      } catch { /* Ignore an unreadable draft. */ }
+      return { program, status, hasDraft, volume: log ? calculateWeeklyVolume(log) : 0 };
     });
   }, [activePlanPrograms, weekLogs, currentWeek]);
 
@@ -101,8 +112,7 @@ export function Dashboard() {
     );
   }
 
-  const deltaUp = weekStats.delta !== null && weekStats.delta > 0;
-  const deltaDown = weekStats.delta !== null && weekStats.delta < 0;
+  const nextWorkout = programStatuses.find(p => p.hasDraft) ?? programStatuses.find(p => p.status === 'pending');
 
   return (
     <PageContainer>
@@ -113,33 +123,17 @@ export function Dashboard() {
             {/* The page's heading is the week; it just isn't the loudest thing
                 on screen — the number it produced is. */}
             <h1 className="lb-label">
-              {activePlan ? activePlan.name : 'Antrenman defteri'} · Hafta {currentWeek}
+              {activePlan ? activePlan.name : 'Antrenman defteri'} · {weekLabel}
             </h1>
 
-            <p className="lb-figure text-[clamp(2.75rem,13vw,4.5rem)] font-bold mt-2">
+            <p className="lb-figure text-2xl font-semibold mt-2">
               {weekStats.volume > 0 ? nf.format(Math.round(weekStats.volume)) : '—'}
               {weekStats.volume > 0 && (
                 <span className="text-[0.3em] font-medium ml-2 text-(--color-text-secondary)">kg</span>
               )}
             </p>
 
-            <p className="text-sm mt-2.5">
-              {weekStats.delta === null ? (
-                <span className="text-(--color-text-secondary)">
-                  {weekStats.volume > 0 ? 'karşılaştırılacak önceki hafta yok' : 'bu hafta henüz kayıt yok'}
-                </span>
-              ) : (
-                <>
-                  <span
-                    className="lb-figure font-semibold"
-                    style={{ color: deltaUp ? 'var(--lb-gain)' : deltaDown ? 'var(--lb-drop)' : undefined }}
-                  >
-                    {deltaUp ? '▲' : deltaDown ? '▼' : '='} {nf.format(Math.abs(Math.round(weekStats.delta)))} kg
-                  </span>
-                  <span className="text-(--color-text-secondary)"> · geçen haftaya göre</span>
-                </>
-              )}
-            </p>
+            <p className="lb-label mt-2">Bu haftanın toplam hacmi{weekStats.completed < weekStats.total ? ' · hafta devam ediyor' : ''}</p>
           </div>
 
           <button
@@ -149,6 +143,30 @@ export function Dashboard() {
             Yeni hafta
           </button>
         </header>
+
+        <section className="my-6 p-5 sm:p-7 rounded-2xl border lb-rule-strong bg-(--color-bg-card)">
+          <p className="lb-label mb-2">{nextWorkout?.hasDraft ? 'Yarım kalan antrenmanın' : 'Sıradaki antrenmanın'}</p>
+          <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">{nextWorkout?.program.name ?? (activePlanPrograms.length ? 'Bu haftayı tamamladın' : 'Planına bir gün ekle')}</h2>
+          <p className="text-sm text-(--color-text-secondary) mt-3 mb-5">
+            {nextWorkout ? `${nextWorkout.program.exercises.filter(e => e.isActive).length} egzersiz · ${weekLabel}` : 'Aşağıdaki günleri açarak kayıtlarını düzenleyebilir veya Programlar bölümünden gün ekleyebilirsin.'}
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {nextWorkout && <Link className="lb-press px-5 py-3 rounded-lg bg-(--color-text-primary) text-(--color-bg-primary) font-semibold text-sm" to={`/workout/${nextWorkout.program.id}/week/${currentWeek}`}>
+              {nextWorkout.hasDraft ? 'Antrenmana devam et' : 'Antrenmana başla'} →
+            </Link>}
+            {activePlanPrograms.length > 0 && <button type="button" aria-expanded={showWorkoutPicker} aria-controls="workout-picker" onClick={() => setShowWorkoutPicker(value => !value)} className="lb-press px-5 py-3 rounded-lg border lb-rule text-sm font-medium">Başka bir antrenman seç ↓</button>}
+            {!activePlanPrograms.length && <Link to="/programs" className="lb-press px-5 py-3 rounded-lg border lb-rule text-sm">Programlar →</Link>}
+          </div>
+          {showWorkoutPicker && <div id="workout-picker" className="mt-4 p-4 border lb-rule rounded-lg">
+            <p className="lb-label mb-3">Bu hafta hangi antrenmanı açmak istiyorsun?</p>
+            <div className="flex flex-wrap gap-2">
+              {programStatuses.map(({ program, status, hasDraft }) => <Link key={program.id} to={`/workout/${program.id}/week/${currentWeek}`} className="lb-press px-4 py-3 border lb-rule rounded-lg text-sm">
+                <span className="font-semibold">{program.name}</span>
+                <span className="lb-label block mt-1">{hasDraft ? 'Taslağa devam et' : status === 'done' ? 'Kaydı düzenle' : status === 'holiday' ? 'Tatil kaydını aç' : 'Antrenman gir'}</span>
+              </Link>)}
+            </div>
+          </div>}
+        </section>
 
         {backupMeta.pendingBackupWeek !== null && (
           <p className="lb-settle mt-5 text-sm border-l-2 pl-3 py-1 border-(--lb-drop) text-(--color-text-secondary)">
@@ -169,9 +187,12 @@ export function Dashboard() {
             <p className="lb-label mt-1">hafta üst üste</p>
           </div>
         </div>
+        {weekStats.total > 0 && weekStats.completed === weekStats.total && weekStats.delta !== null && (
+          <p className="lb-label mt-3">Geçen haftaya göre toplam hacim: {weekStats.delta > 0 ? '+' : ''}{nf.format(Math.round(weekStats.delta))} kg</p>
+        )}
 
         {/* ── The week's workouts, as ruled rows ── */}
-        <div className="flex items-baseline justify-between pt-6 pb-2">
+        <div id="week-workouts" className="scroll-mt-20 flex items-baseline justify-between pt-6 pb-2">
           <h2 className="text-sm font-semibold">Bu haftanın antrenmanları</h2>
           <Link to="/history" className="lb-label hover:text-(--color-text-primary) transition-colors">
             Geçmiş →
@@ -179,7 +200,7 @@ export function Dashboard() {
         </div>
 
         <ul>
-          {programStatuses.map(({ program, status, volume }, i) => (
+          {programStatuses.map(({ program, status, hasDraft, volume }, i) => (
             <li key={program.id} className="lb-settle" style={{ animationDelay: `${80 + i * 45}ms` }}>
               <Link
                 to={`/workout/${program.id}/week/${currentWeek}`}
@@ -203,7 +224,7 @@ export function Dashboard() {
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm font-semibold truncate">{program.name}</span>
                   <span className="lb-label block mt-0.5">
-                    {status === 'holiday'
+                    {hasDraft ? 'taslak · devam et' : status === 'holiday'
                       ? 'tatil'
                       : status === 'done'
                         ? `${program.exercises.filter(e => e.isActive).length} egzersiz · kaydedildi`
@@ -212,7 +233,7 @@ export function Dashboard() {
                 </span>
 
                 <span className="lb-figure text-sm text-right shrink-0 text-(--color-text-secondary)">
-                  {volume > 0 ? `${nf.format(Math.round(volume))} kg` : ''}
+                  {volume > 0 ? `${nf.format(Math.round(volume))} kg` : 'Aç →'}
                 </span>
               </Link>
             </li>

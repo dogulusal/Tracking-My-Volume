@@ -1,3 +1,5 @@
+import { applyMigrations, CURRENT_DATA_VERSION } from '@/data/migrations';
+import { appReducer } from '@/context/appReducer';
 import { useContext, useState, useEffect } from 'react';
 import { AppContext } from '@/context/AppContext';
 import type { AppState, ExportData } from '@/types';
@@ -88,13 +90,18 @@ export function useExportImport() {
 
   const buildExportData = (overrideWeekLogs?: AppState['weekLogs']): ExportData => ({
     exportDate: new Date().toISOString().split('T')[0],
-    version: '2.0',
+    version: '3.0',
+    dataVersion: CURRENT_DATA_VERSION,
     programs: state.programs,
     plans: state.plans,
     activePlanId: state.activePlanId,
     weekLogs: overrideWeekLogs ?? state.weekLogs,
     currentWeek: state.currentWeek,
     phases: state.phases,
+    googleSheetsSettings: state.googleSheetsSettings,
+    sheetColumnMappings: state.sheetColumnMappings,
+    programVersions: state.programVersions,
+    phaseRecordTransitions: state.phaseRecordTransitions,
   });
 
   const downloadExport = (exportData: ExportData, filename: string) => {
@@ -176,6 +183,7 @@ export function useExportImport() {
         const parsed = JSON.parse(jsonString);
         // Support both direct AppState and ExportData format
         const data = parsed.version ? {
+          ...parsed,
           programs: parsed.programs,
           plans: parsed.plans ?? [],
           activePlanId: parsed.activePlanId ?? null,
@@ -186,7 +194,7 @@ export function useExportImport() {
         if (!validateImportData(data)) {
           return { success: false, error: 'Geçersiz veri formatı' };
         }
-        dispatch({ type: 'IMPORT_DATA', payload: data as AppState });
+        dispatch({ type: 'IMPORT_DATA', payload: applyMigrations(data as AppState) });
         return { success: true };
       } catch {
         return { success: false, error: 'JSON parse hatası' };
@@ -220,9 +228,7 @@ export function useExportImport() {
 
         // Add program and week logs to existing data
         const newState: AppState = {
-          programs: [...state.programs, program],
-          plans: state.plans,
-          activePlanId: state.activePlanId,
+          ...appReducer(state, { type: 'ADD_PROGRAM', atWeek: startWeek ?? state.currentWeek, payload: program }),
           weekLogs: [...state.weekLogs, ...weekLogs],
           currentWeek: Math.max(state.currentWeek, ...weekLogs.map(w => w.weekNumber)),
           phases: state.phases,

@@ -9,8 +9,9 @@
  * the phase-relative one History displays, so that columns stay unique and
  * monotonic in a sheet that keeps growing across mezos.
  */
-import type { PhaseDefinition, Program, SetLog, WeekLog } from '@/types';
+import type { AppState, PhaseDefinition, Program, SetLog, WeekLog } from '@/types';
 import { applySavedOrder } from '@/utils/reorder';
+import { programVersionAt } from '@/utils/programVersions';
 
 const INTENSITY_MARKERS: Record<SetLog['intensity'], string> = {
   failure: 'F',
@@ -20,7 +21,7 @@ const INTENSITY_MARKERS: Record<SetLog['intensity'], string> = {
 };
 
 const EMPTY_CELL = '-';
-const HOLIDAY_CELL = 'Tatil';
+const HOLIDAY_CELL = 'TATİL';
 
 /**
  * One grid cell: every set in order, pipe separated. The weight is written
@@ -51,6 +52,8 @@ export interface SheetTableOptions {
   /** Absolute week numbers alone lose the mezo boundary the History page shows;
    *  with these a FAZ row carries it into the sheet. */
   phases?: PhaseDefinition[];
+  /** Program snapshots preserve each week's exercise position independently of row layout. */
+  state?: AppState;
 }
 
 export const PHASE_ROW = 'FAZ';
@@ -74,6 +77,7 @@ export function buildSheetRows({
   toWeek,
   rowOrder,
   phases,
+  state,
 }: SheetTableOptions): string[][] {
   const weeks: number[] = [];
   for (let w = fromWeek; w <= toWeek; w++) weeks.push(w);
@@ -83,13 +87,16 @@ export function buildSheetRows({
     .filter(log => log.programId === program.id && weeks.includes(log.weekNumber))
     .forEach(log => logsByWeek.set(log.weekNumber, log));
 
-  // Rows come from what was actually logged in the range; an empty range falls
-  // back to the program's active exercises so the paste still has its skeleton.
+  // Include active definitions even when the range already has logs. A newly
+  // added exercise must have a stable row before its first completed workout.
   const ids = new Set<string>();
   weeks.forEach(week => {
     logsByWeek.get(week)?.exercises.forEach(e => ids.add(e.exerciseId));
   });
-  if (ids.size === 0) {
+  if (state) {
+    weeks.forEach(week => programVersionAt(state, week).programs.find(p => p.id === program.id)
+      ?.exercises.filter(e => e.isActive).forEach(e => ids.add(e.id)));
+  } else {
     program.exercises.filter(e => e.isActive).forEach(e => ids.add(e.id));
   }
   const exerciseIds = applySavedOrder(Array.from(ids), rowOrder);
@@ -128,6 +135,15 @@ export function buildSheetRows({
       return formatSetsForSheet(exercise?.sets ?? []);
     });
     rows.push([nameOf(exerciseId), String(setsOf(exerciseId)), ...cells]);
+    const orderCells = weeks.map(week => {
+      const scopedProgram = state && programVersionAt(state, week).programs.find(p => p.id === program.id);
+      const definitions = scopedProgram?.exercises.filter(ex => ex.isActive);
+      const definedPosition = definitions?.findIndex(ex => ex.id === exerciseId) ?? -1;
+      if (definedPosition >= 0) return String(definedPosition + 1);
+      const loggedPosition = logsByWeek.get(week)?.exercises.findIndex(ex => ex.exerciseId === exerciseId) ?? -1;
+      return loggedPosition >= 0 ? String(loggedPosition + 1) : EMPTY_CELL;
+    });
+    rows.push([`SIRA: ${nameOf(exerciseId)}`, '', ...orderCells]);
   });
 
   const noteCells = weeks.map(week => logsByWeek.get(week)?.notes?.trim() || EMPTY_CELL);
@@ -204,6 +220,12 @@ export function mergeSheetRows(existing: string[][] | null, incoming: string[][]
     ...[...oldRows.keys()].filter(name => !isLabelRow(name)),
     ...[...newRows.keys()].filter(name => !isLabelRow(name) && !oldRows.has(name)),
   ];
+  const orderRows = new Set(names.filter(name => /^SIRA:/i.test(name)));
+  const arrangedNames = names.filter(name => !orderRows.has(name)).flatMap(name => {
+    const orderName = `SIRA: ${name}`;
+    return orderRows.has(orderName) ? [name, orderName] : [name];
+  });
+  arrangedNames.push(...names.filter(name => orderRows.has(name) && !arrangedNames.includes(name)));
   const allNames = [...oldRows.keys(), ...newRows.keys()];
   const notesName = allNames.find(isNotes);
   const phaseName = allNames.find(isPhase);
@@ -227,7 +249,7 @@ export function mergeSheetRows(existing: string[][] | null, incoming: string[][]
 
   const rows = [['Egzersiz', 'Set', ...weeks]];
   if (phaseName) rows.push(buildRow(phaseName));
-  rows.push(...names.map(buildRow));
+  rows.push(...arrangedNames.map(buildRow));
   if (notesName) rows.push(buildRow(notesName));
 
   return { rows, unmergeable: false };
@@ -267,7 +289,7 @@ export function buildMultiProgramTsv(
     rowOrders?: Record<string, string[]>;
   },
 ): string {
-  const { weekLogs, fromWeek, toWeek, rowOrders, phases } = options;
+  const { weekLogs, fromWeek, toWeek, rowOrders, phases, state } = options;
   return programs
     .map(program => buildSheetTsv({
       program,
@@ -275,6 +297,7 @@ export function buildMultiProgramTsv(
       fromWeek,
       toWeek,
       phases,
+      state,
       rowOrder: rowOrders?.[program.id],
     }))
     .join('\n\n');
