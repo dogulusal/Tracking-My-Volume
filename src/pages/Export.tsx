@@ -15,8 +15,7 @@ import { useLastSheetExport } from '@/hooks/useLastSheetExport';
 const ALL_PROGRAMS = 'all';
 
 type SheetConfirm =
-  | { kind: 'tabs'; tabs: string[] }
-  | { kind: 'overwrite'; tabs: string[] };
+  { kind: 'overwrite'; tabs: string[] };
 
 export function Export() {
   const {
@@ -143,10 +142,10 @@ export function Export() {
   };
 
   const handleSheetPush = async (options: { createMissing?: boolean; overwriteUnmergeable?: boolean } = {}) => {
-    const result = await sheets.push(sheetTargets, { ...options, statusColors });
+    const result = await sheets.push(sheetTargets, { createMissing: true, ...options, statusColors });
 
     if (result.status === 'needs-tabs') {
-      setSheetConfirm({ kind: 'tabs', tabs: result.missingTabs });
+      setImportMessage({ type: 'error', text: `Sekme oluşturulamadı: ${result.missingTabs.join(', ')}.` });
       return;
     }
     if (result.status === 'needs-overwrite') {
@@ -432,6 +431,7 @@ export function Export() {
             <p className="text-sm text-(--color-text-secondary) mb-3">
               Yapıştırmadan, seçili programları sheet'indeki kendi sekmelerine yazar. Yalnızca
               gönderdiğin hafta sütunları güncellenir — sheet'teki eski haftalar yerinde kalır.
+              Program sekmesi yoksa otomatik oluşturulur.
             </p>
 
             {showSheetSettings && (
@@ -687,16 +687,6 @@ export function Export() {
         message="Tüm programlar ve antrenman kayıtları silinecek. Bu işlem geri alınamaz. Emin misiniz?"
         confirmText="Evet, Sıfırla"
         confirmVariant="danger"
-      />
-
-      <Modal
-        isOpen={sheetConfirm?.kind === 'tabs'}
-        onClose={() => setSheetConfirm(null)}
-        onConfirm={() => { setSheetConfirm(null); void handleSheetPush({ createMissing: true }); }}
-        title="Sekme oluşturulsun mu?"
-        message={`Sheet'te şu sekmeler yok: ${sheetConfirm?.tabs.join(', ') ?? ''}. Oluşturup içine yazalım mı? (Mevcut sekmelerin adı programlarınkinden farklıysa, onları eşitlemek daha doğru olur.)`}
-        confirmText="Oluştur ve gönder"
-        confirmVariant="primary"
       />
 
       <Modal

@@ -5,6 +5,11 @@ export interface ColumnCell { row: number; label: string; value: string; color?:
 export interface WeekColumnTarget { tab: string; column: number; cells: ColumnCell[] }
 export const SHEET_NOTE_COLOR = '#fff4d6';
 
+/** A phase send fills only wholly empty result columns. Headers may already be present. */
+export function hasMappedWeekData(rows: string[][], target: WeekColumnTarget): boolean {
+  return target.cells.slice(1).some(cell => String(rows[cell.row - 1]?.[target.column] ?? '').trim() !== '');
+}
+
 export function parseCellAddress(address: string): { column: number; row: number } {
   const match = /^([A-Z]{1,3})([1-9]\d*)$/.exec(address.trim().toUpperCase());
   if (!match) throw new Error('Başlık hücresini W1 gibi gir.');

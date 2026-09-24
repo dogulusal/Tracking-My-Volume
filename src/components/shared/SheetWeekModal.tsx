@@ -29,8 +29,30 @@ export function SheetWeekModal({ programs: suppliedPrograms, week, baseWeek, wee
   const [selected, setSelected] = useState(available.map(p => p.id));
   const [editing, setEditing] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState<'week' | 'phase' | null>(null);
+  const [sendMessage, setSendMessage] = useState('');
   const idsFor = (program: Program) => {
     const log = weekLogs.find(l => l.programId === program.id && l.weekNumber === week);
+    return applySavedOrder(log?.exercises.length ? log.exercises.map(e => e.exerciseId) : program.exercises.filter(e => e.isActive).map(e => e.id), rowOrders?.[program.id]);
+  };
+  const targetFor = (program: Program, targetWeek: number, mapping: SheetMapping): WeekColumnTarget => {
+    const anchor = parseCellAddress(mapping.header);
+    const column = anchor.column + targetWeek - mapping.week;
+    const log = weekLogs.find(l => l.programId === program.id && l.weekNumber === targetWeek);
+    if (!log) throw new Error(`${program.name} H${targetWeek - baseWeek}: kayıt yok.`);
+    const statuses = buildStatusMap({ program, weekLogs, fromWeek: targetWeek, toWeek: targetWeek, phases, getCellOverride });
+    const ids = [...new Set([...idsForWeek(program, targetWeek), ...Object.keys(mapping.rows)])];
+    const cells = [{ row: anchor.row, label: 'Başlık', value: `H${targetWeek - baseWeek}` }, ...ids.map(id => {
+      const exercise = log.exercises.find(e => e.exerciseId === id);
+      const name = program.exercises.find(e => e.id === id)?.name ?? exercise?.exerciseName ?? id;
+      if (!mapping.rows[id]) throw new Error(`${program.name}: ${name} için hedef satır eşleştirilmeli.`);
+      return { row: mapping.rows[id], label: name, value: log.isHoliday ? 'TATİL' : exercise ? formatSets(exercise.sets) || '-' : '-', color: columnStatusColor(statuses.get(statusKey(name, `H${targetWeek}`)) ?? 'same') };
+    }), { row: mapping.notesRow, label: 'Açıklama', value: log.notes ?? '', color: log.notes?.trim() ? SHEET_NOTE_COLOR : '#ffffff', kind: 'note' as const }];
+    buildWeekRequests([{ sheetId: 0, column, cells }]);
+    return { tab: mapping.tab, column, cells };
+  };
+  const idsForWeek = (program: Program, targetWeek: number) => {
+    const log = weekLogs.find(l => l.programId === program.id && l.weekNumber === targetWeek);
     return applySavedOrder(log?.exercises.length ? log.exercises.map(e => e.exerciseId) : program.exercises.filter(e => e.isActive).map(e => e.id), rowOrders?.[program.id]);
   };
   const restoreTargets = (createdMappings?: Record<string, SheetMapping>) => {
@@ -39,18 +61,7 @@ export function SheetWeekModal({ programs: suppliedPrograms, week, baseWeek, wee
       try {
         const mapping = createdMappings?.[program.id] ?? mappings.read(program.id);
         if (!mapping) continue;
-        const anchor = parseCellAddress(mapping.header);
-        const column = anchor.column + week - mapping.week;
-        const log = weekLogs.find(l => l.programId === program.id && l.weekNumber === week)!;
-        const statuses = buildStatusMap({ program, weekLogs, fromWeek: week, toWeek: week, phases, getCellOverride });
-          const cells = [{ row: anchor.row, label: 'Başlık', value: `H${week - baseWeek}` }, ...[...new Set([...idsFor(program), ...Object.keys(mapping.rows)])].map(id => {
-          const exercise = log.exercises.find(e => e.exerciseId === id);
-          const name = program.exercises.find(e => e.id === id)?.name ?? exercise?.exerciseName ?? id;
-          if (!mapping.rows[id]) throw new Error('Yeni egzersizin satırı eşleştirilmeli.');
-          return { row: mapping.rows[id], label: name, value: log.isHoliday ? 'TATİL' : exercise ? formatSets(exercise.sets) || '-' : '-', color: columnStatusColor(statuses.get(statusKey(name, `H${week}`)) ?? 'same') };
-        }), { row: mapping.notesRow, label: 'Açıklama', value: log.notes ?? '', color: log.notes?.trim() ? SHEET_NOTE_COLOR : '#ffffff', kind: 'note' as const }];
-        buildWeekRequests([{ sheetId: 0, column, cells }]);
-        restored[program.id] = { tab: mapping.tab, column, cells };
+        restored[program.id] = targetFor(program, week, mapping);
       } catch { /* Invalid/new mappings need explicit setup. */ }
     }
     return restored;
@@ -63,6 +74,74 @@ export function SheetWeekModal({ programs: suppliedPrograms, week, baseWeek, wee
   try {
     layout = buildPhaseSheetLayout(templateTitle, baseWeek, templatePrograms, weekLogs.filter(l => l.weekNumber >= baseWeek && (phase?.endWeek == null || l.weekNumber <= phase.endWeek)), rowOrders);
   } catch (e) { templateError = e instanceof Error ? e.message : 'Şablon hazırlanamadı.'; }
+  const phaseLogs = weekLogs.filter(log => log.weekNumber >= baseWeek
+    && (phase?.endWeek === null || phase?.endWeek === undefined || log.weekNumber <= phase.endWeek)
+    && programs.some(program => program.id === log.programId))
+    .sort((a, b) => a.weekNumber - b.weekNumber);
+
+  const ensureMappings = async (): Promise<Record<string, SheetMapping> | null> => {
+    const info = await sheets.connect();
+    if (!info) return null;
+    const saved = Object.fromEntries(programs.flatMap(program => {
+      const mapping = mappings.read(program.id);
+      return mapping ? [[program.id, mapping] as const] : [];
+    }));
+    const complete = programs.every(program => saved[program.id]);
+    if (complete && Object.values(saved).every(mapping => info.tabs.some(tab => tab.title === mapping.tab))) return saved;
+    if (Object.keys(saved).length && !complete) {
+      setSendMessage('Bazı antrenmanların hedefi eşleşmemiş. Hedefleri eşleştir veya faz için yeni bir sekme seç.');
+      return null;
+    }
+    const savedTitles = [...new Set(Object.values(saved).map(mapping => mapping.tab))];
+    if (savedTitles.length > 1 || savedTitles.some(title => info.tabs.some(tab => tab.title === title))) {
+      setSendMessage('Kayıtlı hedef sekmelerden biri eksik. Hedef eşleştirmelerini kontrol et.');
+      return null;
+    }
+    const title = savedTitles[0] ?? templateTitle.trim();
+    if (info.tabs.some(tab => tab.title.toLocaleLowerCase() === title.toLocaleLowerCase())) {
+      setSendMessage(`${title} sekmesi mevcut; antrenman hedeflerini eşleştir.`);
+      return null;
+    }
+    try {
+      const createdLayout = buildPhaseSheetLayout(title, baseWeek, templatePrograms, phaseLogs, rowOrders);
+      if (!await sheets.createTemplate(createdLayout)) return null;
+      mappings.save(createdLayout.mappings);
+      setTargets(restoreTargets(createdLayout.mappings));
+      setTemplateCreated(true);
+      return createdLayout.mappings;
+    } catch (e) {
+      setSendMessage(e instanceof Error ? e.message : 'Sekme oluşturulamadı.');
+      return null;
+    }
+  };
+
+  const sendSelectedWeek = async () => {
+    setSendMessage(''); setSending('week');
+    try {
+      const ready = await ensureMappings();
+      if (!ready) return;
+      const weekTargets = selected.map(id => {
+        const program = programs.find(p => p.id === id)!;
+        return targetFor(program, week, ready[id]);
+      });
+      const ok = await sheets.pushWeek(weekTargets);
+      setSent(ok);
+      if (ok) setSendMessage(`${selected.length} antrenman H${week - baseWeek} sütununa aktarıldı.`);
+    } catch (e) { setSendMessage(e instanceof Error ? e.message : 'Hafta gönderilemedi.'); }
+    finally { setSending(null); }
+  };
+
+  const sendPhase = async () => {
+    setSendMessage(''); setSending('phase');
+    try {
+      const ready = await ensureMappings();
+      if (!ready) return;
+      const targets = phaseLogs.map(log => targetFor(programs.find(p => p.id === log.programId)!, log.weekNumber, ready[log.programId]));
+      const result = await sheets.pushMissingWeeks(targets);
+      if (result) setSendMessage(`${result.written} antrenman haftası aktarıldı; ${result.skipped} dolu hedef korundu.`);
+    } catch (e) { setSendMessage(e instanceof Error ? e.message : 'Faz gönderilemedi.'); }
+    finally { setSending(null); }
+  };
   const pending = selected.filter(id => !targets[id]);
   const targetFileRef = useRef(sheets.settings.spreadsheetId);
   useEffect(() => {
@@ -81,7 +160,7 @@ export function SheetWeekModal({ programs: suppliedPrograms, week, baseWeek, wee
       return { ...target, sheetId: tabIds.get(target.tab)! };
     }));
   } catch (e) { conflict = e instanceof Error ? e.message : 'Eşleştirmeleri kontrol et.'; }
-  const busy = sheets.busy !== 'idle';
+  const busy = sheets.busy !== 'idle' || sending !== null;
   const program = available.find(p => p.id === editing);
   if (program) return <SheetColumnModal program={program} week={week} baseWeek={baseWeek} weekLogs={weekLogs} phases={phases} exerciseIds={idsFor(program)} getCellOverride={getCellOverride} onClose={() => setEditing(null)} onStage={(target, settings) => {
     const differentFile = settings.spreadsheetId !== sheets.settings.spreadsheetId;
@@ -128,11 +207,13 @@ export function SheetWeekModal({ programs: suppliedPrograms, week, baseWeek, wee
             {targets[p.id].cells.map(cell => <div key={cell.row} className="grid grid-cols-2 gap-2 mt-2"><span>{columnLetters(targets[p.id].column)}{cell.row} · {cell.label}</span><span className="p-1 whitespace-pre-wrap" style={{ backgroundColor: cell.color, color: cell.color ? cell.color === '#000000' ? '#fff' : '#000' : undefined }}>{cell.value || '(boş)'}</span></div>)}
           </details>}
         </div>)}
-        {pending.length > 0 && <p className="lb-label">{pending.length} antrenmanın hedefi eşleştirilmeli.</p>}
+        {pending.length > 0 && <p className="lb-label">{pending.length} antrenmanın hedefi henüz eşleşmedi. Yeni faz sekmesi gönderirken otomatik hazırlanır.</p>}
         {conflict && !pending.length && <p className="text-sm">{conflict}</p>}
-        <button disabled={!selected.length || pending.length > 0 || !!conflict || sent || !sheets.isConfigured} className="lb-press w-full p-3 rounded-lg bg-(--color-text-primary) text-(--color-bg-primary) font-semibold disabled:opacity-40" onClick={async () => { setSent(await sheets.pushWeek(selected.map(id => targets[id]))); }}>{busy ? 'Gönderiliyor…' : sent ? '✓ Hafta aktarıldı' : `H${week - baseWeek} · ${selected.length} antrenmanı gönder`}</button>
+        <button disabled={!selected.length || !!conflict || sent || !sheets.isConfigured} className="lb-press w-full p-3 rounded-lg bg-(--color-text-primary) text-(--color-bg-primary) font-semibold disabled:opacity-40" onClick={() => void sendSelectedWeek()}>{sending === 'week' ? 'Gönderiliyor…' : sent ? '✓ Hafta aktarıldı' : `H${week - baseWeek} · ${selected.length} antrenmanı gönder`}</button>
+        <button disabled={!phaseLogs.length || !sheets.isConfigured} className="lb-press w-full p-3 rounded-lg border lb-rule font-semibold disabled:opacity-40" onClick={() => void sendPhase()}>{sending === 'phase' ? 'Faz aktarılıyor…' : `Bu fazın eksik haftalarını gönder (${phaseLogs.length} kayıt)`}</button>
+        <p className="lb-label">Dolu antrenman hücrelerine dokunulmaz. Eksik sekme varsa faz tablosu ve eşleştirmeler otomatik oluşturulur.</p>
       </fieldset>
-      {(sheets.error || sent) && <p role="status" className="text-sm mt-3">{sheets.error ?? 'Seçilen antrenmanlar renkleri ve açıklamalarıyla aktarıldı.'}</p>}
+      {(sheets.error || sendMessage || sent) && <p role="status" className="text-sm mt-3">{sendMessage || sheets.error || 'Seçilen antrenmanlar renkleri ve açıklamalarıyla aktarıldı.'}</p>}
     </div>
   </div>;
 }

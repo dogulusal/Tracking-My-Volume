@@ -237,6 +237,7 @@ export async function addTabs(
   token: string,
   spreadsheetId: string,
   titles: string[],
+  dimensions?: Record<string, { rowCount: number; columnCount: number }>,
 ): Promise<SheetTab[]> {
   if (titles.length === 0) return [];
   const result = await sheetsFetch<{
@@ -244,7 +245,10 @@ export async function addTabs(
   }>(token, `/${encodeURIComponent(spreadsheetId)}:batchUpdate`, {
     method: 'POST',
     body: JSON.stringify({
-      requests: titles.map(title => ({ addSheet: { properties: { title } } })),
+      requests: titles.map(title => ({ addSheet: { properties: {
+        title,
+        ...(dimensions?.[title] ? { gridProperties: dimensions[title] } : {}),
+      } } })),
     }),
   });
 

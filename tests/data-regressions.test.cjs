@@ -730,6 +730,20 @@ test('stacked workout blocks share a column without touching separator rows', ()
   assert.throws(() => buildWeekRequests([targets[0], targets[0]]), /çakışıyor/);
 });
 
+test('phase backfill selects only empty mapped workout columns', () => {
+  const { hasMappedWeekData } = loadTS('src/utils/sheetColumn.ts');
+  const target = { tab: 'Faz 3', column: 3, cells: [
+    { row: 2, value: 'H1' }, { row: 3, value: '40 x 8 F' }, { row: 4, value: '' },
+  ] };
+  const rows = [[], ['', '', '', 'H1'], ['', '', '', ''], ['', '', '', '']];
+  assert.equal(hasMappedWeekData(rows, target), false);
+  rows[2][3] = '40 x 7 F';
+  assert.equal(hasMappedWeekData(rows, target), true);
+  rows[2][3] = '';
+  rows[3][3] = 'personal note';
+  assert.equal(hasMappedWeekData(rows, target), true);
+});
+
 test('weekly send validates all headers before one batch write', async () => {
   const previousFetch = global.fetch;
   const calls = [];

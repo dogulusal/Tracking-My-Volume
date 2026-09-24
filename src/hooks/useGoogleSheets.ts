@@ -22,7 +22,7 @@ import {
 import { buildFormatRanges, type StatusColorOverrides } from '@/utils/sheetFormat';
 import type { ExerciseStatus } from '@/types';
 import { mergeSheetRows } from '@/utils/sheetExport';
-import type { ColumnCell, WeekColumnTarget } from '@/utils/sheetColumn';
+import { buildWeekRequests, hasMappedWeekData, type ColumnCell, type WeekColumnTarget } from '@/utils/sheetColumn';
 import type { PhaseSheetLayout } from '@/utils/sheetTemplate';
 
 export interface GoogleSheetsSettings {
@@ -256,7 +256,7 @@ export function useGoogleSheets() {
     setError(null);
     try {
       const token = await ensureToken();
-      const info = meta ?? await getSpreadsheetMeta(token, settings.spreadsheetId);
+      const info = await getSpreadsheetMeta(token, settings.spreadsheetId);
       setMeta(info);
 
       // A remembered tab wins over the program's current name.
@@ -348,7 +348,7 @@ export function useGoogleSheets() {
     } finally {
       setBusy('idle');
     }
-  }, [ensureToken, isConfigured, meta, settings.spreadsheetId, settings.tabByProgramId, setSettingsState, invalidateRejectedToken]);
+  }, [ensureToken, isConfigured, settings.spreadsheetId, settings.tabByProgramId, setSettingsState, invalidateRejectedToken]);
 
   const pushWeek = async (targets: WeekColumnTarget[]): Promise<boolean> => {
     if (!isConfigured || busy !== 'idle') return false;
@@ -357,6 +357,18 @@ export function useGoogleSheets() {
     try {
       const token = await ensureToken();
       const info = await getSpreadsheetMeta(token, settings.spreadsheetId);
+      const missingTitles = [...new Set(targets.map(target => target.tab)
+        .filter(title => !info.tabs.some(tab => tab.title === title)))];
+      if (missingTitles.length) {
+        const dimensions = Object.fromEntries(missingTitles.map(title => {
+          const group = targets.filter(target => target.tab === title);
+          return [title, {
+            rowCount: Math.max(1000, ...group.flatMap(target => target.cells.map(cell => cell.row))),
+            columnCount: Math.max(26, ...group.map(target => target.column + 1)),
+          }];
+        }));
+        info.tabs.push(...await addTabs(token, settings.spreadsheetId, missingTitles, dimensions));
+      }
       setMeta(info);
       const resolved = targets.map(target => {
         const tab = info.tabs.find(t => t.title === target.tab);
@@ -376,6 +388,39 @@ export function useGoogleSheets() {
   };
 
   const pushColumn = (tab: string, column: number, cells: ColumnCell[]) => pushWeek([{ tab, column, cells }]);
+
+  const pushMissingWeeks = async (targets: WeekColumnTarget[]): Promise<{ written: number; skipped: number } | null> => {
+    if (!isConfigured || busy !== 'idle' || !targets.length) return null;
+    setBusy('sending'); setError(null);
+    try {
+      const token = await ensureToken();
+      const info = await getSpreadsheetMeta(token, settings.spreadsheetId);
+      setMeta(info);
+      const tabs = new Map(info.tabs.map(tab => [tab.title, tab]));
+      const rowsByTab = new Map<string, string[][]>();
+      for (const title of new Set(targets.map(target => target.tab))) {
+        if (!tabs.has(title)) throw new Error(`Hedef sekme bulunamadı: ${title}`);
+        rowsByTab.set(title, await readTab(token, settings.spreadsheetId, title));
+      }
+      const missing = targets.filter(target => !hasMappedWeekData(rowsByTab.get(target.tab)!, target));
+      const resolved = missing.map(target => ({ ...target, tab: tabs.get(target.tab)! }));
+      if (resolved.length) {
+        buildWeekRequests(resolved.map(target => ({ ...target, sheetId: target.tab.sheetId })));
+        // Large phases can exceed a single Sheets batch. Each chunk is checked
+        // and written atomically; a retry skips the chunks already filled.
+        for (let index = 0; index < resolved.length; index += 8) {
+          await writeWeekColumns(token, settings.spreadsheetId, resolved.slice(index, index + 8));
+        }
+      }
+      const stamp = new Date().toISOString();
+      setLastPushAt(stamp); localStorage.setItem(LAST_PUSH_KEY, stamp);
+      return { written: missing.length, skipped: targets.length - missing.length };
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Faz haftaları gönderilemedi.');
+      invalidateRejectedToken(e);
+      return null;
+    } finally { setBusy('idle'); }
+  };
 
   const createTemplate = async (layout: PhaseSheetLayout): Promise<boolean> => {
     if (!isConfigured || busy !== 'idle') return false;
@@ -407,6 +452,7 @@ export function useGoogleSheets() {
     push,
     pushColumn,
     pushWeek,
+    pushMissingWeeks,
     createTemplate,
   };
 }
