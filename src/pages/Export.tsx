@@ -8,6 +8,7 @@ import { AppContext } from '@/context/AppContext';
 import { buildSheetTsv, buildMultiProgramTsv, buildSheetRows } from '@/utils/sheetExport';
 import { copyText } from '@/utils/clipboard';
 import { useGoogleSheets } from '@/hooks/useGoogleSheets';
+import { useAutoSheetSync } from '@/hooks/useAutoSheetSync';
 import { useColorSettings } from '@/hooks/useColorSettings';
 import { buildStatusMap } from '@/utils/sheetFormat';
 import { useLastSheetExport } from '@/hooks/useLastSheetExport';
@@ -47,6 +48,8 @@ export function Export() {
 
   // Google Sheets API state
   const sheets = useGoogleSheets();
+  const autoSheets = useAutoSheetSync(sheets.settings.clientId, sheets.settings.spreadsheetId,
+    import.meta.env.VITE_SHEETS_AUTO_SYNC_ENABLED === 'true');
   const [sheetAddressDraft, setSheetAddressDraft] = useState(sheets.settings.spreadsheetId);
   const [googleClientDraft, setGoogleClientDraft] = useState(sheets.settings.clientId);
   useEffect(() => setSheetAddressDraft(sheets.settings.spreadsheetId), [sheets.settings.spreadsheetId]);
@@ -520,6 +523,39 @@ export function Export() {
               </>
             )}
           </div>
+          {import.meta.env.VITE_SHEETS_AUTO_SYNC_ENABLED === 'true' && <div className="mt-5 pt-5 border-t lb-rule">
+            <h4 className="font-semibold text-sm mb-2">Otomatik Sheets senkronizasyonu</h4>
+            <p className="text-sm text-(--color-text-secondary) mb-3">
+              Kaydettiğin programlar ve antrenmanlar buluta ulaştıktan sonra bu dosyada faz başına ayrı bir
+              “Oto” sekmesine aktarılır. Uygulama kapalıyken bekleyen işler tekrar denenir. Bu sekmeler uygulama
+              tarafından yönetilir; içindeki el ile yapılan değişiklikler sonraki aktarımda yenilenir.
+            </p>
+            {!ctx?.cloud.userEmail && <p className="text-xs mb-2">Otomatik aktarım için önce bulut hesabına giriş yap.</p>}
+            {autoSheets.status.connection ? <>
+              <p className="text-xs mb-2">
+                {autoSheets.status.connection.status === 'active' ? 'Etkin' : 'Google izni yenilenmeli'}
+                {autoSheets.status.connection.last_synced_at
+                  ? ` · Son aktarım: ${new Date(autoSheets.status.connection.last_synced_at).toLocaleString('tr-TR')}` : ' · İlk aktarım bekleniyor'}
+                {autoSheets.status.queue ? ` · Kuyruk: ${autoSheets.status.queue.status}` : ''}
+              </p>
+              {(autoSheets.status.connection.last_error || autoSheets.status.queue?.last_error) &&
+                <p role="status" className="text-xs text-amber-300 mb-2">
+                  {autoSheets.status.queue?.last_error ?? autoSheets.status.connection.last_error}
+                </p>}
+              <div className="flex gap-2 flex-wrap">
+                {autoSheets.status.connection.status === 'reauthorize' &&
+                  <button disabled={autoSheets.busy} onClick={autoSheets.connect} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">Google iznini yenile</button>}
+                <button disabled={autoSheets.busy} onClick={() => void autoSheets.refresh()} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">Durumu yenile</button>
+                <button disabled={autoSheets.busy} onClick={() => void autoSheets.disconnect()} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">Otomatik aktarımı kapat</button>
+              </div>
+            </> :
+              <button disabled={!ctx?.cloud.userEmail || !sheets.isConfigured || autoSheets.busy}
+                onClick={autoSheets.connect}
+                className="lb-press px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg disabled:opacity-50">
+                {autoSheets.busy ? 'Bağlanıyor…' : 'Otomatik aktarımı aç'}
+              </button>}
+            {autoSheets.error && <p role="status" className="text-xs text-amber-300 mt-2">{autoSheets.error}</p>}
+          </div>}
         </div>
 
         {/* Export All */}

@@ -42,3 +42,4 @@ npm run dev
 ## Not
 - Supabase yoksa uygulama localStorage fallback ile calismaya devam eder.
 - Supabase bagliysa yerel kayit + bulut senkron birlikte calisir.
+- Google Sheets otomatik aktarimi icin ek sunucu kurulumu: `supabase/SHEETS_AUTO_SETUP.md`.

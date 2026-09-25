@@ -39,6 +39,13 @@ interface TokenClient {
 interface GoogleIdentityServices {
   accounts: {
     oauth2: {
+      initCodeClient: (config: {
+        client_id: string;
+        scope: string;
+        ux_mode: 'popup';
+        callback: (response: { code?: string; error?: string }) => void;
+        error_callback?: (error: { type?: string; message?: string }) => void;
+      }) => { requestCode: () => void };
       initTokenClient: (config: {
         client_id: string;
         scope: string;
