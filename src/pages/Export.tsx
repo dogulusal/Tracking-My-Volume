@@ -49,7 +49,7 @@ export function Export() {
   // Google Sheets API state
   const sheets = useGoogleSheets();
   const autoSheets = useAutoSheetSync(sheets.settings.clientId, sheets.settings.spreadsheetId,
-    import.meta.env.VITE_SHEETS_AUTO_SYNC_ENABLED === 'true');
+    import.meta.env.VITE_SHEETS_AUTO_SYNC_ENABLED !== 'false');
   const [sheetAddressDraft, setSheetAddressDraft] = useState(sheets.settings.spreadsheetId);
   const [googleClientDraft, setGoogleClientDraft] = useState(sheets.settings.clientId);
   useEffect(() => setSheetAddressDraft(sheets.settings.spreadsheetId), [sheets.settings.spreadsheetId]);
@@ -523,7 +523,7 @@ export function Export() {
               </>
             )}
           </div>
-          {import.meta.env.VITE_SHEETS_AUTO_SYNC_ENABLED === 'true' && <div className="mt-5 pt-5 border-t lb-rule">
+          {import.meta.env.VITE_SHEETS_AUTO_SYNC_ENABLED !== 'false' && <div className="mt-5 pt-5 border-t lb-rule">
             <h4 className="font-semibold text-sm mb-2">Otomatik Sheets senkronizasyonu</h4>
             <p className="text-sm text-(--color-text-secondary) mb-3">
               Kaydettiğin programlar ve antrenmanlar buluta ulaştıktan sonra bu dosyada faz başına ayrı bir

@@ -37,9 +37,9 @@ Sonra `supabase/sheets-auto-cron.sql` içindeki proje URL'si ve işçi anahtarı
 yer tutucularını değiştirip SQL Editor'de **bir kez** çalıştır. Cron her dakika
 bekleyen değişiklikleri işler; geçici Google/API hataları tekrar denenir.
 
-Sunucu kurulumu ve ilk deneme başarılı olduktan sonra ön yüz derlemesine
-`VITE_SHEETS_AUTO_SYNC_ENABLED=true` ekleyip yeniden yayınla. Bu bayrak,
-sunucu hazır değilken kullanıcıya çalışmayan bir düğme göstermemek içindir.
+Otomatik aktarım arayüzü varsayılan olarak açıktır. Sunucu geçici olarak
+kullanılamıyorsa ön yüz derlemesine `VITE_SHEETS_AUTO_SYNC_ENABLED=false`
+ekleyerek düğmeyi gizleyebilirsin.
 
 ## 3. Doğrulama
 
