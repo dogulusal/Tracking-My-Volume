@@ -12,6 +12,7 @@ import { useAutoSheetSync } from '@/hooks/useAutoSheetSync';
 import { useColorSettings } from '@/hooks/useColorSettings';
 import { buildStatusMap } from '@/utils/sheetFormat';
 import { useLastSheetExport } from '@/hooks/useLastSheetExport';
+import { programsForPhase } from '@/utils/programVersions';
 
 const ALL_PROGRAMS = 'all';
 
@@ -57,6 +58,30 @@ export function Export() {
   const { lastExport, recordExport } = useLastSheetExport();
   const [showSheetSettings, setShowSheetSettings] = useState(false);
   const [sheetConfirm, setSheetConfirm] = useState<SheetConfirm | null>(null);
+  const [showSyncChoices, setShowSyncChoices] = useState(false);
+  const [syncPhaseId, setSyncPhaseId] = useState('');
+  const [syncProgramId, setSyncProgramId] = useState('all');
+  const [syncWeekMode, setSyncWeekMode] = useState<'latest' | 'one' | 'all'>('latest');
+  const [syncWeekNumber, setSyncWeekNumber] = useState(currentWeek);
+  const syncPhase = phases?.find(phase => phase.id === syncPhaseId);
+  const syncPrograms = ctx?.state && syncPhase ? programsForPhase(ctx.state, syncPhase.id) : [];
+  const latestLoggedWeek = (phase: NonNullable<typeof phases>[number]) => Math.max(phase.startWeek,
+    ...weekLogs.filter(log => log.weekNumber >= phase.startWeek && log.weekNumber <= (phase.endWeek ?? currentWeek)).map(log => log.weekNumber));
+  const openSyncChoices = () => {
+    const selected = autoSheets.status.connection?.selection;
+    const current = phases?.find(phase => currentWeek >= phase.startWeek && (phase.endWeek == null || currentWeek <= phase.endWeek));
+    setSyncPhaseId(selected?.phaseId ?? current?.id ?? phases?.[0]?.id ?? '');
+    setSyncProgramId(selected?.programId ?? 'all');
+    setSyncWeekMode(selected?.weekMode ?? 'latest');
+    setSyncWeekNumber(selected?.weekNumber ?? (current ? latestLoggedWeek(current) : currentWeek));
+    setShowSyncChoices(true);
+  };
+  const saveSyncChoices = async () => {
+    if (await autoSheets.configure({ phaseId: syncPhaseId, programId: syncProgramId === 'all' ? null : syncProgramId,
+      weekMode: syncWeekMode, weekNumber: syncWeekMode === 'latest' && syncPhase ? latestLoggedWeek(syncPhase) : syncWeekNumber })) {
+      setShowSyncChoices(false);
+    }
+  };
 
   const [fromWeek, setFromWeek] = useState(0);
   const [toWeek, setToWeek] = useState(currentWeek);
@@ -526,9 +551,8 @@ export function Export() {
           {import.meta.env.VITE_SHEETS_AUTO_SYNC_ENABLED !== 'false' && <div className="mt-5 pt-5 border-t lb-rule">
             <h4 className="font-semibold text-sm mb-2">Otomatik Sheets senkronizasyonu</h4>
             <p className="text-sm text-(--color-text-secondary) mb-3">
-              Kaydettiğin programlar ve antrenmanlar buluta ulaştıktan sonra bu dosyada faz başına ayrı bir
-              “Oto” sekmesine aktarılır. Uygulama kapalıyken bekleyen işler tekrar denenir. Bu sekmeler uygulama
-              tarafından yönetilir; içindeki el ile yapılan değişiklikler sonraki aktarımda yenilenir.
+              Varsayılan aktarım yalnızca etkin fazın son haftasından başlar. Geçmiş fazları, antrenmanları ve haftaları
+              istersen aşağıdan seçebilirsin. Seçtiğin “Oto” sekmesi otomatik güncellenir; elle yapılan değişiklikler yenilenir.
             </p>
             {!ctx?.cloud.userEmail && <p className="text-xs mb-2">Otomatik aktarım için önce bulut hesabına giriş yap.</p>}
             {autoSheets.status.connection ? <>
@@ -544,6 +568,9 @@ export function Export() {
                   {autoSheets.status.queue?.last_error ?? autoSheets.status.connection.last_error}
                 </p>}
               <div className="flex gap-2 flex-wrap">
+                <button disabled={autoSheets.busy} onClick={openSyncChoices} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">
+                  Aktarımı seç
+                </button>
                 {(autoSheets.status.connection.status === 'reauthorize'
                   || autoSheets.status.connection.spreadsheet_id !== sheets.settings.spreadsheetId) &&
                   <button disabled={autoSheets.busy} onClick={autoSheets.connect} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">
@@ -552,6 +579,39 @@ export function Export() {
                 <button disabled={autoSheets.busy} onClick={() => void autoSheets.refresh()} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">Durumu yenile</button>
                 <button disabled={autoSheets.busy} onClick={() => void autoSheets.disconnect()} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">Otomatik aktarımı kapat</button>
               </div>
+              {showSyncChoices && <div className="mt-3 p-3 rounded-lg border lb-rule space-y-3">
+                <label className="block text-sm">Faz
+                  <select aria-label="Aktarılacak faz" value={syncPhaseId} onChange={e => {
+                    const phase = phases?.find(item => item.id === e.target.value);
+                    setSyncPhaseId(e.target.value); setSyncProgramId('all'); setSyncWeekNumber(phase ? latestLoggedWeek(phase) : currentWeek);
+                  }} className="mt-1 block w-full bg-(--color-bg-input) border lb-rule rounded-lg px-3 py-2">
+                    {phases?.map(phase => <option key={phase.id} value={phase.id}>{phase.name}</option>)}
+                  </select>
+                </label>
+                <label className="block text-sm">Antrenman
+                  <select aria-label="Aktarılacak antrenman" value={syncProgramId} onChange={e => setSyncProgramId(e.target.value)} className="mt-1 block w-full bg-(--color-bg-input) border lb-rule rounded-lg px-3 py-2">
+                    <option value="all">Tüm antrenmanlar</option>
+                    {syncPrograms.map(program => <option key={program.id} value={program.id}>{program.name}</option>)}
+                  </select>
+                </label>
+                <label className="block text-sm">Haftalar
+                  <select aria-label="Aktarılacak haftalar" value={syncWeekMode} onChange={e => setSyncWeekMode(e.target.value as 'latest' | 'one' | 'all')} className="mt-1 block w-full bg-(--color-bg-input) border lb-rule rounded-lg px-3 py-2">
+                    <option value="latest">Son haftadan başlayarak</option>
+                    <option value="one">Seçtiğim bir hafta</option>
+                    <option value="all">Tüm haftalar</option>
+                  </select>
+                </label>
+                {syncWeekMode === 'one' && syncPhase && <label className="block text-sm">Hafta
+                  <select aria-label="Seçilen hafta" value={syncWeekNumber} onChange={e => setSyncWeekNumber(Number(e.target.value))} className="mt-1 block w-full bg-(--color-bg-input) border lb-rule rounded-lg px-3 py-2">
+                    {Array.from({ length: Math.max(1, (syncPhase.endWeek ?? currentWeek) - syncPhase.startWeek + 1) }, (_, index) => syncPhase.startWeek + index)
+                      .map(week => <option key={week} value={week}>H{week - syncPhase.startWeek} (genel hafta {week})</option>)}
+                  </select>
+                </label>}
+                <div className="flex gap-2">
+                  <button disabled={autoSheets.busy} onClick={() => void saveSyncChoices()} className="lb-press px-4 py-2 bg-(--color-text-primary) text-(--color-bg-primary) rounded-lg text-sm">Seçimi aktar</button>
+                  <button onClick={() => setShowSyncChoices(false)} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">Vazgeç</button>
+                </div>
+              </div>}
             </> :
               <button disabled={!ctx?.cloud.userEmail || !sheets.isConfigured || autoSheets.busy}
                 onClick={autoSheets.connect}

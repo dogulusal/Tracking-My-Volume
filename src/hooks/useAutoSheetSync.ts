@@ -3,7 +3,8 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { loadGis, SHEETS_SCOPE } from '@/lib/googleSheets';
 
 interface AutoStatus {
-  connection: { spreadsheet_id: string; status: 'active' | 'reauthorize'; last_error: string | null; last_synced_at: string | null } | null;
+  connection: { spreadsheet_id: string; status: 'active' | 'reauthorize'; last_error: string | null; last_synced_at: string | null;
+    selection: { phaseId: string; programId: string | null; weekMode: 'latest' | 'one' | 'all'; weekNumber: number } | null } | null;
   queue: { status: 'pending' | 'processing' | 'error'; last_error: string | null } | null;
 }
 
@@ -79,5 +80,12 @@ export function useAutoSheetSync(clientId: string, spreadsheetId: string, enable
     finally { setBusy(false); }
   };
 
-  return { status, busy, error, connect, disconnect, refresh };
+  const configure = async (selection: { phaseId: string; programId: string | null; weekMode: 'latest' | 'one' | 'all'; weekNumber: number }) => {
+    setBusy(true); setError(null);
+    try { await call('configure', selection); await refresh(); return true; }
+    catch (e) { setError(e instanceof Error ? e.message : 'Aktarım seçimi kaydedilemedi.'); return false; }
+    finally { setBusy(false); }
+  };
+
+  return { status, busy, error, connect, disconnect, configure, refresh };
 }

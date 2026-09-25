@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { projectSheets } from '../_shared/sheetProjection.mjs';
+import { buildAutoSheetStyleRequests } from '../_shared/sheetStyle.mjs';
 
 const url = Deno.env.get('SUPABASE_URL')!;
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -80,10 +81,23 @@ async function syncUser(userId: string) {
   if (connectionError || stateError || !connection || !stateRow) throw new Error('Bağlantı veya bulut verisi bulunamadı.');
   const token = await accessToken(connection.refresh_token_ciphertext);
   const spreadsheetId = connection.spreadsheet_id as string;
-  const metadata = await googleRequest(token, `${encodeURIComponent(spreadsheetId)}?fields=sheets(properties(sheetId,title,gridProperties))`);
-  const existing = metadata.sheets?.map((sheet: { properties: Record<string, unknown> }) => sheet.properties) ?? [];
+  const metadata = await googleRequest(token, `${encodeURIComponent(spreadsheetId)}?fields=sheets(properties(sheetId,title,gridProperties),merges)`);
+  const existing = metadata.sheets?.map((sheet: { properties: Record<string, unknown>; merges?: unknown[] }) =>
+    ({ ...sheet.properties, merges: sheet.merges ?? [] })) ?? [];
   const managedTabs: Record<string, number> = { ...(connection.managed_tabs ?? {}) };
-  const projected = projectSheets(stateRow.data);
+  const state = stateRow.data;
+  const currentPhase = [...(state.phases ?? [])].reverse().find((phase: { startWeek: number; endWeek: number | null }) =>
+    state.currentWeek >= phase.startWeek && (phase.endWeek == null || state.currentWeek <= phase.endWeek));
+  if (!currentPhase) throw new Error('Etkin faz bulunamadı.');
+  const latestLoggedWeek = Math.max(currentPhase.startWeek, ...(state.weekLogs ?? [])
+    .filter((log: { weekNumber: number }) => log.weekNumber >= currentPhase.startWeek && log.weekNumber <= state.currentWeek)
+    .map((log: { weekNumber: number }) => log.weekNumber));
+  const selection = connection.selection ?? { phaseId: currentPhase.id, programId: null, weekMode: 'latest', weekNumber: latestLoggedWeek };
+  if (!connection.selection) {
+    const { error } = await admin.from('sheet_auto_connections').update({ selection }).eq('user_id', userId);
+    if (error) throw error;
+  }
+  const projected = projectSheets(state, selection);
   for (const sheet of projected) {
     let sheetId = managedTabs[sheet.phaseId];
     let tab = existing.find((item: { sheetId: number }) => item.sheetId === sheetId);
@@ -97,7 +111,7 @@ async function syncUser(userId: string) {
       });
       sheetId = created.replies[0].addSheet.properties.sheetId;
       managedTabs[sheet.phaseId] = sheetId;
-      tab = { sheetId, title, gridProperties: { rowCount: sheet.rowCount, columnCount: sheet.columnCount } };
+      tab = { sheetId, title, gridProperties: { rowCount: sheet.rowCount, columnCount: sheet.columnCount }, merges: [] };
       existing.push(tab);
       // Persist ownership before writing, so a retry reuses the same tab.
       const { error } = await admin.from('sheet_auto_connections').update({ managed_tabs: managedTabs }).eq('user_id', userId);
@@ -106,15 +120,26 @@ async function syncUser(userId: string) {
     const rowCount = Math.max(sheet.rowCount, tab.gridProperties?.rowCount ?? 0);
     const columnCount = Math.max(sheet.columnCount, tab.gridProperties?.columnCount ?? 0);
     const requests: unknown[] = [];
+    const desiredMerges = sheet.blocks.map((block: { titleRow: number }) =>
+      ({ startRowIndex: block.titleRow, endRowIndex: block.titleRow + 1, startColumnIndex: 2, endColumnIndex: 8 }));
+    for (const merge of tab.merges ?? []) {
+      if (desiredMerges.some((wanted: Record<string, number>) =>
+        wanted.startRowIndex === merge.startRowIndex && wanted.endRowIndex === merge.endRowIndex
+        && wanted.startColumnIndex === merge.startColumnIndex && wanted.endColumnIndex === merge.endColumnIndex)) continue;
+      requests.push({ unmergeCells: { range: merge } });
+    }
     if (rowCount > (tab.gridProperties?.rowCount ?? 0) || columnCount > (tab.gridProperties?.columnCount ?? 0)) {
       requests.push({ updateSheetProperties: { properties: { sheetId, gridProperties: { rowCount, columnCount } },
         fields: 'gridProperties.rowCount,gridProperties.columnCount' } });
     }
     requests.push({ repeatCell: { range: { sheetId, startRowIndex: 0, endRowIndex: rowCount,
       startColumnIndex: 0, endColumnIndex: columnCount }, cell: {}, fields: 'userEnteredValue' } });
+    requests.push({ repeatCell: { range: { sheetId, startRowIndex: 0, endRowIndex: rowCount,
+      startColumnIndex: 0, endColumnIndex: columnCount }, cell: {}, fields: 'userEnteredFormat' } });
     requests.push({ updateCells: { start: { sheetId, rowIndex: 0, columnIndex: 0 },
       rows: sheet.rows.map((row: string[]) => ({ values: row.map(value => ({ userEnteredValue: { stringValue: value } })) })),
       fields: 'userEnteredValue' } });
+    requests.push(...buildAutoSheetStyleRequests(sheetId, sheet, tab.merges));
     await googleRequest(token, `${encodeURIComponent(spreadsheetId)}:batchUpdate`, {
       method: 'POST', body: JSON.stringify({ requests }),
     });
@@ -180,7 +205,7 @@ Deno.serve(async request => {
     if (authError || !user) return response({ error: 'Giriş geçersiz.' }, 401, origin);
     if (body.action === 'status') {
       const [{ data: connection }, { data: queue }] = await Promise.all([
-        admin.from('sheet_auto_connections').select('spreadsheet_id,status,last_error,last_synced_at').eq('user_id', user.id).maybeSingle(),
+        admin.from('sheet_auto_connections').select('spreadsheet_id,status,last_error,last_synced_at,selection').eq('user_id', user.id).maybeSingle(),
         admin.from('sheet_auto_queue').select('status,last_error,updated_at').eq('user_id', user.id).maybeSingle(),
       ]);
       return response({ connection, queue }, 200, origin);
@@ -200,6 +225,32 @@ Deno.serve(async request => {
       if (error) throw error;
       return response({ ok: true }, 200, origin);
     }
+    if (body.action === 'configure') {
+      const { data: stateRow, error: stateError } = await admin.from('user_states').select('data').eq('user_id', user.id).single();
+      const { data: connection } = await admin.from('sheet_auto_connections').select('user_id').eq('user_id', user.id).maybeSingle();
+      if (stateError || !stateRow || !connection) return response({ error: 'Önce otomatik Google bağlantısını kur.' }, 400, origin);
+      const state = stateRow.data;
+      const phase = (state.phases ?? []).find((item: { id: string }) => item.id === body.phaseId);
+      const programId = body.programId === null ? null : String(body.programId ?? '');
+      const weekMode = String(body.weekMode ?? '');
+      const weekNumber = Number(body.weekNumber);
+      if (!phase || !['latest', 'one', 'all'].includes(weekMode)
+        || (programId && !(state.programVersions ?? []).some((version: { phaseId: string; programs: { id: string }[] }) =>
+          version.phaseId === phase.id && version.programs.some(program => program.id === programId))
+          && !(state.weekLogs ?? []).some((log: { programId: string; weekNumber: number }) =>
+            log.programId === programId && log.weekNumber >= phase.startWeek && log.weekNumber <= (phase.endWeek ?? state.currentWeek)))
+        || (weekMode !== 'all' && (!Number.isInteger(weekNumber) || weekNumber < phase.startWeek
+          || weekNumber > (phase.endWeek ?? state.currentWeek)))) {
+        return response({ error: 'Faz, antrenman veya hafta seçimi geçersiz.' }, 400, origin);
+      }
+      const selection = { phaseId: phase.id, programId, weekMode,
+        weekNumber: weekMode === 'all' ? phase.startWeek : weekNumber };
+      const { error } = await admin.from('sheet_auto_connections').update({ selection, updated_at: new Date().toISOString() }).eq('user_id', user.id);
+      if (error) throw error;
+      const queued = await admin.rpc('request_sheet_auto_sync', { target_user_id: user.id });
+      if (queued.error) throw queued.error;
+      return response({ ok: true }, 200, origin);
+    }
     if (body.action === 'connect') {
       if (!allowedOrigins.includes(origin) || request.headers.get('x-requested-with') !== 'XmlHttpRequest') {
         return response({ error: 'Bağlantı isteği doğrulanamadı.' }, 403, origin);
@@ -212,10 +263,20 @@ Deno.serve(async request => {
       const tokens = await exchangeCode(body.code, origin);
       await googleRequest(tokens.access_token, `${encodeURIComponent(spreadsheetId)}?fields=spreadsheetId`);
       const { data: previous } = await admin.from('sheet_auto_connections')
-        .select('spreadsheet_id,managed_tabs').eq('user_id', user.id).maybeSingle();
+        .select('spreadsheet_id,managed_tabs,selection').eq('user_id', user.id).maybeSingle();
+      const { data: stateRow } = await admin.from('user_states').select('data').eq('user_id', user.id).maybeSingle();
+      const state = stateRow?.data;
+      const currentPhase = [...(state?.phases ?? [])].reverse().find((phase: { startWeek: number; endWeek: number | null }) =>
+        state.currentWeek >= phase.startWeek && (phase.endWeek == null || state.currentWeek <= phase.endWeek));
+      if (!currentPhase) throw new Error('Etkin faz bulunamadı.');
+      const latestLoggedWeek = Math.max(currentPhase.startWeek, ...(state.weekLogs ?? [])
+        .filter((log: { weekNumber: number }) => log.weekNumber >= currentPhase.startWeek && log.weekNumber <= state.currentWeek)
+        .map((log: { weekNumber: number }) => log.weekNumber));
+      const selection = previous?.selection ?? { phaseId: currentPhase.id, programId: null, weekMode: 'latest', weekNumber: latestLoggedWeek };
       const { error } = await admin.from('sheet_auto_connections').upsert({ user_id: user.id,
         spreadsheet_id: spreadsheetId, refresh_token_ciphertext: await encrypt(tokens.refresh_token),
         managed_tabs: previous?.spreadsheet_id === spreadsheetId ? previous.managed_tabs : {},
+        selection,
         status: 'active', last_error: null, updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
       if (error) throw error;

@@ -16,11 +16,13 @@ const setText = sets => {
   }).join('');
 };
 
-export function projectSheets(state) {
+export function projectSheets(state, selection = null) {
   const phases = [...(state.phases ?? [])].sort((a, b) => a.startWeek - b.startWeek);
-  return phases.map(phase => {
+  return phases.filter(phase => !selection || phase.id === selection.phaseId).map(phase => {
     const end = phase.endWeek ?? Math.max(state.currentWeek ?? phase.startWeek, ...((state.weekLogs ?? []).map(log => log.weekNumber)));
-    const logs = (state.weekLogs ?? []).filter(log => log.weekNumber >= phase.startWeek && log.weekNumber <= end);
+    const selectedStart = selection?.weekMode === 'all' || !selection ? phase.startWeek : Math.max(phase.startWeek, selection?.weekNumber ?? end);
+    const selectedEnd = selection?.weekMode === 'one' ? selectedStart : end;
+    const logs = (state.weekLogs ?? []).filter(log => log.weekNumber >= selectedStart && log.weekNumber <= selectedEnd);
     const versions = (state.programVersions ?? []).filter(v => v.phaseId === phase.id)
       .sort((a, b) => a.fromWeek - b.fromWeek);
     const programs = new Map();
@@ -53,8 +55,10 @@ export function projectSheets(state) {
     const weekCount = Math.max(1, end - phase.startWeek + 1);
     const width = weekCount + 2;
     const rows = [];
-    for (const program of [...programs.values()].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))) {
-      rows.push([program.name]);
+    const blocks = [];
+    for (const program of [...programs.values()].filter(program => !selection?.programId || program.id === selection.programId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))) {
+      const titleRow = rows.length;
+      rows.push([program.name, '', 'Yeşil: ilerleme  ·  Gri: aynı  ·  Kırmızı: düşüş']);
       rows.push(['Egzersiz', 'Set', ...Array.from({ length: weekCount }, (_, i) => `H${i}`)]);
       for (const exercise of program.exercises ?? []) {
         const values = [exercise.name, String(exercise.defaultSets ?? '')];
@@ -67,9 +71,10 @@ export function projectSheets(state) {
       }
       rows.push(['HAFTALIK NOTLAR', '', ...Array.from({ length: weekCount }, (_, i) =>
         logs.find(item => item.programId === program.id && item.weekNumber === phase.startWeek + i)?.notes ?? '')]);
-      rows.push([]);
+      blocks.push({ titleRow, headerRow: titleRow + 1, notesRow: rows.length - 1 });
+      rows.push([], []);
     }
-    return { phaseId: phase.id, title: cleanTitle(phase.name, phase.startWeek), rows,
-      rowCount: Math.max(100, rows.length + 1), columnCount: Math.max(26, width) };
+    return { phaseId: phase.id, title: cleanTitle(phase.name, phase.startWeek), rows, blocks,
+      rowCount: Math.max(100, rows.length + 1), columnCount: Math.max(28, width) };
   }).filter(sheet => sheet.rows.length > 0);
 }
