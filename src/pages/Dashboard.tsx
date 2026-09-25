@@ -239,6 +239,11 @@ export function Dashboard() {
             </li>
           ))}
         </ul>
+        <p className="mt-8 text-xs text-(--color-text-secondary)">
+          <a href={`${import.meta.env.BASE_URL}privacy.html`} className="underline hover:text-(--color-text-primary)">
+            Gizlilik Politikası
+          </a>
+        </p>
       </div>
     </PageContainer>
   );
