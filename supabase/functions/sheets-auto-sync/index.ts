@@ -92,8 +92,11 @@ async function syncUser(userId: string) {
   const latestLoggedWeek = Math.max(currentPhase.startWeek, ...(state.weekLogs ?? [])
     .filter((log: { weekNumber: number }) => log.weekNumber >= currentPhase.startWeek && log.weekNumber <= state.currentWeek)
     .map((log: { weekNumber: number }) => log.weekNumber));
-  const selection = connection.selection ?? { phaseId: currentPhase.id, programId: null, weekMode: 'latest', weekNumber: latestLoggedWeek };
-  if (!connection.selection) {
+  const previousSelection = connection.selection;
+  const selection = !previousSelection || (previousSelection.followCurrentPhase && previousSelection.phaseId !== currentPhase.id)
+    ? { phaseId: currentPhase.id, programId: null, weekMode: 'latest', weekNumber: latestLoggedWeek, followCurrentPhase: true }
+    : previousSelection;
+  if (selection !== previousSelection) {
     const { error } = await admin.from('sheet_auto_connections').update({ selection }).eq('user_id', userId);
     if (error) throw error;
   }
@@ -243,8 +246,11 @@ Deno.serve(async request => {
           || weekNumber > (phase.endWeek ?? state.currentWeek)))) {
         return response({ error: 'Faz, antrenman veya hafta seçimi geçersiz.' }, 400, origin);
       }
+      const currentPhase = (state.phases ?? []).find((item: { startWeek: number; endWeek: number | null }) =>
+        state.currentWeek >= item.startWeek && (item.endWeek == null || state.currentWeek <= item.endWeek));
       const selection = { phaseId: phase.id, programId, weekMode,
-        weekNumber: weekMode === 'all' ? phase.startWeek : weekNumber };
+        weekNumber: weekMode === 'all' ? phase.startWeek : weekNumber,
+        followCurrentPhase: phase.id === currentPhase?.id && weekMode === 'latest' && !programId };
       const { error } = await admin.from('sheet_auto_connections').update({ selection, updated_at: new Date().toISOString() }).eq('user_id', user.id);
       if (error) throw error;
       const queued = await admin.rpc('request_sheet_auto_sync', { target_user_id: user.id });
@@ -272,7 +278,8 @@ Deno.serve(async request => {
       const latestLoggedWeek = Math.max(currentPhase.startWeek, ...(state.weekLogs ?? [])
         .filter((log: { weekNumber: number }) => log.weekNumber >= currentPhase.startWeek && log.weekNumber <= state.currentWeek)
         .map((log: { weekNumber: number }) => log.weekNumber));
-      const selection = previous?.selection ?? { phaseId: currentPhase.id, programId: null, weekMode: 'latest', weekNumber: latestLoggedWeek };
+      const selection = previous?.selection ?? { phaseId: currentPhase.id, programId: null,
+        weekMode: 'latest', weekNumber: latestLoggedWeek, followCurrentPhase: true };
       const { error } = await admin.from('sheet_auto_connections').upsert({ user_id: user.id,
         spreadsheet_id: spreadsheetId, refresh_token_ciphertext: await encrypt(tokens.refresh_token),
         managed_tabs: previous?.spreadsheet_id === spreadsheetId ? previous.managed_tabs : {},
