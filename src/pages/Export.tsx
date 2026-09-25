@@ -534,6 +534,7 @@ export function Export() {
             {autoSheets.status.connection ? <>
               <p className="text-xs mb-2">
                 {autoSheets.status.connection.status === 'active' ? 'Etkin' : 'Google izni yenilenmeli'}
+                {` · Dosya: ${autoSheets.status.connection.spreadsheet_id}`}
                 {autoSheets.status.connection.last_synced_at
                   ? ` · Son aktarım: ${new Date(autoSheets.status.connection.last_synced_at).toLocaleString('tr-TR')}` : ' · İlk aktarım bekleniyor'}
                 {autoSheets.status.queue ? ` · Kuyruk: ${autoSheets.status.queue.status}` : ''}
@@ -543,8 +544,11 @@ export function Export() {
                   {autoSheets.status.queue?.last_error ?? autoSheets.status.connection.last_error}
                 </p>}
               <div className="flex gap-2 flex-wrap">
-                {autoSheets.status.connection.status === 'reauthorize' &&
-                  <button disabled={autoSheets.busy} onClick={autoSheets.connect} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">Google iznini yenile</button>}
+                {(autoSheets.status.connection.status === 'reauthorize'
+                  || autoSheets.status.connection.spreadsheet_id !== sheets.settings.spreadsheetId) &&
+                  <button disabled={autoSheets.busy} onClick={autoSheets.connect} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">
+                    {autoSheets.status.connection.status === 'reauthorize' ? 'Google iznini yenile' : 'Yeni dosyaya bağlan'}
+                  </button>}
                 <button disabled={autoSheets.busy} onClick={() => void autoSheets.refresh()} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">Durumu yenile</button>
                 <button disabled={autoSheets.busy} onClick={() => void autoSheets.disconnect()} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">Otomatik aktarımı kapat</button>
               </div>

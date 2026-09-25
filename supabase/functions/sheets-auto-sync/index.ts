@@ -83,7 +83,8 @@ async function syncUser(userId: string) {
   const metadata = await googleRequest(token, `${encodeURIComponent(spreadsheetId)}?fields=sheets(properties(sheetId,title,gridProperties))`);
   const existing = metadata.sheets?.map((sheet: { properties: Record<string, unknown> }) => sheet.properties) ?? [];
   const managedTabs: Record<string, number> = { ...(connection.managed_tabs ?? {}) };
-  for (const sheet of projectSheets(stateRow.data)) {
+  const projected = projectSheets(stateRow.data);
+  for (const sheet of projected) {
     let sheetId = managedTabs[sheet.phaseId];
     let tab = existing.find((item: { sheetId: number }) => item.sheetId === sheetId);
     if (!tab) {
@@ -117,6 +118,16 @@ async function syncUser(userId: string) {
     await googleRequest(token, `${encodeURIComponent(spreadsheetId)}:batchUpdate`, {
       method: 'POST', body: JSON.stringify({ requests }),
     });
+  }
+  const activePhaseIds = new Set(projected.map((sheet: { phaseId: string }) => sheet.phaseId));
+  for (const [phaseId, sheetId] of Object.entries(managedTabs)) {
+    if (activePhaseIds.has(phaseId)) continue;
+    if (existing.some((item: { sheetId: number }) => item.sheetId === sheetId)) {
+      await googleRequest(token, `${encodeURIComponent(spreadsheetId)}:batchUpdate`, {
+        method: 'POST', body: JSON.stringify({ requests: [{ deleteSheet: { sheetId } }] }),
+      });
+    }
+    delete managedTabs[phaseId];
   }
   const { error } = await admin.from('sheet_auto_connections').update({
     managed_tabs: managedTabs, last_synced_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString(),
