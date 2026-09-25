@@ -18,7 +18,7 @@ function response(body: unknown, status = 200, origin = '') {
   return new Response(JSON.stringify(body), { status, headers: {
     'content-type': 'application/json',
     'access-control-allow-origin': allowedOrigins.includes(origin) ? origin : 'null',
-    'access-control-allow-headers': 'authorization, apikey, content-type, x-requested-with',
+    'access-control-allow-headers': 'authorization, apikey, content-type, x-client-info, x-requested-with',
     'access-control-allow-methods': 'POST, OPTIONS',
     'vary': 'Origin',
   } });
