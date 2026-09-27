@@ -37,7 +37,7 @@ function AppContent() {
     </div>;
   }
 
-  return (
+  const app = (
     <div
       data-mobile-ui={isMobileDevice ? 'true' : 'false'}
       className={`logbook min-h-screen bg-(--color-bg-primary) text-(--color-text-primary) ${
@@ -58,9 +58,9 @@ function AppContent() {
         </Routes>
       </main>
       <BottomNav />
-      {configured && <SheetSetupModal />}
     </div>
   );
+  return configured ? <SheetSetupModal>{app}</SheetSetupModal> : app;
 }
 
 export default function App() {

@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useAutoSheetSync } from '@/hooks/useAutoSheetSync';
 import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { useCloudSync } from '@/hooks/useCloudSync';
 
 /** One-time Google consent; subsequent writes are handled by the server queue. */
-export function SheetSetupModal() {
+export function SheetSetupModal({ children }: { children: ReactNode }) {
   const { signOut, userEmail } = useCloudSync();
   const sheets = useGoogleSheets();
   const auto = useAutoSheetSync(sheets.settings.clientId, sheets.settings.spreadsheetId,
@@ -17,15 +17,15 @@ export function SheetSetupModal() {
     }
   }, [connection?.spreadsheet_id, sheets.settings.spreadsheetId]);
 
-  if (!auto.ready) return <div className="fixed inset-0 z-[130] flex items-center justify-center bg-(--color-bg-primary) text-sm text-(--color-text-primary)">
+  if (!auto.ready) return <div className="logbook flex min-h-screen items-center justify-center bg-(--color-bg-primary) text-sm text-(--color-text-primary)">
     Sheet bağlantısı kontrol ediliyor…
   </div>;
-  if (connection?.status === 'active') return null;
+  if (connection?.status === 'active') return <>{children}</>;
 
   const needsRenewal = connection?.status === 'reauthorize';
   const existingId = connection?.spreadsheet_id ?? sheets.settings.spreadsheetId;
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 p-4">
+    <div className="logbook flex min-h-screen items-center justify-center bg-(--color-bg-primary) p-4 text-(--color-text-primary)">
       <div role="dialog" aria-modal="true" aria-labelledby="sheet-setup-title"
         className="w-full max-w-md rounded-lg border lb-rule bg-(--color-bg-card) p-6 shadow-2xl">
         <h2 id="sheet-setup-title" className="mb-3 text-lg font-bold">
