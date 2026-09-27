@@ -116,6 +116,28 @@ test('editing an earlier Phase 3 week also updates the current dashboard program
   assert.deepEqual(programVersionAt(changed, 35).programs[0].exercises.map(ex => ex.id), ['old']);
 });
 
+test('the earlier-week edit reaches the dashboard program in whichever phase is current, not only the third', () => {
+  const exercise = id => ({ id, name: id, defaultSets: 1, defaultWeight: 20, defaultReps: 10, isActive: true });
+  const old = { ...program, id: 'upper1', exercises: [exercise('old')] };
+  const revised = { ...old, exercises: [exercise('new')] };
+  const plan = { id: 'plan', name: 'Plan', programIds: ['upper1'], createdAt: '', updatedAt: '' };
+  const phases = [{ id: 'p1', name: 'Faz 1', startWeek: 0, endWeek: 14 },
+    { id: 'p2', name: 'Faz 2', startWeek: 15, endWeek: 35 },
+    { id: 'p3', name: 'Faz 3', startWeek: 36, endWeek: 39 },
+    { id: 'p4', name: 'Faz 4', startWeek: 40, endWeek: null }];
+  const version = (phaseId, fromWeek) => ({ phaseId, fromWeek, programs: [old], plans: [plan], activePlanId: 'plan' });
+  // Faz 4 has a later version at H1, so without propagation week 42 keeps 'old'.
+  const state = { ...initialState, currentWeek: 42, phases, programs: [old], plans: [plan], activePlanId: 'plan',
+    programVersions: [...phases.map(p => version(p.id, 0)), version('p4', 1)] };
+  const changed = appReducer(state, { type: 'UPDATE_PROGRAM', atWeek: 40, payload: revised });
+  assert.deepEqual(programVersionAt(changed, 42).programs[0].exercises.map(ex => ex.id), ['new']);
+  assert.deepEqual(changed.programs[0].exercises.map(ex => ex.id), ['new']);
+  assert.deepEqual(programVersionAt(changed, 39).programs[0].exercises.map(ex => ex.id), ['old']);
+  // An edit in a finished phase stays in that phase.
+  const past = appReducer(state, { type: 'UPDATE_PROGRAM', atWeek: 36, payload: revised });
+  assert.deepEqual(programVersionAt(past, 42).programs[0].exercises.map(ex => ex.id), ['old']);
+});
+
 test('sheet export keeps a new exercise row alongside already logged weeks', () => {
   const edited = { ...program, exercises: [{ id: 'new', name: 'New movement', defaultSets: 2, defaultWeight: 0, defaultReps: 0, isActive: true }] };
   const logs = [{ id: 'log', programId: program.id, weekNumber: 1, date: '', notes: '', isHoliday: false, updatedAt: '', exercises: [

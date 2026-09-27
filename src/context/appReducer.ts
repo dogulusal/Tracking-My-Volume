@@ -33,10 +33,10 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     const scope = programVersionAt(state, week);
     const edited = reduceData({ ...state, programs: scope.programs, plans: scope.plans, activePlanId: scope.activePlanId }, action);
     let saved = saveProgramVersion(state, week, edited);
-    // A Phase 3 edit made while browsing an earlier week is still the main
-    // program shown on the dashboard at the current week.
+    // An edit made while browsing an earlier week of the current phase is
+    // still the main program shown on the dashboard at the current week.
     const editedPhase = state.phases.find(p => week >= p.startWeek && (p.endWeek === null || week <= p.endWeek));
-    if (action.type === 'UPDATE_PROGRAM' && editedPhase === state.phases[2]
+    if (action.type === 'UPDATE_PROGRAM' && editedPhase
       && state.currentWeek > week && state.currentWeek >= editedPhase.startWeek
       && (editedPhase.endWeek === null || state.currentWeek <= editedPhase.endWeek)) {
       const main = programVersionAt(saved, state.currentWeek);
