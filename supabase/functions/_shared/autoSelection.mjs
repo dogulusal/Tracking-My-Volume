@@ -19,6 +19,15 @@ export function resolveAutoSelection(previous, currentPhase, latestLoggedWeek, m
 }
 
 /**
+ * Whether a scope saved on the Export screen moves on with the next phase.
+ * "All weeks" of the current phase follows too: it is the whole phase from H0,
+ * and without this the tab stayed on the old phase after a new one started.
+ */
+export function followsCurrentPhase(phaseId, currentPhaseId, weekMode, programId) {
+  return phaseId === currentPhaseId && weekMode !== 'one' && !programId;
+}
+
+/**
  * Managed tabs outside the current selection are deleted: the user changed
  * the scope and the Export screen says the new selection replaces them.
  */

@@ -23,6 +23,19 @@ test('a scope the user chose is kept, and changing it still replaces the old aut
   assert.deepEqual(dropStaleManagedTabs({ faz3: 11, faz2: 22 }, new Set(['faz2'])), { managedTabs: { faz2: 22 }, remove: [11] });
 });
 
+test('"all weeks" of the current phase moves on to the next phase and leaves the old tab complete', async () => {
+  const { followsCurrentPhase, resolveAutoSelection } = await import('../supabase/functions/_shared/autoSelection.mjs');
+  assert.equal(followsCurrentPhase('faz3', 'faz3', 'all', null), true);
+  assert.equal(followsCurrentPhase('faz3', 'faz3', 'latest', null), true);
+  assert.equal(followsCurrentPhase('faz3', 'faz3', 'one', null), false);
+  assert.equal(followsCurrentPhase('faz3', 'faz3', 'all', 'upper1'), false);
+  assert.equal(followsCurrentPhase('faz2', 'faz3', 'all', null), false);
+  const whole = { phaseId: 'faz3', programId: null, weekMode: 'all', weekNumber: 36, followCurrentPhase: true };
+  const next = resolveAutoSelection(whole, { id: 'faz4' }, 50, { faz3: 11 });
+  assert.equal(next.selection.phaseId, 'faz4');
+  assert.deepEqual(next.finished, { selection: whole, sheetId: 11 });
+});
+
 test('automatic tabs write every set on its own line and make the row tall enough for it', async () => {
   const { projectSheets } = await import('../supabase/functions/_shared/sheetProjection.mjs');
   const { buildAutoSheetStyleRequests } = await import('../supabase/functions/_shared/sheetStyle.mjs');

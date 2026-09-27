@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { projectSheets } from '../_shared/sheetProjection.mjs';
 import { buildAutoSheetStyleRequests } from '../_shared/sheetStyle.mjs';
 import { matchesVerifiedGoogleEmail, requiresAccountMatch } from '../_shared/googleAccount.mjs';
-import { dropStaleManagedTabs, resolveAutoSelection } from '../_shared/autoSelection.mjs';
+import { dropStaleManagedTabs, followsCurrentPhase, resolveAutoSelection } from '../_shared/autoSelection.mjs';
 
 const url = Deno.env.get('SUPABASE_URL')!;
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -259,7 +259,7 @@ Deno.serve(async request => {
         state.currentWeek >= item.startWeek && (item.endWeek == null || state.currentWeek <= item.endWeek));
       const selection = { phaseId: phase.id, programId, weekMode,
         weekNumber: weekMode === 'all' ? phase.startWeek : weekNumber,
-        followCurrentPhase: phase.id === currentPhase?.id && weekMode === 'latest' && !programId };
+        followCurrentPhase: followsCurrentPhase(phase.id, currentPhase?.id, weekMode, programId) };
       const { error } = await admin.from('sheet_auto_connections').update({ selection, updated_at: new Date().toISOString() }).eq('user_id', user.id);
       if (error) throw error;
       const queued = await admin.rpc('request_sheet_auto_sync', { target_user_id: user.id });
