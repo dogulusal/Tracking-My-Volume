@@ -38,6 +38,9 @@ export function buildAutoSheetStyleRequests(sheetId, sheet, existingMerges = [])
     if (notesRow + 2 <= sheet.rows.length) size(requests, sheetId, 'ROWS', notesRow + 1, Math.min(notesRow + 3, sheet.rows.length), 10);
     for (let row = headerRow + 1; row < notesRow; row++) {
       const values = sheet.rows[row];
+      if (String(values[2] ?? '').trim()) {
+        paint(requests, range(sheetId, row, row + 1, 2, 3), { backgroundColorStyle: color('#dfe7ec'), textFormat: text('#24312b'), horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP' });
+      }
       for (let col = 3; col < values.length; col++) {
         const previous = score(values[col - 1]);
         const current = score(values[col]);
