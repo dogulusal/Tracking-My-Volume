@@ -6,6 +6,7 @@ import { usePlans } from '@/hooks/usePlans';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
 import { useExportImport } from '@/hooks/useExportImport';
 import { PageContainer } from '@/components/layout/PageContainer';
+import { Modal } from '@/components/shared/Modal';
 import { calculateWeeklyVolume } from '@/utils/volumeCalculator';
 import { samplePrograms } from '@/data/sampleProgram';
 
@@ -13,6 +14,7 @@ const nf = new Intl.NumberFormat('tr-TR');
 
 export function Dashboard() {
   const [showWorkoutPicker, setShowWorkoutPicker] = useState(false);
+  const [confirmNewWeek, setConfirmNewWeek] = useState(false);
   const { activePlan, activePlanPrograms } = usePlans();
   const { weekLogs, currentWeek, incrementWeek } = useWeekLogs();
   const ctx = useContext(AppContext);
@@ -137,7 +139,7 @@ export function Dashboard() {
           </div>
 
           <button
-            onClick={handleIncrementWeek}
+            onClick={() => setConfirmNewWeek(true)}
             className="lb-press shrink-0 px-4 py-2.5 rounded-lg border lb-rule text-sm font-semibold"
           >
             Yeni hafta
@@ -245,6 +247,12 @@ export function Dashboard() {
           </a>
         </p>
       </div>
+      {/* The week only moves forward in the app, so a stray tap needs a stop. */}
+      <Modal isOpen={confirmNewWeek} onClose={() => setConfirmNewWeek(false)}
+        onConfirm={() => { setConfirmNewWeek(false); handleIncrementWeek(); }}
+        title="Yeni haftaya geçilsin mi?"
+        message={`Bu hafta ${weekStats.completed}/${weekStats.total} antrenman kaydedildi. Geçtikten sonra haftayı uygulamadan geri alamazsın.`}
+        confirmText="Yeni haftaya geç" />
     </PageContainer>
   );
 }

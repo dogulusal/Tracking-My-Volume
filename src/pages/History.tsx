@@ -54,6 +54,7 @@ const HISTORY_STATE_KEY = 'history-page-state-v1';
 
 export function History() {
   const [showNewPhase, setShowNewPhase] = useState(false);
+  const [confirmNewWeek, setConfirmNewWeek] = useState(false);
   const [showPhaseSettings, setShowPhaseSettings] = useState(false);
   const navigate = useNavigate();
   const [deletionMessage, setDeletionMessage] = useState('');
@@ -514,7 +515,7 @@ export function History() {
           <button onClick={() => setShowPhaseSettings(true)} className="lb-press px-3 py-1.5 border lb-rule text-xs font-semibold rounded-lg">Faz ayarları</button>
           <button onClick={() => setShowNewPhase(true)} disabled={contextPhases.some(phase => phase.startWeek >= currentWeek)} title="Mevcut hafta yeni fazın H0 haftası olur. Zaten faz başlangıcındaysan yeni bir faz eklenmez." className="lb-press px-3 py-1.5 border lb-rule text-xs font-semibold rounded-lg disabled:opacity-40">+ Yeni faz</button>
           <button
-            onClick={incrementWeek}
+            onClick={() => setConfirmNewWeek(true)}
             className="lb-press px-3 py-1.5 border lb-rule text-xs font-semibold rounded-lg"
           >
             + Yeni Hafta
@@ -539,6 +540,11 @@ export function History() {
           setPageStart(0);
           setShowNewPhase(false);
         }} />
+      <Modal isOpen={confirmNewWeek} onClose={() => setConfirmNewWeek(false)}
+        onConfirm={() => { setConfirmNewWeek(false); incrementWeek(); }}
+        title="Yeni haftaya geçilsin mi?"
+        message="Geçtikten sonra haftayı uygulamadan geri alamazsın."
+        confirmText="Yeni haftaya geç" />
       {showPhaseSettings && <PhaseSettingsModal phases={contextPhases} currentWeek={currentWeek} onClose={() => setShowPhaseSettings(false)} onSave={updated => {
         ctx?.dispatch({ type: 'SET_PHASES', payload: updated });
         const visible = updated.filter(p => p.startWeek <= currentWeek);
