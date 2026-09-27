@@ -829,3 +829,14 @@ test('Google session is reused across dialogs and isolated by client and app acc
     assert.equal(changes, 2);
   } finally { global.window = oldWindow; global.sessionStorage = oldStorage; }
 });
+
+test('painted History cells live in the synced state, survive other cells being painted and can be cleared', () => {
+  let state = appReducer(initialState, { type: 'UPDATE_CELL_COLORS', payload: { '3_press': 'improved' } });
+  state = appReducer(state, { type: 'UPDATE_CELL_COLORS', payload: { '4_press': 'decreased' } });
+  assert.deepEqual(state.cellColorOverrides, { '3_press': 'improved', '4_press': 'decreased' });
+  state = appReducer(state, { type: 'UPDATE_CELL_COLORS', payload: { '3_press': null } });
+  assert.deepEqual(state.cellColorOverrides, { '4_press': 'decreased' });
+  // Sign-out resets to the initial state, so the next account starts clean.
+  assert.equal(appReducer(state, { type: 'RESET_DATA' }).cellColorOverrides, undefined);
+  assert.deepEqual(appReducer(state, { type: 'UPDATE_CELL_COLORS', payload: null }).cellColorOverrides, {});
+});

@@ -97,6 +97,8 @@ export interface AppState {
   // User overrides for the History grid's status colours. Only the statuses
   // actually customised are stored; the rest fall back to the defaults.
   statusColors?: Partial<Record<ExerciseStatus, { dark: string; light: string }>>;
+  // Statuses the user painted over single History cells, keyed "week_exerciseId".
+  cellColorOverrides?: Record<string, ExerciseStatus>;
 }
 
 // ─── Reducer Actions ──────────────────────────────────
@@ -125,6 +127,8 @@ export type AppAction =
   | { type: 'SET_PHASES'; payload: PhaseDefinition[] }
   | { type: 'SET_EXERCISE_ROW_ORDER'; payload: { programId: string; exerciseIds: string[] } }
   | { type: 'SET_STATUS_COLORS'; payload: AppState['statusColors'] }
+  // null status removes that cell's override; a null payload removes them all.
+  | { type: 'UPDATE_CELL_COLORS'; payload: Record<string, ExerciseStatus | null> | null }
   | { type: 'IMPORT_DATA'; payload: AppState }
   | { type: 'RESET_DATA' };
 
@@ -144,6 +148,9 @@ export interface ExportData {
   weekLogs: WeekLog[];
   currentWeek: number;
   phases?: PhaseDefinition[];
+  exerciseRowOrder?: AppState['exerciseRowOrder'];
+  statusColors?: AppState['statusColors'];
+  cellColorOverrides?: AppState['cellColorOverrides'];
 }
 
 /** Non-secret preferences only. Google credentials never enter synced state. */

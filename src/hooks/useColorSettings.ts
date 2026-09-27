@@ -23,20 +23,25 @@ export const DEFAULT_STATUS_BG_COLORS: Record<ExerciseStatus, { dark: string; li
 };
 
 const STORAGE_KEY_CELLS = 'trackingVolume_cellColors';
+const EMPTY_OVERRIDES: CellColorOverrides = {};
 
 export function useColorSettings() {
-  const [cellOverrides, setCellOverrides] = useState<CellColorOverrides>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_CELLS);
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
+  const ctx = useContext(AppContext);
+  const dispatch = ctx?.dispatch;
+  const cellOverrides: CellColorOverrides = ctx?.state.cellColorOverrides ?? EMPTY_OVERRIDES;
 
+  // Overrides used to live only in this browser, so other devices and backups
+  // never saw them. Fold any left here into the synced state once.
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_CELLS, JSON.stringify(cellOverrides));
-  }, [cellOverrides]);
+    let local: CellColorOverrides = {};
+    try {
+      local = JSON.parse(localStorage.getItem(STORAGE_KEY_CELLS) ?? '{}') as CellColorOverrides;
+    } catch { /* unreadable: nothing to carry over */ }
+    localStorage.removeItem(STORAGE_KEY_CELLS);
+    const missing = Object.fromEntries(Object.entries(local).filter(([key]) => !(key in cellOverrides)));
+    if (Object.keys(missing).length) dispatch?.({ type: 'UPDATE_CELL_COLORS', payload: missing });
+    // Once per mount; later changes go through dispatch.
+  }, []);
 
   // theme.ts flips a class on <html> without any React state, so reading the
   // DOM during render left these colours stale until something else caused a
@@ -53,7 +58,6 @@ export function useColorSettings() {
     return () => observer.disconnect();
   }, []);
 
-  const ctx = useContext(AppContext);
   const statusColors = ctx?.state.statusColors;
 
   const getColorsFor = useCallback((status: ExerciseStatus) => {
@@ -89,18 +93,12 @@ export function useColorSettings() {
   }, [cellOverrides, getStatusBgColor]);
 
   const setCellColor = useCallback((weekNumber: number, exerciseId: string, status: ExerciseStatus) => {
-    const key = makeCellKey(weekNumber, exerciseId);
-    setCellOverrides(prev => ({ ...prev, [key]: status }));
-  }, []);
+    dispatch?.({ type: 'UPDATE_CELL_COLORS', payload: { [makeCellKey(weekNumber, exerciseId)]: status } });
+  }, [dispatch]);
 
   const removeCellColor = useCallback((weekNumber: number, exerciseId: string) => {
-    const key = makeCellKey(weekNumber, exerciseId);
-    setCellOverrides(prev => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-  }, []);
+    dispatch?.({ type: 'UPDATE_CELL_COLORS', payload: { [makeCellKey(weekNumber, exerciseId)]: null } });
+  }, [dispatch]);
 
   const getCellOverride = useCallback((weekNumber: number, exerciseId: string): ExerciseStatus | undefined => {
     const key = makeCellKey(weekNumber, exerciseId);
@@ -108,9 +106,8 @@ export function useColorSettings() {
   }, [cellOverrides]);
 
   const resetAllOverrides = useCallback(() => {
-    setCellOverrides({});
-    localStorage.removeItem(STORAGE_KEY_CELLS);
-  }, []);
+    dispatch?.({ type: 'UPDATE_CELL_COLORS', payload: null });
+  }, [dispatch]);
 
   return {
     cellOverrides,

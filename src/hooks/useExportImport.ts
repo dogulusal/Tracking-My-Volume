@@ -101,6 +101,9 @@ export function useExportImport() {
     sheetColumnMappings: state.sheetColumnMappings,
     programVersions: state.programVersions,
     phaseRecordTransitions: state.phaseRecordTransitions,
+    exerciseRowOrder: state.exerciseRowOrder,
+    statusColors: state.statusColors,
+    cellColorOverrides: state.cellColorOverrides,
   });
 
   const downloadExport = (exportData: ExportData, filename: string) => {
