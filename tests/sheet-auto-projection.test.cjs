@@ -49,6 +49,19 @@ test('automatic tabs write every set on its own line and make the row tall enoug
   const height = buildAutoSheetStyleRequests(1, sheet).find(request =>
     request.updateDimensionProperties?.range.dimension === 'ROWS' && request.updateDimensionProperties.range.startIndex === 2);
   assert.equal(height.updateDimensionProperties.properties.pixelSize, 3 * 18 + 12);
+  // The weekly note wraps centred inside its own column instead of spilling over.
+  const notesRow = sheet.blocks[0].notesRow;
+  const style = buildAutoSheetStyleRequests(1, sheet);
+  const noteCells = style.find(request => request.repeatCell?.range.startRowIndex === notesRow
+    && request.repeatCell.range.startColumnIndex === 2).repeatCell.cell.userEnteredFormat;
+  assert.equal(noteCells.wrapStrategy, 'WRAP');
+  assert.equal(noteCells.horizontalAlignment, 'CENTER');
+  const noteHeight = rows => buildAutoSheetStyleRequests(1, { ...sheet, rows }).find(request =>
+    request.updateDimensionProperties?.range.dimension === 'ROWS' && request.updateDimensionProperties.range.startIndex === notesRow)
+    .updateDimensionProperties.properties.pixelSize;
+  assert.equal(noteHeight(sheet.rows), 72);
+  const longNote = sheet.rows.map((row, index) => index === notesRow ? [row[0], '', 'triceps biceps önce yaptım, sonra omuz ve en son karın bitirdim'] : row);
+  assert.equal(noteHeight(longNote), 4 * 15 + 16);
 });
 
 test('a new account keeps a writable phase tab before its first program', async () => {

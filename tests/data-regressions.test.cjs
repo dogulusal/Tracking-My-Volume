@@ -472,8 +472,9 @@ test('phase template reserves all workouts and phase history in separate blocks 
   assert.deepEqual(titleStyle.repeatCell.cell.userEnteredFormat.backgroundColorStyle.rgbColor,
     { red: 41 / 255, green: 50 / 255, blue: 58 / 255 });
   const noteStyle = requests.find(r => r.repeatCell?.range.startRowIndex === layout.blocks[0].notesRow - 1
-    && r.repeatCell?.cell.userEnteredFormat.wrapStrategy === 'CLIP');
-  assert.ok(noteStyle);
+    && r.repeatCell.range.startColumnIndex === 2);
+  assert.equal(noteStyle.repeatCell.cell.userEnteredFormat.wrapStrategy, 'WRAP');
+  assert.equal(noteStyle.repeatCell.cell.userEnteredFormat.horizontalAlignment, 'CENTER');
 });
 
 test('new phase sheet creation rejects existing titles and creates layout in one batch', async () => {
@@ -661,6 +662,20 @@ test('sheet layout sizes notes from all weeks and protects future data without r
   assert.equal(requests.some(r => r.updateCells || r.deleteDimension), false);
   rows[7][6] = '50 x 8 F';
   assert.equal(JSON.stringify(rows), original);
+});
+
+test('manual sheet notes wrap centred inside their week and grow the row for a long note', () => {
+  const { buildSheetLayoutRequests } = loadTS('src/utils/sheetLayout.ts');
+  const rows = [['Upper'], ['Egzersiz', 'Set', 'H0', 'H1'], ['Row', '2', '75 x 9 F', ''],
+    ['HAFTALIK NOTLAR', '', 'triceps biceps önce yaptım, sonra omuz ve en son karın, en sonda da biraz kardiyo']];
+  const requests = buildSheetLayoutRequests(5, rows, 2);
+  const noteCells = requests.find(r => r.repeatCell?.range.startRowIndex === 3 && r.repeatCell.range.startColumnIndex === 2).repeatCell.cell.userEnteredFormat;
+  assert.equal(noteCells.wrapStrategy, 'WRAP');
+  assert.equal(noteCells.horizontalAlignment, 'CENTER');
+  const label = requests.find(r => r.repeatCell?.range.startRowIndex === 3 && r.repeatCell.range.startColumnIndex === 0).repeatCell.cell.userEnteredFormat;
+  assert.equal(label.horizontalAlignment, 'LEFT');
+  const height = requests.find(r => r.updateDimensionProperties?.range.dimension === 'ROWS' && r.updateDimensionProperties.range.startIndex === 3);
+  assert.equal(height.updateDimensionProperties.properties.pixelSize, 5 * 15 + 16);
 });
 
 test('single shorthand expands to the declared set count; explicit pipes stay ordered', () => {

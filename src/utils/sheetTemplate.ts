@@ -73,6 +73,13 @@ export function buildPhaseTemplateRequests(sheetId: number, layout: PhaseSheetLa
     // Empty workout blocks still need valid, non-zero API ranges; the notes
     // styling below wins over this temporary one-row body range.
     const bodyEnd = Math.max(exerciseStart + 1, notesStart);
+    // Notes wrap inside their own week column, centred, like the workout cells.
+    const notesCells = (startColumnIndex: number, endColumnIndex: number, horizontalAlignment: string) => (
+      { repeatCell: { range: { sheetId, startRowIndex: notesStart, endRowIndex: notesStart + 1, startColumnIndex, endColumnIndex }, cell: { userEnteredFormat: {
+        backgroundColorStyle: bg('#fff4d6'),
+        textFormat: { fontFamily: 'Arial', fontSize: 9, bold: false, foregroundColorStyle: bg('#5f5130') },
+        horizontalAlignment, verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP',
+      } }, fields: 'userEnteredFormat' } });
 
     requests.push(
       { mergeCells: { range: { sheetId, startRowIndex: titleStart, endRowIndex: titleStart + 1, startColumnIndex: 2, endColumnIndex: 8 }, mergeType: 'MERGE_ALL' } },
@@ -99,11 +106,8 @@ export function buildPhaseTemplateRequests(sheetId: number, layout: PhaseSheetLa
       { repeatCell: { range: { sheetId, startRowIndex: exerciseStart, endRowIndex: bodyEnd, startColumnIndex: 1, endColumnIndex: visibleColumns }, cell: { userEnteredFormat: {
         horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP',
       } }, fields: 'userEnteredFormat.horizontalAlignment,userEnteredFormat.verticalAlignment,userEnteredFormat.wrapStrategy' } },
-      { repeatCell: { range: { sheetId, startRowIndex: notesStart, endRowIndex: notesStart + 1, startColumnIndex: 0, endColumnIndex: visibleColumns }, cell: { userEnteredFormat: {
-        backgroundColorStyle: bg('#fff4d6'),
-        textFormat: { fontFamily: 'Arial', fontSize: 9, bold: false, foregroundColorStyle: bg('#5f5130') },
-        horizontalAlignment: 'LEFT', verticalAlignment: 'TOP', wrapStrategy: 'CLIP',
-      } }, fields: 'userEnteredFormat' } },
+      notesCells(0, 2, 'LEFT'),
+      notesCells(2, visibleColumns, 'CENTER'),
       { updateBorders: { range: { sheetId, startRowIndex: headerStart, endRowIndex: notesStart + 1, startColumnIndex: 0, endColumnIndex: visibleColumns }, top: border, bottom: border, left: border, right: border, innerHorizontal: border } },
       { updateDimensionProperties: { range: { sheetId, dimension: 'ROWS', startIndex: titleStart, endIndex: titleStart + 1 }, properties: { pixelSize: 34 }, fields: 'pixelSize' } },
       { updateDimensionProperties: { range: { sheetId, dimension: 'ROWS', startIndex: headerStart, endIndex: headerStart + 1 }, properties: { pixelSize: 30 }, fields: 'pixelSize' } },

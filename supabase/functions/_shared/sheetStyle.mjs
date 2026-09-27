@@ -10,6 +10,15 @@ function score(value) {
   return match ? [Number(match[1].replace(',', '.')), Number(match[2])] : null;
 }
 
+// About 19 characters of 9pt Arial fit on a line of a 128px week column; same
+// estimate as the manual send (sheetLayout.ts).
+/** @param {unknown[]} [row] */
+function noteRowHeight(row = []) {
+  const lines = Math.max(1, ...row.slice(2).map(value => String(value ?? '').split('\n')
+    .reduce((count, line) => count + Math.max(1, Math.ceil(line.length / 19)), 0)));
+  return Math.max(72, lines * 15 + 16);
+}
+
 export function buildAutoSheetStyleRequests(sheetId, sheet, existingMerges = []) {
   const requests = [];
   const width = Math.max(28, sheet.rows.reduce((max, row) => Math.max(max, row.length), 0));
@@ -30,7 +39,11 @@ export function buildAutoSheetStyleRequests(sheetId, sheet, existingMerges = [])
       paint(requests, range(sheetId, headerRow + 1, notesRow, 0, 2), { backgroundColorStyle: color('#f6f7f8'), textFormat: text('#24312b'), verticalAlignment: 'MIDDLE' });
       paint(requests, range(sheetId, headerRow + 1, notesRow, 2, width), { backgroundColorStyle: color('#ffffff'), textFormat: text('#24312b'), horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP' });
     }
-    paint(requests, range(sheetId, notesRow, notesRow + 1, 0, width), { backgroundColorStyle: color('#fff4d6'), textFormat: text('#5f5130', false, 9), horizontalAlignment: 'LEFT', verticalAlignment: 'TOP', wrapStrategy: 'CLIP' });
+    // A note wraps inside its own week column, centred, instead of spilling
+    // over the next weeks; the row grows to fit the longest one.
+    const notes = { backgroundColorStyle: color('#fff4d6'), textFormat: text('#5f5130', false, 9), verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP' };
+    paint(requests, range(sheetId, notesRow, notesRow + 1, 0, 2), { ...notes, horizontalAlignment: 'LEFT' });
+    paint(requests, range(sheetId, notesRow, notesRow + 1, 2, width), { ...notes, horizontalAlignment: 'CENTER' });
     size(requests, sheetId, 'ROWS', titleRow, titleRow + 1, 34);
     size(requests, sheetId, 'ROWS', headerRow, headerRow + 1, 30);
     // Each set is its own line, so a row grows with its longest cell; same
@@ -39,7 +52,7 @@ export function buildAutoSheetStyleRequests(sheetId, sheet, existingMerges = [])
       const lines = Math.max(1, ...sheet.rows[row].slice(2).map(value => String(value ?? '').split('\n').length));
       size(requests, sheetId, 'ROWS', row, row + 1, Math.max(34, lines * 18 + 12));
     }
-    size(requests, sheetId, 'ROWS', notesRow, notesRow + 1, 72);
+    size(requests, sheetId, 'ROWS', notesRow, notesRow + 1, noteRowHeight(sheet.rows[notesRow]));
     if (notesRow + 2 <= sheet.rows.length) size(requests, sheetId, 'ROWS', notesRow + 1, Math.min(notesRow + 3, sheet.rows.length), 10);
     for (let row = headerRow + 1; row < notesRow; row++) {
       const values = sheet.rows[row];

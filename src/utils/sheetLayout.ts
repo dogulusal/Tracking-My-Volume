@@ -35,8 +35,13 @@ export function buildSheetLayoutRequests(sheetId: number, rows: string[][], curr
       size('ROWS', row, row + 1, Math.max(34, lines * 18 + 12));
     }
     const hasNotes = rows[note].slice(2).some(value => value.trim() && value.trim() !== '-');
-    paint(range(note, note + 1, 0, end), { backgroundColorStyle: color('#fff4d6'), textFormat: { ...font('#5f5130'), fontSize: 9 }, horizontalAlignment: 'LEFT', verticalAlignment: 'TOP', wrapStrategy: 'CLIP' });
-    size('ROWS', note, note + 1, hasNotes ? 72 : 32);
+    // A note wraps inside its own week column, centred, instead of spilling
+    // over the next weeks; the row grows to fit the longest one.
+    const noteFormat = { backgroundColorStyle: color('#fff4d6'), textFormat: { ...font('#5f5130'), fontSize: 9 }, verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP' };
+    paint(range(note, note + 1, 0, 2), { ...noteFormat, horizontalAlignment: 'LEFT' });
+    paint(range(note, note + 1, 2, end), { ...noteFormat, horizontalAlignment: 'CENTER' });
+    const noteLines = Math.max(1, ...rows[note].slice(2, end).map(value => value.split('\n').reduce((count, line) => count + Math.max(1, Math.ceil(line.length / 19)), 0)));
+    size('ROWS', note, note + 1, hasNotes ? Math.max(72, noteLines * 15 + 16) : 32);
     requests.push({ updateBorders: { range: range(header + 1, note + 1, 0, end), innerHorizontal: { style: 'SOLID', colorStyle: color('#e1e4e8') }, innerVertical: { style: 'NONE' } } });
     for (let row = note + 1; row < next; row++) if (!rows[row]?.some(value => value.trim())) size('ROWS', row, row + 1, 10);
   }
