@@ -25,7 +25,6 @@ export function Export() {
     exportRange,
     importData,
     importFromText,
-    importPdfData,
     resetAll,
     quickBackup,
     backupSettings,
@@ -91,7 +90,6 @@ export function Export() {
   const [fromWeek, setFromWeek] = useState(0);
   const [toWeek, setToWeek] = useState(currentWeek);
   const [showResetModal, setShowResetModal] = useState(false);
-  const [showPdfModal, setShowPdfModal] = useState(false);
   const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Text import state
@@ -255,16 +253,6 @@ export function Export() {
     } else {
       setImportMessage({ type: 'error', text: result.error || 'Bilinmeyen hata' });
     }
-  };
-
-  const handlePdfImport = () => {
-    const result = importPdfData();
-    if (result.success) {
-      setImportMessage({ type: 'success', text: 'PDF verisi başarıyla yüklendi! 5 program ve tüm haftalık kayıtlar eklendi.' });
-    } else {
-      setImportMessage({ type: 'error', text: result.error || 'Bilinmeyen hata' });
-    }
-    setShowPdfModal(false);
   };
 
   const handleReset = () => {
@@ -760,21 +748,6 @@ export function Export() {
           )}
         </div>
 
-        {/* PDF Data Import */}
-        <div className="rounded-lg p-5 border lb-rule">
-          <h3 className="font-semibold text-base mb-2">PDF başlangıç verisi</h3>
-          <p className="text-sm text-(--color-text-secondary) mb-3">
-            Orijinal PDF spreadsheet verilerini yükle (5 program, 19+ hafta).
-            Mevcut verinin üzerine yazılır.
-          </p>
-          <button
-            onClick={() => setShowPdfModal(true)}
-            className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg"
-          >
-            📄 PDF Verisini Yükle
-          </button>
-        </div>
-
         {/* Reset */}
         <div className="rounded-lg p-5 border" style={{ borderColor: 'var(--lb-drop)' }}>
           <h3 className="font-semibold text-base mb-2" style={{ color: 'var(--lb-drop)' }}>Tehlikeli bölge</h3>
@@ -812,16 +785,6 @@ export function Export() {
         message={`Şu sekmelerin içeriği bu uygulamanın tablosuna benzemiyor: ${sheetConfirm?.tabs.join(', ') ?? ''}. Birleştirilemiyor; devam edersen içindekiler silinip yerine bu tablo yazılır.`}
         confirmText="Üzerine yaz"
         confirmVariant="danger"
-      />
-
-      <Modal
-        isOpen={showPdfModal}
-        onClose={() => setShowPdfModal(false)}
-        onConfirm={handlePdfImport}
-        title="PDF Verisini Yükle"
-        message="Orijinal PDF spreadsheet'ten 5 program (Upper 1-3, Lower 1-2) ve tüm haftalık kayıtlar yüklenecek. Mevcut verinin üzerine yazılacak. Emin misiniz?"
-        confirmText="Evet, Yükle"
-        confirmVariant="primary"
       />
     </PageContainer>
   );

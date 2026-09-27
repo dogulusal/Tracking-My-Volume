@@ -11,8 +11,8 @@ function parseSetEntry(raw: string, lastWeight: number): { set: SetLog; weight: 
   const trimmed = raw.trim();
   if (!trimmed || trimmed === '-' || trimmed === '0' || trimmed.toLowerCase() === 'x') return null;
 
-  // "+1"/"+3" carry RIR the same way pdfImportData reads them; without this the
-  // sheet's own markers all collapsed to rir2 on the way back in.
+  // "+1"/"+3" carry RIR; without this the sheet's own markers all collapsed to
+  // rir2 on the way back in.
   const isFailure = /F/i.test(trimmed);
   const rirMatch = trimmed.match(/\+(\d+)/);
   const rir = rirMatch ? parseInt(rirMatch[1], 10) : 0;

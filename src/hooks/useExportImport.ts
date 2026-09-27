@@ -4,7 +4,6 @@ import { useContext, useState, useEffect } from 'react';
 import { AppContext } from '@/context/AppContext';
 import type { AppState, ExportData } from '@/types';
 import { parseTabularText, convertParsedToProgram, parseHtmlTable } from '@/utils/textImportParser';
-import { generatePdfImportData } from '@/data/pdfImportData';
 
 type BackupMode = 'notify' | 'download';
 
@@ -237,34 +236,6 @@ export function useExportImport() {
         return { success: true };
       } catch (e) {
         return { success: false, error: `Parse hatası: ${e instanceof Error ? e.message : 'Bilinmeyen hata'}` };
-      }
-    },
-
-    // Load pre-parsed PDF data as starting point
-    importPdfData: (): { success: boolean; error?: string } => {
-      try {
-        createSafetyBackup('before-import-pdf');
-        const data = generatePdfImportData();
-        const now = new Date().toISOString();
-        const defaultPlan = {
-          id: crypto.randomUUID(),
-          name: 'Varsayilan Plan',
-          programIds: data.programs.map(p => p.id),
-          createdAt: now,
-          updatedAt: now,
-        };
-        dispatch({
-          type: 'IMPORT_DATA',
-          payload: {
-            ...data,
-            plans: [defaultPlan],
-            activePlanId: defaultPlan.id,
-            phases: state.phases,
-          },
-        });
-        return { success: true };
-      } catch (e) {
-        return { success: false, error: `PDF veri yükleme hatası: ${e instanceof Error ? e.message : 'Bilinmeyen hata'}` };
       }
     },
   };
