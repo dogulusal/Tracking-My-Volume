@@ -7,6 +7,8 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { authRedirectUrl } from '@/utils/authRedirect';
 
 const STORAGE_KEY = 'workout-tracker';
+const LOCAL_OWNER_KEY = 'workout-tracker-owner';
+const GUEST_BACKUP_KEY = 'workout-tracker-guest-backup';
 const CLOUD_SYNC_DEBOUNCE_MS = 1200;
 const PERIODIC_SYNC_MS = 45000;
 const FOREGROUND_SYNC_THROTTLE_MS = 1500;
@@ -19,11 +21,13 @@ export interface AppContextValue {
   cloud: {
     configured: boolean;
     userEmail: string | null;
+    userId: string | null;
     githubLogin: string | null;
     syncStatus: CloudSyncStatus;
     lastSyncedAt: string | null;
     authError: string | null;
     signInWithGithub: () => Promise<{ ok: boolean; message: string }>;
+    signInWithGoogle: () => Promise<{ ok: boolean; message: string }>;
     signOut: () => Promise<void>;
     refreshFromCloud: () => Promise<{ ok: boolean; message: string }>;
   };
@@ -131,7 +135,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         suppressNextUploadRef.current = true;
         reducerDispatch({ type: 'IMPORT_DATA', payload: migrated });
       }
+    } else if (localStorage.getItem(LOCAL_OWNER_KEY) !== user.id) {
+      // A new account must never inherit the previous account's local workout data.
+      if (!localStorage.getItem(LOCAL_OWNER_KEY)) {
+        localStorage.setItem(GUEST_BACKUP_KEY, JSON.stringify(latestStateRef.current));
+      }
+      reducerDispatch({ type: 'RESET_DATA' });
     }
+    localStorage.setItem(LOCAL_OWNER_KEY, user.id);
 
     pendingLocalChangesRef.current = false;
     hydratedUserIdRef.current = user.id;
@@ -305,10 +316,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { ok: true, message: 'GitHub girisi icin yonlendiriliyorsun.' };
   };
 
+  const signInWithGoogle = async (): Promise<{ ok: boolean; message: string }> => {
+    const client = supabase;
+    if (!isSupabaseConfigured || !client) return { ok: false, message: 'Supabase bağlantısı ayarlı değil.' };
+    const { error } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: authRedirectUrl(window.location.origin, import.meta.env.BASE_URL) },
+    });
+    if (error) {
+      setAuthError(error.message);
+      return { ok: false, message: `Google girişi başlatılamadı: ${error.message}` };
+    }
+    setAuthError(null);
+    return { ok: true, message: 'Google girişine yönlendiriliyorsun.' };
+  };
+
   const signOut = async () => {
     const client = supabase;
     if (!isSupabaseConfigured || !client) return;
     await client.auth.signOut();
+    localStorage.removeItem(LOCAL_OWNER_KEY);
+    reducerDispatch({ type: 'RESET_DATA' });
     setUser(null);
     setLastSyncedAt(null);
     lastCloudTimestampRef.current = null;
@@ -323,11 +351,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         cloud: {
           configured: isSupabaseConfigured,
           userEmail: user?.email ?? null,
+          userId: user?.id ?? null,
           githubLogin: (user?.user_metadata?.user_name as string | undefined) ?? null,
           syncStatus,
           lastSyncedAt,
           authError,
           signInWithGithub,
+          signInWithGoogle,
           signOut,
           refreshFromCloud: fetchCloudState,
         },

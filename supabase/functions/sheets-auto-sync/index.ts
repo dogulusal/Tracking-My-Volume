@@ -261,17 +261,19 @@ Deno.serve(async request => {
       if (!allowedOrigins.includes(origin) || request.headers.get('x-requested-with') !== 'XmlHttpRequest') {
         return response({ error: 'Bağlantı isteği doğrulanamadı.' }, 403, origin);
       }
-      const spreadsheetId = String(body.spreadsheetId ?? '').trim();
-      if (!/^[A-Za-z0-9_-]{15,}$/.test(spreadsheetId) || typeof body.code !== 'string') {
+      const createNew = body.createNew === true;
+      let spreadsheetId = String(body.spreadsheetId ?? '').trim();
+      if ((!createNew && !/^[A-Za-z0-9_-]{15,}$/.test(spreadsheetId)) || typeof body.code !== 'string') {
         return response({ error: 'Sheet adresi veya Google kodu geçersiz.' }, 400, origin);
       }
       if (!googleClientId || !googleClientSecret) throw new Error('Sunucu Google OAuth ayarları eksik.');
       const tokens = await exchangeCode(body.code, origin);
-      await googleRequest(tokens.access_token, `${encodeURIComponent(spreadsheetId)}?fields=spreadsheetId`);
       const { data: previous } = await admin.from('sheet_auto_connections')
         .select('spreadsheet_id,managed_tabs,selection').eq('user_id', user.id).maybeSingle();
       const { data: stateRow } = await admin.from('user_states').select('data').eq('user_id', user.id).maybeSingle();
-      const state = stateRow?.data;
+      // A new account may connect before its first debounced cloud save.
+      const state = stateRow?.data ?? { currentWeek: 0, phases: [{ id: 'phase-1', name: 'Faz 1', startWeek: 0, endWeek: null }],
+        programs: [], weekLogs: [] };
       const currentPhase = [...(state?.phases ?? [])].reverse().find((phase: { startWeek: number; endWeek: number | null }) =>
         state.currentWeek >= phase.startWeek && (phase.endWeek == null || state.currentWeek <= phase.endWeek));
       if (!currentPhase) throw new Error('Etkin faz bulunamadı.');
@@ -280,16 +282,40 @@ Deno.serve(async request => {
         .map((log: { weekNumber: number }) => log.weekNumber));
       const selection = previous?.selection ?? { phaseId: currentPhase.id, programId: null,
         weekMode: 'latest', weekNumber: latestLoggedWeek, followCurrentPhase: true };
+      let createdTabs: Record<string, number> = {};
+      if (createNew) {
+        if (previous?.spreadsheet_id) return response({ error: 'Bu hesabın zaten bağlı bir Sheet dosyası var.' }, 409, origin);
+        const [projectedSheet] = projectSheets(state, selection);
+        const initialSheet = projectedSheet ?? { phaseId: currentPhase.id,
+          title: `Oto · ${currentPhase.name} · ${currentPhase.startWeek}`.slice(0, 100), rowCount: 100, columnCount: 28 };
+        const result = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+          method: 'POST', headers: { authorization: `Bearer ${tokens.access_token}`, 'content-type': 'application/json' },
+          body: JSON.stringify({ properties: { title: 'Tracking My Volume' }, sheets: [{ properties: {
+            title: initialSheet.title, gridProperties: { rowCount: initialSheet.rowCount,
+              columnCount: initialSheet.columnCount, frozenColumnCount: 2, hideGridlines: true },
+          } }] }),
+        });
+        const created = await result.json().catch(() => ({}));
+        if (!result.ok || !created.spreadsheetId || created.sheets?.[0]?.properties?.sheetId == null) {
+          throw new Error(`Google Sheet oluşturulamadı: ${created.error?.message ?? result.statusText}`);
+        }
+        spreadsheetId = created.spreadsheetId;
+        createdTabs = { [initialSheet.phaseId]: created.sheets[0].properties.sheetId };
+      } else {
+        await googleRequest(tokens.access_token, `${encodeURIComponent(spreadsheetId)}?fields=spreadsheetId`);
+      }
       const { error } = await admin.from('sheet_auto_connections').upsert({ user_id: user.id,
         spreadsheet_id: spreadsheetId, refresh_token_ciphertext: await encrypt(tokens.refresh_token),
-        managed_tabs: previous?.spreadsheet_id === spreadsheetId ? previous.managed_tabs : {},
+        managed_tabs: createNew ? createdTabs : previous?.spreadsheet_id === spreadsheetId ? previous.managed_tabs : {},
         selection,
         status: 'active', last_error: null, updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
       if (error) throw error;
-      const queued = await admin.rpc('request_sheet_auto_sync', { target_user_id: user.id });
-      if (queued.error) throw queued.error;
-      return response({ ok: true }, 200, origin);
+      if (stateRow) {
+        const queued = await admin.rpc('request_sheet_auto_sync', { target_user_id: user.id });
+        if (queued.error) throw queued.error;
+      }
+      return response({ ok: true, spreadsheetId, created: createNew }, 200, origin);
     }
     return response({ error: 'Bilinmeyen işlem.' }, 400, origin);
   } catch (error) {

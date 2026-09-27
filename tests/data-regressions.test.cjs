@@ -766,7 +766,7 @@ const { normalizeGoogleSettings } = loadTS('src/utils/googleSheetsSettings.ts');
 const { DEFAULT_SPREADSHEET_ID } = loadTS('src/config.ts');
 const { validGoogleToken, readGoogleSession, saveGoogleSession, GOOGLE_SESSION_EVENT } = loadTS('src/utils/googleSheetsSession.ts');
 
-test('reference spreadsheet is the default on new devices and for older empty settings', () => {
+test('new users never inherit another account’s spreadsheet', () => {
   assert.equal(normalizeGoogleSettings(null).spreadsheetId, DEFAULT_SPREADSHEET_ID);
   assert.equal(normalizeGoogleSettings({ spreadsheetId: '' }).spreadsheetId, DEFAULT_SPREADSHEET_ID);
   assert.equal(normalizeGoogleSettings({ spreadsheetId: 'https://docs.google.com/spreadsheets/d/replacement/edit?gid=1' }).spreadsheetId, 'replacement');

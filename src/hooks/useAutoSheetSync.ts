@@ -10,7 +10,8 @@ interface AutoStatus {
 
 const emptyStatus: AutoStatus = { connection: null, queue: null };
 
-export function useAutoSheetSync(clientId: string, spreadsheetId: string, enabled = true) {
+export function useAutoSheetSync(clientId: string, spreadsheetId: string, enabled = true,
+  onCreated?: (spreadsheetId: string) => void) {
   const [status, setStatus] = useState<AutoStatus>(emptyStatus);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,8 +47,8 @@ export function useAutoSheetSync(clientId: string, spreadsheetId: string, enable
     return () => { window.clearInterval(interval); window.removeEventListener('focus', refresh); };
   }, [clientId, refresh, enabled]);
 
-  const connect = () => {
-    if (!clientId || !spreadsheetId) { setError('Önce Sheet adresini ve OAuth istemci kimliğini kaydet.'); return; }
+  const connect = (createNew = false) => {
+    if (!clientId || (!createNew && !spreadsheetId)) { setError('Önce Sheet adresini ve OAuth istemci kimliğini kaydet.'); return; }
     if (!supabase) { setError('Bulut bağlantısı ayarlı değil.'); return; }
     setError(null);
     setBusy(true);
@@ -62,7 +63,8 @@ export function useAutoSheetSync(clientId: string, spreadsheetId: string, enable
         client_id: clientId, scope: SHEETS_SCOPE, ux_mode: 'popup',
         callback: response => {
           if (!response.code) { setError(response.error ?? 'Google izin vermedi.'); setBusy(false); return; }
-          void call('connect', { code: response.code, spreadsheetId }).then(async () => {
+          void call('connect', { code: response.code, spreadsheetId: createNew ? '' : spreadsheetId, createNew }).then(async data => {
+            if (createNew && data.spreadsheetId) onCreated?.(data.spreadsheetId);
             await refresh();
           }).catch(e => setError(e instanceof Error ? e.message : 'Otomatik bağlantı kurulamadı.'))
             .finally(() => setBusy(false));

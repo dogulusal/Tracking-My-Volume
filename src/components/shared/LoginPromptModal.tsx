@@ -6,13 +6,13 @@ interface LoginPromptModalProps {
 }
 
 export function LoginPromptModal({ onDismiss }: LoginPromptModalProps) {
-  const { signInWithGithub } = useCloudSync();
+  const { signInWithGithub, signInWithGoogle } = useCloudSync();
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSignIn = async () => {
+  const handleSignIn = async (provider: 'github' | 'google') => {
     setIsLoading(true);
     onDismiss();
-    await signInWithGithub();
+    await (provider === 'google' ? signInWithGoogle() : signInWithGithub());
   };
 
   return (
@@ -24,15 +24,19 @@ export function LoginPromptModal({ onDismiss }: LoginPromptModalProps) {
           <h3 className="text-base font-semibold">Bulut senkron</h3>
         </div>
         <p className="text-sm text-(--color-text-secondary) mb-5 leading-relaxed">
-          Verilerini birden fazla cihazda senkronize etmek için GitHub hesabınla giriş yap.
+          Verilerini birden fazla cihazda senkronize etmek için Google veya GitHub hesabınla giriş yap.
         </p>
         <div className="flex flex-col gap-2">
           <button
-            onClick={handleSignIn}
+            onClick={() => void handleSignIn('google')}
             disabled={isLoading}
             className="lb-press w-full px-4 py-3 rounded-lg bg-(--color-text-primary) text-(--color-bg-primary) disabled:opacity-50 text-sm font-semibold"
           >
-            {isLoading ? 'Yönlendiriliyor...' : 'GitHub ile Giriş Yap'}
+            {isLoading ? 'Yönlendiriliyor...' : 'Google ile Giriş Yap'}
+          </button>
+          <button onClick={() => void handleSignIn('github')} disabled={isLoading}
+            className="lb-press w-full px-4 py-3 rounded-lg border lb-rule disabled:opacity-50 text-sm font-semibold">
+            GitHub ile Giriş Yap
           </button>
           <button
             onClick={onDismiss}

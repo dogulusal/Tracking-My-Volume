@@ -14,4 +14,5 @@
 export const DEFAULT_GOOGLE_CLIENT_ID =
   '432627893483-84u8g500n7ae4dafdqcjb9e41co34plm.apps.googleusercontent.com';
 
-export const DEFAULT_SPREADSHEET_ID = '1MXfG_JvxsdwLcFdzSJnoiVC4mJpYYyYZ32gKrEsc4Fs';
+// A new account must pick or create its own file. Never prefill the owner's Sheet.
+export const DEFAULT_SPREADSHEET_ID = '';

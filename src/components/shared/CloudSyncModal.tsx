@@ -7,15 +7,16 @@ interface CloudSyncModalProps {
 }
 
 export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
-  const { configured, userEmail, syncStatus, lastSyncedAt, authError, signInWithGithub, signOut, refreshFromCloud } = useCloudSync();
+  const { configured, userEmail, syncStatus, lastSyncedAt, authError, signInWithGithub, signInWithGoogle, signOut, refreshFromCloud } = useCloudSync();
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isGithubLoading, setIsGithubLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const statusLabel = useMemo(() => {
     if (!configured) return 'Supabase ayarlanmadi';
     if (syncStatus === 'auth_loading') return 'Oturum kontrol ediliyor...';
-    if (syncStatus === 'signed_out') return 'GitHub ile giris yap';
+    if (syncStatus === 'signed_out') return 'Google veya GitHub ile giriş yap';
     if (syncStatus === 'syncing') return 'Senkronize ediliyor...';
     if (syncStatus === 'synced') return 'Senkron aktif';
     if (syncStatus === 'error') return 'Senkron hatasi';
@@ -34,6 +35,14 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setFeedback(null);
+    setIsGoogleLoading(true);
+    const result = await signInWithGoogle();
+    setFeedback(result.message);
+    if (!result.ok) setIsGoogleLoading(false);
+  };
+
   const handleRefresh = async () => {
     setFeedback(null);
     setIsRefreshing(true);
@@ -46,7 +55,7 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
       <div className="relative bg-(--color-bg-card) rounded-lg p-6 max-w-md w-full border border-(--color-border) shadow-xl">
-        <h3 className="text-lg font-bold mb-2">GitHub Senkron</h3>
+        <h3 className="text-lg font-bold mb-2">Bulut senkronizasyonu</h3>
         <p className="text-sm text-(--color-text-secondary) mb-4">{statusLabel}</p>
 
         {!configured && (
@@ -59,14 +68,18 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
 
         {configured && !userEmail && (
           <div className="space-y-3 mb-4">
+            <button onClick={handleGoogleSignIn} disabled={isGoogleLoading || isGithubLoading}
+              className="lb-press w-full px-4 py-2 rounded-md bg-(--color-text-primary) text-(--color-bg-primary) disabled:opacity-50 text-sm font-semibold">
+              {isGoogleLoading ? 'Yönlendiriliyor...' : 'Google ile giriş yap'}
+            </button>
             <button
               onClick={handleGithubSignIn}
-              disabled={isGithubLoading}
-              className="lb-press w-full px-4 py-2 rounded-md bg-(--color-text-primary) text-(--color-bg-primary) disabled:opacity-50 text-sm font-semibold"
+              disabled={isGithubLoading || isGoogleLoading}
+              className="lb-press w-full px-4 py-2 rounded-md border lb-rule disabled:opacity-50 text-sm font-semibold"
             >
               {isGithubLoading ? 'Yonlendiriliyor...' : 'GitHub ile giris yap'}
             </button>
-            <p className="text-xs text-(--color-text-secondary) text-center">Ayni GitHub hesabi ile telefonda ve bilgisayarda giris yap.</p>
+            <p className="text-xs text-(--color-text-secondary) text-center">Mevcut verilerin için GitHub hesabınla giriş yapmaya devam et.</p>
           </div>
         )}
 

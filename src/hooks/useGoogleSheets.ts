@@ -88,8 +88,10 @@ export interface PushOptions {
 export function useGoogleSheets() {
   const context = useContext(AppContext);
   const dispatch = context?.dispatch;
-  const [localSettings, setLocalSettings] = useState<GoogleSheetsSettings>(readSettings);
-  const settings = context?.state.googleSheetsSettings ?? localSettings;
+  const [, setLocalSettings] = useState<GoogleSheetsSettings>(readSettings);
+  // Cloud accounts read only their own state; a previous browser user's local
+  // preferences must never fill a new account's spreadsheet ID.
+  const settings = context?.state.googleSheetsSettings ?? emptySettings;
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const setSettingsState = useCallback((update: (prev: GoogleSheetsSettings) => GoogleSheetsSettings) => {
@@ -105,7 +107,7 @@ export function useGoogleSheets() {
     () => localStorage.getItem(LAST_PUSH_KEY),
   );
 
-  const owner = context?.cloud.userEmail ?? 'local';
+  const owner = context?.cloud.userId ?? 'local';
   const [connected, setConnected] = useState(() => Boolean(readGoogleSession(settings.clientId, owner)));
 
   // Every dialog observes the same session. Restore metadata without opening

@@ -50,7 +50,12 @@ export function Export() {
   // Google Sheets API state
   const sheets = useGoogleSheets();
   const autoSheets = useAutoSheetSync(sheets.settings.clientId, sheets.settings.spreadsheetId,
-    import.meta.env.VITE_SHEETS_AUTO_SYNC_ENABLED !== 'false');
+    import.meta.env.VITE_SHEETS_AUTO_SYNC_ENABLED !== 'false',
+    spreadsheetId => sheets.setSettings({ spreadsheetId }));
+  useEffect(() => {
+    const connectedId = autoSheets.status.connection?.spreadsheet_id;
+    if (connectedId && !sheets.settings.spreadsheetId) sheets.setSettings({ spreadsheetId: connectedId });
+  }, [autoSheets.status.connection?.spreadsheet_id, sheets.settings.spreadsheetId]);
   const [sheetAddressDraft, setSheetAddressDraft] = useState(sheets.settings.spreadsheetId);
   const [googleClientDraft, setGoogleClientDraft] = useState(sheets.settings.clientId);
   useEffect(() => setSheetAddressDraft(sheets.settings.spreadsheetId), [sheets.settings.spreadsheetId]);
@@ -496,8 +501,7 @@ export function Export() {
 
             {!sheets.isConfigured ? (
               <p className="text-xs font-semibold text-amber-300 bg-amber-900/20 border border-amber-700/40 rounded-lg px-3 py-2">
-                Sheet adresini gir (Google ayarları). Yazma izni için Google hesabınla
-                bir kez onay vermen istenecek.
+                Kendi Sheet’ini aşağıdan oluşturabilirsin. Mevcut bir dosyayı kullanmak istersen Google ayarlarına adresini gir.
               </p>
             ) : (
               <>
@@ -573,7 +577,7 @@ export function Export() {
                 </button>
                 {(autoSheets.status.connection.status === 'reauthorize'
                   || autoSheets.status.connection.spreadsheet_id !== sheets.settings.spreadsheetId) &&
-                  <button disabled={autoSheets.busy} onClick={autoSheets.connect} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">
+                  <button disabled={autoSheets.busy} onClick={() => autoSheets.connect()} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">
                     {autoSheets.status.connection.status === 'reauthorize' ? 'Google iznini yenile' : 'Yeni dosyaya bağlan'}
                   </button>}
                 <button disabled={autoSheets.busy} onClick={() => void autoSheets.refresh()} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">Durumu yenile</button>
@@ -615,12 +619,18 @@ export function Export() {
                   <button onClick={() => setShowSyncChoices(false)} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">Vazgeç</button>
                 </div>
               </div>}
-            </> :
-              <button disabled={!ctx?.cloud.userEmail || !sheets.isConfigured || autoSheets.busy}
-                onClick={autoSheets.connect}
+            </> : <div className="flex gap-2 flex-wrap">
+              {!sheets.settings.spreadsheetId && <button disabled={!ctx?.cloud.userEmail || autoSheets.busy}
+                onClick={() => autoSheets.connect(true)}
                 className="lb-press px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg disabled:opacity-50">
-                {autoSheets.busy ? 'Bağlanıyor…' : 'Otomatik aktarımı aç'}
+                {autoSheets.busy ? 'Oluşturuluyor…' : 'Kendi Sheet’imi oluştur ve bağla'}
               </button>}
+              {sheets.isConfigured && <button disabled={!ctx?.cloud.userEmail || autoSheets.busy}
+                onClick={() => autoSheets.connect()}
+                className="lb-press px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg disabled:opacity-50">
+                {autoSheets.busy ? 'Bağlanıyor…' : 'Mevcut Sheet’e bağlan'}
+              </button>}
+            </div>}
             {autoSheets.error && <p role="status" className="text-xs text-amber-300 mt-2">{autoSheets.error}</p>}
           </div>}
         </div>
