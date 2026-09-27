@@ -81,7 +81,9 @@ export interface ProgramVersion {
 export interface AppState {
   phaseRecordTransitions?: Record<string, boolean>;
   programVersions?: ProgramVersion[];
-  sheetColumnMappings?: Record<string, import('@/utils/sheetTemplate').SheetMapping>;
+  // Cells of the removed manual Sheet send. Nothing reads them any more; they
+  // stay typed so older data and backups keep round-tripping unchanged.
+  sheetColumnMappings?: Record<string, unknown>;
   googleSheetsSettings?: GoogleSheetsPreferences;
   programs: Program[];
   plans: Plan[];
@@ -107,7 +109,6 @@ export type AppAction =
   | { type: 'REMOVE_PHASE_EXERCISE'; payload: { phaseId: string; programId: string; exerciseId: string } }
   | { type: 'CONFIGURE_PHASE_TRANSITION'; payload: { previousPhaseId: string; lastWeek: number; nextId: string } }
   | { type: 'COPY_PHASE_PROGRAM'; payload: { week: number; sourceWeek: number } }
-  | { type: 'SET_SHEET_MAPPINGS'; payload: NonNullable<AppState['sheetColumnMappings']> }
   | { type: 'START_NEXT_PHASE'; payload: { id: string; startAt?: 'next' | 'current' } }
   | { type: 'CLEAR_HISTORY_DATA'; payload: { programId: string; weeks: number[]; exerciseId?: string; updatedAt: string } }
   | { type: 'SET_GOOGLE_SHEETS_SETTINGS'; payload: GoogleSheetsPreferences }

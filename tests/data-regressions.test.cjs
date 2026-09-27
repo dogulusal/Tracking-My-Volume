@@ -23,7 +23,6 @@ const { appReducer, initialState } = loadTS('src/context/appReducer.ts');
 const { applyMigrations, CURRENT_DATA_VERSION } = loadTS('src/data/migrations.ts');
 const { calculateExerciseStatus } = loadTS('src/utils/statusCalculator.ts');
 const { syncExerciseLogs, syncProgramFromWorkout } = loadTS('src/utils/exerciseSync.ts');
-const { buildSheetRows, mergeSheetRows } = loadTS('src/utils/sheetExport.ts');
 const program = { id: 'lower2', name: 'Lower 2', exercises: [], order: 1, createdAt: '2026-09-10', updatedAt: '2026-09-10' };
 
 test('program edits reorder a saved workout by exercise ID and add the new movement without changing sets', () => {
@@ -136,44 +135,6 @@ test('the earlier-week edit reaches the dashboard program in whichever phase is 
   // An edit in a finished phase stays in that phase.
   const past = appReducer(state, { type: 'UPDATE_PROGRAM', atWeek: 36, payload: revised });
   assert.deepEqual(programVersionAt(past, 42).programs[0].exercises.map(ex => ex.id), ['old']);
-});
-
-test('sheet export keeps a new exercise row alongside already logged weeks', () => {
-  const edited = { ...program, exercises: [{ id: 'new', name: 'New movement', defaultSets: 2, defaultWeight: 0, defaultReps: 0, isActive: true }] };
-  const logs = [{ id: 'log', programId: program.id, weekNumber: 1, date: '', notes: '', isHoliday: false, updatedAt: '', exercises: [
-    { exerciseId: 'old', exerciseName: 'Old movement', sets: [{ weight: 40, reps: 8, intensity: 'failure' }] },
-  ] }];
-  const rows = buildSheetRows({ program: edited, weekLogs: logs, fromWeek: 1, toWeek: 2, rowOrder: ['new', 'old'] });
-  assert.deepEqual(rows.slice(1).map(row => row[0]), ['New movement', 'SIRA: New movement', 'Old movement', 'SIRA: Old movement']);
-  assert.deepEqual(rows[1].slice(2), ['-', '-']);
-  assert.equal(rows[3][2], '40x8F');
-});
-
-test('weekly order is exported separately while a movement stays on one results row', () => {
-  const definition = id => ({ id, name: id, defaultSets: 1, defaultWeight: 0, defaultReps: 0, isActive: true });
-  const ids = ['a', 'b', 'triceps', 'c', 'd', 'e', 'f'];
-  const at = position => {
-    const ordered = ids.filter(id => id !== 'triceps');
-    ordered.splice(position - 1, 0, 'triceps');
-    return { ...program, exercises: ordered.map(definition) };
-  };
-  const versions = [
-    { phaseId: 'phase-1', fromWeek: 0, programs: [at(3)], plans: [], activePlanId: null },
-    { phaseId: 'phase-1', fromWeek: 3, programs: [at(5)], plans: [], activePlanId: null },
-    { phaseId: 'phase-1', fromWeek: 5, programs: [at(7)], plans: [], activePlanId: null },
-  ];
-  const state = { ...initialState, currentWeek: 5, programs: [at(7)], programVersions: versions };
-  const rows = buildSheetRows({ program: at(7), weekLogs: [], fromWeek: 0, toWeek: 5, state });
-  const results = rows.find(row => row[0] === 'triceps');
-  const order = rows.find(row => row[0] === 'SIRA: triceps');
-  assert.deepEqual(results.slice(2), ['-', '-', '-', '-', '-', '-']);
-  assert.deepEqual(order.slice(2), ['3', '3', '3', '5', '5', '7']);
-  assert.equal(parseTabularText(rows.map(row => row.join('\t')).join('\n')).rows.length, 7);
-  const existing = [['Egzersiz', 'Set', 'H0'], ['triceps', '1', '25x8F']];
-  const merged = mergeSheetRows(existing, rows);
-  assert.equal(merged.unmergeable, false);
-  assert.deepEqual(merged.rows.slice(1, 3).map(row => row[0]), ['triceps', 'SIRA: triceps']);
-  assert.equal(merged.rows[1][2], '25x8F');
 });
 
 const { excludeProgramFromPhase, initializeProgramVersions, programVersionAt, programsForPhase, removeExerciseFromPhase } = loadTS('src/utils/programVersions.ts');
@@ -443,75 +404,6 @@ test('OAuth returns to the application root without forwarding route, query or f
   assert.equal(authRedirectUrl('http://localhost:5173/workout', '/'), 'http://localhost:5173/');
 });
 
-test('phase template reserves all workouts and phase history in separate blocks with reusable H0 mappings', () => {
-  const { buildPhaseSheetLayout, buildPhaseTemplateRequests } = loadTS('src/utils/sheetTemplate.ts');
-  const programs = [{ ...program, exercises: [{ id: 'curl', name: 'Curl', defaultSets: 2, isActive: true }] }, { ...program, id: 'upper', name: 'Upper', exercises: [] }];
-  const layout = buildPhaseSheetLayout('Faz 3', 35, programs, [
-    { programId: program.id, weekNumber: 34, exercises: [{ exerciseId: 'old', exerciseName: 'Old phase only', sets: [] }] },
-    { programId: program.id, weekNumber: 35, exercises: [{ exerciseId: 'removed', exerciseName: 'Retained history', sets: [{ reps: 8 }] }] },
-  ]);
-  assert.deepEqual(layout.blocks[0].exercises.map(e => e.id), ['curl', 'removed']);
-  assert.equal(layout.blocks.length, 2);
-  assert.ok(layout.blocks[1].titleRow > layout.blocks[0].notesRow + 1);
-  assert.equal(layout.mappings.lower2.header, 'C2');
-  assert.equal(layout.mappings.lower2.week, 35);
-  const requests = buildPhaseTemplateRequests(42, layout);
-  assert.equal(requests[0].addSheet.properties.sheetId, 42);
-  const cells = requests.find(r => r.updateCells).updateCells;
-  assert.equal(cells.start.sheetId, 42);
-  assert.equal(cells.rows[1].values[2].userEnteredValue.stringValue, 'H0');
-  assert.equal(cells.rows[1].values[3].userEnteredValue.stringValue, 'H1');
-  assert.equal(cells.rows[layout.blocks[0].notesRow - 1].values[0].userEnteredValue.stringValue, 'HAFTALIK NOTLAR');
-  assert.equal(JSON.stringify(requests).includes('formulaValue'), false);
-  assert.equal(requests[0].addSheet.properties.gridProperties.hideGridlines, true);
-  assert.equal(requests[0].addSheet.properties.gridProperties.frozenColumnCount, 2);
-  assert.ok(requests.some(r => r.mergeCells?.range.startRowIndex === layout.blocks[0].titleRow - 1));
-  assert.ok(requests.some(r => r.updateBorders?.range.endRowIndex === layout.blocks[0].notesRow));
-  assert.ok(requests.some(r => r.updateDimensionProperties?.properties.pixelSize === 72));
-  const titleStyle = requests.find(r => r.repeatCell?.cell.userEnteredFormat.textFormat?.fontSize === 11);
-  assert.deepEqual(titleStyle.repeatCell.cell.userEnteredFormat.backgroundColorStyle.rgbColor,
-    { red: 41 / 255, green: 50 / 255, blue: 58 / 255 });
-  const noteStyle = requests.find(r => r.repeatCell?.range.startRowIndex === layout.blocks[0].notesRow - 1
-    && r.repeatCell.range.startColumnIndex === 2);
-  assert.equal(noteStyle.repeatCell.cell.userEnteredFormat.wrapStrategy, 'WRAP');
-  assert.equal(noteStyle.repeatCell.cell.userEnteredFormat.horizontalAlignment, 'CENTER');
-});
-
-test('new phase sheet creation rejects existing titles and creates layout in one batch', async () => {
-  const { createPhaseTemplate } = loadTS('src/lib/googleSheets.ts');
-  const { buildPhaseSheetLayout } = loadTS('src/utils/sheetTemplate.ts');
-  const layout = buildPhaseSheetLayout('Faz 3', 35, [program], []);
-  const previousFetch = global.fetch;
-  const calls = [];
-  let duplicate = true;
-  global.fetch = async (url, init) => {
-    calls.push({ url, init });
-    return { ok: true, json: async () => ({ sheets: [{ properties: { title: duplicate ? 'Faz 3' : 'Faz 2', sheetId: 1 } }] }) };
-  };
-  try {
-    await assert.rejects(createPhaseTemplate('test', 'file', layout), /zaten var/);
-    assert.equal(calls.length, 1);
-    duplicate = false; calls.length = 0;
-    const tab = await createPhaseTemplate('test', 'file', layout);
-    assert.equal(tab.title, 'Faz 3');
-    assert.equal(calls.length, 2);
-    assert.equal(calls[1].init.method, 'POST');
-    const requests = JSON.parse(calls[1].init.body).requests;
-    assert.equal(requests[0].addSheet.properties.sheetId, tab.sheetId);
-    assert.ok(requests.some(r => r.updateCells));
-    assert.equal(calls.some(c => c.url.includes(':clear')), false);
-  } finally { global.fetch = previousFetch; }
-});
-
-test('sheet mappings are merged by file, program and phase without modifying workout data', () => {
-  const mapping = { tab: 'Faz 3', header: 'C2', week: 35, rows: { curl: 3 }, notesRow: 4 };
-  const state = { ...initialState, sheetColumnMappings: { 'file:lower:15': { ...mapping, tab: 'Faz 2', week: 15 } } };
-  const result = appReducer(state, { type: 'SET_SHEET_MAPPINGS', payload: { 'file:lower:35': mapping } });
-  assert.equal(Object.keys(result.sheetColumnMappings).length, 2);
-  assert.equal(result.sheetColumnMappings['file:lower:35'].rows.curl, 3);
-  assert.equal(result.weekLogs, state.weekLogs);
-});
-
 test('current-week phase transition keeps current and future records intact without advancing the week', () => {
   const state = { ...initialState, currentWeek: 35, weekLogs: [34, 35, 36].map(weekNumber => ({ id: String(weekNumber), weekNumber, notes: 'preserved', exercises: [] })) };
   const result = appReducer(state, { type: 'START_NEXT_PHASE', payload: { id: 'phase3', startAt: 'current' } });
@@ -520,15 +412,6 @@ test('current-week phase transition keeps current and future records intact with
   assert.equal(result.phases[2].startWeek, 35);
   assert.equal(result.weekLogs, state.weekLogs);
   assert.equal(appReducer(result, { type: 'START_NEXT_PHASE', payload: { id: 'accidental-repeat', startAt: 'current' } }), result);
-});
-
-test('Sheets reference week is blue, apart from the grey of "same"', () => {
-  const { SHEET_STATUS_COLORS } = loadTS('src/utils/sheetFormat.ts');
-  assert.equal(SHEET_STATUS_COLORS.new, '#cfe2f3');
-  assert.notEqual(SHEET_STATUS_COLORS.new, SHEET_STATUS_COLORS.same);
-  assert.equal(SHEET_STATUS_COLORS.improved, '#d9ead3');
-  assert.equal(SHEET_STATUS_COLORS.decreased, '#f4cccc');
-  assert.equal(SHEET_STATUS_COLORS.holiday, '#f5e6c8');
 });
 
 test('starting phase 3 retains all history and begins after the latest stored week', () => {
@@ -634,179 +517,19 @@ test('extra unmatched sets and missing reference retain the custom status rules'
   assert.equal(calculateExerciseStatus([], [set]), 'removed');
 });
 
-const { parseCellToSets, parseTabularText, convertParsedToProgram } = loadTS('src/utils/textImportParser.ts');
 const { formatSets } = loadTS('src/utils/formatters.ts');
-const { buildColumnRequests, buildWeekRequests, parseCellAddress, columnLetters, SHEET_NOTE_COLOR } = loadTS('src/utils/sheetColumn.ts');
-const { writeWeekColumn, writeWeekColumns } = loadTS('src/lib/googleSheets.ts');
-
-test('sheet layout sizes notes from all weeks and protects future data without rewriting values', () => {
-  const { buildSheetLayoutRequests } = loadTS('src/utils/sheetLayout.ts');
-  const rows = [
-    ['Upper'], ['Egzersiz', 'Set', 'H0', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'],
-    ['Row', '2', '', '75 x 9 F\n80 x 8 F'],
-    ['HAFTALIK NOTLAR', '', 'Earlier note'], [],
-    ['Lower'], ['Egzersiz', 'Set', 'H0', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'],
-    ['Squat', '2', '', '', '', '', '50 x 8 F'], ['HAFTALIK NOTLAR'],
-  ];
-  const original = JSON.stringify(rows);
-  const requests = buildSheetLayoutRequests(5, rows, 3);
-  const dimensions = requests.filter(r => r.updateDimensionProperties).map(r => r.updateDimensionProperties);
-  const height = row => dimensions.find(r => r.range.dimension === 'ROWS' && r.range.startIndex === row).properties.pixelSize;
-  assert.equal(height(3), 72);
-  assert.equal(height(8), 32);
-  assert.ok(height(2) >= 48);
-  assert.equal(dimensions.some(r => r.properties.hiddenByUser === true), false);
-  rows[7][6] = '';
-  const hidden = buildSheetLayoutRequests(5, rows, 3).find(r => r.updateDimensionProperties?.properties.hiddenByUser === true);
-  assert.equal(hidden.updateDimensionProperties.range.startIndex, 6);
-  assert.equal(requests.some(r => r.updateCells || r.deleteDimension), false);
-  rows[7][6] = '50 x 8 F';
-  assert.equal(JSON.stringify(rows), original);
-});
-
-test('manual sheet notes wrap centred inside their week and grow the row for a long note', () => {
-  const { buildSheetLayoutRequests } = loadTS('src/utils/sheetLayout.ts');
-  const rows = [['Upper'], ['Egzersiz', 'Set', 'H0', 'H1'], ['Row', '2', '75 x 9 F', ''],
-    ['HAFTALIK NOTLAR', '', 'triceps biceps önce yaptım, sonra omuz ve en son karın, en sonda da biraz kardiyo']];
-  const requests = buildSheetLayoutRequests(5, rows, 2);
-  const noteCells = requests.find(r => r.repeatCell?.range.startRowIndex === 3 && r.repeatCell.range.startColumnIndex === 2).repeatCell.cell.userEnteredFormat;
-  assert.equal(noteCells.wrapStrategy, 'WRAP');
-  assert.equal(noteCells.horizontalAlignment, 'CENTER');
-  const label = requests.find(r => r.repeatCell?.range.startRowIndex === 3 && r.repeatCell.range.startColumnIndex === 0).repeatCell.cell.userEnteredFormat;
-  assert.equal(label.horizontalAlignment, 'LEFT');
-  const height = requests.find(r => r.updateDimensionProperties?.range.dimension === 'ROWS' && r.updateDimensionProperties.range.startIndex === 3);
-  assert.equal(height.updateDimensionProperties.properties.pixelSize, 5 * 15 + 16);
-});
-
-test('single shorthand expands to the declared set count; explicit pipes stay ordered', () => {
-  const sets = parseCellToSets('70 x 8 F', 2);
-  assert.equal(sets.length, 2);
-  assert.deepEqual(sets[0], sets[1]);
-  assert.notEqual(sets[0], sets[1]);
-  assert.equal(formatSets(sets), '70 x 8 F\n70 x 8 F');
-  const split = parseCellToSets('70 x 8 F | 8 +1', 2);
-  assert.equal(split.length, 2);
-  assert.equal(split[0].intensity, 'failure');
-  assert.equal(split[1].intensity, 'rir1');
-  assert.equal(formatSets(split), '70 x 8 F\n70 x 8 +1');
-  assert.equal(parseCellToSets('70 x 8 F | 8 +1', 3).length, 2);
-  // What the grid writes now reads back set for set.
-  assert.deepEqual(parseCellToSets(formatSets(split), 3), split);
-});
 
 test('every set is written on its own line, in full, without pipes', () => {
   const set = { weight: 70, reps: 8, intensity: 'failure' };
+  assert.equal(formatSets([set, set]), '70 x 8 F\n70 x 8 F');
   assert.equal(formatSets([set, { ...set, intensity: 'rir1' }, set]), '70 x 8 F\n70 x 8 +1\n70 x 8 F');
   assert.equal(formatSets([set, { ...set, weight: 60 }, set]), '70 x 8 F\n60 x 8 F\n70 x 8 F');
   assert.equal(formatSets([set]), '70 x 8 F');
   assert.equal(formatSets([]), '');
 });
 
-test('table import uses the Set column when a cell uses shorthand', () => {
-  const parsed = parseTabularText('Egzersiz\tSet\tH0\nRow\t2\t70 x 8 F');
-  const result = convertParsedToProgram('Test', parsed);
-  assert.equal(result.weekLogs[0].exercises[0].sets.length, 2);
-});
-
-test('W1 maps to column 22 and targeted formatting includes notes and literal values', () => {
-  assert.deepEqual(parseCellAddress('w1'), { column: 22, row: 1 });
-  assert.equal(columnLetters(26), 'AA');
-  const requests = buildColumnRequests(123, 22, [
-    { row: 1, label: 'Başlık', value: 'H20' },
-    { row: 2, label: 'Smith', value: '40 x 7 F', color: '#ff0000' },
-    { row: 12, label: 'Açıklama', value: '=literal note\nsecond line', color: SHEET_NOTE_COLOR, kind: 'note' },
-  ]);
-  assert.equal(requests.length, 3);
-  for (const request of requests) {
-    assert.equal(request.updateCells.range.startColumnIndex, 22);
-    assert.equal(request.updateCells.range.endColumnIndex, 23);
-  }
-  assert.equal(requests[0].updateCells.fields, 'userEnteredValue');
-  assert.deepEqual(requests[1].updateCells.rows[0].values[0].userEnteredFormat.backgroundColorStyle.rgbColor, { red: 1, green: 0, blue: 0 });
-  assert.equal(requests[2].updateCells.rows[0].values[0].userEnteredValue.stringValue, '=literal note\nsecond line');
-  assert.equal(requests[2].updateCells.rows[0].values[0].userEnteredFormat.wrapStrategy, 'CLIP');
-  assert.equal(requests[1].updateCells.rows[0].values[0].userEnteredFormat.horizontalAlignment, 'CENTER');
-  assert.equal(requests[2].updateCells.rows[0].values[0].userEnteredFormat.horizontalAlignment, 'LEFT');
-  assert.equal(requests[2].updateCells.rows[0].values[0].userEnteredFormat.textFormat.fontSize, 9);
-  assert.equal(requests[2].updateCells.range.startRowIndex, 11);
-  assert.throws(() => buildColumnRequests(1, 22, [{ row: 1, value: 'H20' }, { row: 1, value: 'wrong' }]));
-});
-
-test('week export checks the phase-relative header and updates values/colors in one batch without clearing', async () => {
-  const previousFetch = global.fetch;
-  const calls = [];
-  global.fetch = async (url, init) => {
-    calls.push({ url, init });
-    return { ok: true, json: async () => calls.length === 1 ? { values: [['H20']] } : {} };
-  };
-  try {
-    await writeWeekColumn('test-token', 'test-sheet', { title: 'weak15-28', sheetId: 5 }, 22, [
-      { row: 1, label: 'Başlık', value: 'H20' }, { row: 12, label: 'Açıklama', value: 'dips kaldırdım', color: SHEET_NOTE_COLOR },
-    ]);
-    assert.equal(calls.length, 2);
-    assert.ok(decodeURIComponent(calls[0].url).endsWith("'weak15-28'!W1"));
-    assert.ok(calls[1].url.endsWith(':batchUpdate'));
-    assert.equal(JSON.parse(calls[1].init.body).requests.length, 2);
-    assert.equal(calls.some(call => call.url.includes(':clear')), false);
-  } finally { global.fetch = previousFetch; }
-});
-
-test('a different week header prevents every write', async () => {
-  const previousFetch = global.fetch;
-  let calls = 0;
-  global.fetch = async () => { calls++; return { ok: true, json: async () => ({ values: [['H35']] }) }; };
-  try {
-    await assert.rejects(writeWeekColumn('test-token', 'test-sheet', { title: 'weak15-28', sheetId: 5 }, 22, [{ row: 1, label: 'Başlık', value: 'H20' }]), /H35/);
-    assert.equal(calls, 1);
-  } finally { global.fetch = previousFetch; }
-});
-
-test('stacked workout blocks share a column without touching separator rows', () => {
-  const targets = [
-    { sheetId: 5, column: 22, cells: [{ row: 1, value: 'H20' }, { row: 2, value: '40 x 7 F', color: '#ff0000' }, { row: 12, value: 'note', color: SHEET_NOTE_COLOR }] },
-    { sheetId: 5, column: 22, cells: [{ row: 18, value: 'H20' }, { row: 19, value: '70 x 8 F', color: '#00ff00' }, { row: 24, value: '', color: '#ffffff' }] },
-  ];
-  const requests = buildWeekRequests(targets);
-  assert.deepEqual(requests.map(r => r.updateCells.range.startRowIndex), [0, 1, 11, 17, 18, 23]);
-  assert.equal(requests.length, 6);
-  assert.throws(() => buildWeekRequests([targets[0], targets[0]]), /çakışıyor/);
-});
-
-test('phase backfill selects only empty mapped workout columns', () => {
-  const { hasMappedWeekData } = loadTS('src/utils/sheetColumn.ts');
-  const target = { tab: 'Faz 3', column: 3, cells: [
-    { row: 2, value: 'H1' }, { row: 3, value: '40 x 8 F' }, { row: 4, value: '' },
-  ] };
-  const rows = [[], ['', '', '', 'H1'], ['', '', '', ''], ['', '', '', '']];
-  assert.equal(hasMappedWeekData(rows, target), false);
-  rows[2][3] = '40 x 7 F';
-  assert.equal(hasMappedWeekData(rows, target), true);
-  rows[2][3] = '';
-  rows[3][3] = 'personal note';
-  assert.equal(hasMappedWeekData(rows, target), true);
-});
-
-test('weekly send validates all headers before one batch write', async () => {
-  const previousFetch = global.fetch;
-  const calls = [];
-  global.fetch = async (url, init) => { calls.push({ url, init }); return { ok: true, json: async () => ({ values: [['H20']] }) }; };
-  const tab = { title: 'weak15-28', sheetId: 5 };
-  const targets = [{ tab, column: 22, cells: [{ row: 1, value: 'H20' }] }, { tab, column: 22, cells: [{ row: 18, value: 'H20' }] }];
-  try {
-    await writeWeekColumns('test-token', 'test-sheet', targets);
-    assert.equal(calls.length, 3);
-    assert.equal(calls.filter(c => c.init?.method === 'POST').length, 1);
-    assert.equal(JSON.parse(calls[2].init.body).requests.length, 2);
-    calls.length = 0;
-    global.fetch = async (url, init) => { calls.push({ url, init }); return { ok: true, json: async () => ({ values: [[calls.length === 1 ? 'H20' : 'H19']] }) }; };
-    await assert.rejects(writeWeekColumns('test-token', 'test-sheet', targets), /H19/);
-    assert.equal(calls.filter(c => c.init?.method === 'POST').length, 0);
-  } finally { global.fetch = previousFetch; }
-});
-
 const { normalizeGoogleSettings } = loadTS('src/utils/googleSheetsSettings.ts');
 const { DEFAULT_SPREADSHEET_ID } = loadTS('src/config.ts');
-const { validGoogleToken, readGoogleSession, saveGoogleSession, GOOGLE_SESSION_EVENT } = loadTS('src/utils/googleSheetsSession.ts');
 
 test('new users never inherit another account’s spreadsheet', () => {
   assert.equal(normalizeGoogleSettings(null).spreadsheetId, DEFAULT_SPREADSHEET_ID);
@@ -820,34 +543,6 @@ test('cloud preferences preserve custom files but exclude Google credentials', (
   assert.deepEqual(next.googleSheetsSettings.tabByProgramId, { lower1: 'weak15-28' });
   assert.equal(JSON.stringify(next).includes('not-to-sync'), false);
   assert.equal(appReducer(initialState, { type: 'IMPORT_DATA', payload: next }).googleSheetsSettings.spreadsheetId, 'replacement');
-});
-
-test('token lifetime validation rejects expired, invalid and near-expiry tokens', () => {
-  assert.equal(validGoogleToken({ value: 'test-token', expiresAt: 160001 }, 100000), true);
-  assert.equal(validGoogleToken({ value: 'test-token', expiresAt: 160000 }, 100000), false);
-  assert.equal(validGoogleToken({ value: 'test-token', expiresAt: Infinity }), false);
-  assert.equal(validGoogleToken({ value: '', expiresAt: Date.now() + 3600000 }), false);
-});
-
-test('Google session is reused across dialogs and isolated by client and app account', () => {
-  const oldWindow = global.window;
-  const oldStorage = global.sessionStorage;
-  const values = new Map();
-  global.window = new EventTarget();
-  global.sessionStorage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
-  let changes = 0;
-  window.addEventListener(GOOGLE_SESSION_EVENT, () => changes++);
-  const token = { value: 'test-token', expiresAt: Date.now() + 3600000 };
-  try {
-    saveGoogleSession(token, 'client-a', 'account-a');
-    assert.deepEqual(readGoogleSession('client-a', 'account-a'), token);
-    assert.deepEqual(readGoogleSession('client-a', 'account-a'), token);
-    assert.equal(readGoogleSession('client-b', 'account-a'), null);
-    assert.equal(readGoogleSession('client-a', 'account-b'), null);
-    saveGoogleSession(null, 'client-a', 'account-a');
-    assert.equal(readGoogleSession('client-a', 'account-a'), null);
-    assert.equal(changes, 2);
-  } finally { global.window = oldWindow; global.sessionStorage = oldStorage; }
 });
 
 test('painted History cells live in the synced state, survive other cells being painted and can be cleared', () => {

@@ -13,12 +13,7 @@ import { calculateExerciseStatus } from '@/utils/statusCalculator';
 import { formatSets } from '@/utils/formatters';
 import { moveItem, applySavedOrder } from '@/utils/reorder';
 import { syncExerciseLogs } from '@/utils/exerciseSync';
-import { buildSheetTsv } from '@/utils/sheetExport';
-import { copyText } from '@/utils/clipboard';
-import { useLastSheetExport } from '@/hooks/useLastSheetExport';
 import { AppContext } from '@/context/AppContext';
-import { SheetColumnModal } from '@/components/shared/SheetColumnModal';
-import { SheetWeekModal } from '@/components/shared/SheetWeekModal';
 import type { ExerciseLog, ExerciseStatus } from '@/types';
 
 type HistoryPhase = {
@@ -79,10 +74,6 @@ export function History() {
     } catch { /* ignore */ }
     return initialPrograms[0]?.id || '';
   });
-  const { recordExport } = useLastSheetExport();
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
-  const [sheetWeek, setSheetWeek] = useState<number | null>(null);
-  const [fullSheetWeek, setFullSheetWeek] = useState<number | null>(null);
   const [showColorSettings, setShowColorSettings] = useState(false);
   const [showProgramEditor, setShowProgramEditor] = useState(false);
   const [programEdits, setProgramEdits] = useState<Array<{ id: string; name: string; defaultSets: number }>>([]);
@@ -195,29 +186,6 @@ export function History() {
     ? exerciseRowOrder?.[selectedProgramId]
     : undefined;
 
-  /**
-   * Copies the phase currently on screen. The phase is the unit the page is
-   * organised around, so "what got copied" is whatever the headline says —
-   * copying the paginated window instead would send one or four weeks and
-   * quietly leave the rest of the mezo behind.
-   */
-  const handleCopyPhase = async () => {
-    if (!selectedProgram || !currentPhase || currentPhase.weeks.length === 0) return;
-    const lastWeek = currentPhase.weeks[currentPhase.weeks.length - 1];
-    const tsv = buildSheetTsv({
-      program: selectedProgram,
-      weekLogs,
-      fromWeek: currentPhase.weeks[0],
-      toWeek: lastWeek,
-      phases: contextPhases,
-      rowOrder: savedRowOrder,
-      state: ctx?.state,
-    });
-    const copied = await copyText(tsv);
-    setCopyState(copied ? 'copied' : 'failed');
-    if (copied) recordExport(lastWeek);
-  };
-
   // Get all exercise IDs for visible weeks
   const allExerciseIds = useMemo(() => {
     const ids = new Set<string>();
@@ -285,8 +253,6 @@ export function History() {
   };
 
   useEffect(() => {
-    // Whatever was copied belongs to the weeks that were on screen then.
-    setCopyState('idle');
     if (visibleWeeks.length === 0) {
       setEditorWeek(null);
       setBulkColumnWeek(null);
@@ -840,31 +806,9 @@ export function History() {
         >
           Sonraki →
         </button>
-
-        <select aria-label="Google Sheets'e gönderilecek hafta" className="lb-press ml-auto px-3 py-2 border lb-rule rounded-lg bg-(--color-bg-input) text-sm max-w-full" value="" onChange={e => {
-          const [scope, value] = e.target.value.split(':');
-          if (value !== undefined) (scope === 'all' ? setFullSheetWeek : setSheetWeek)(Number(value));
-        }}>
-          <option value="">Sheets'e gönder…</option>
-          {visibleWeeks.map(week => <optgroup key={week} label={`H${getDisplayWeek(week)}`}>
-            <option value={`one:${week}`}>{selectedProgram?.name} · H{getDisplayWeek(week)}</option>
-            <option value={`all:${week}`}>Tüm antrenmanlar · H{getDisplayWeek(week)}</option>
-          </optgroup>)}
-        </select>
-        {/* Copies the whole phase, not the page on screen — hence its place next
-            to the phase's own navigation rather than up in the title bar. */}
-        <button
-          onClick={handleCopyPhase}
-          className="lb-press px-3 py-1.5 text-sm font-medium border lb-rule rounded-lg"
-          title={`${currentPhase.label} tablosunu Sheets için kopyala`}
-        >
-          {copyState === 'copied' ? '✓ Kopyalandı' : copyState === 'failed' ? '! Kopyalanamadı' : '📋 Kopyala'}
-        </button>
       </div>
 
       {/* Table / Accordion */}
-      {fullSheetWeek !== null && <SheetWeekModal key={fullSheetWeek} programs={programs} week={fullSheetWeek} baseWeek={currentPhase.baseWeek} weekLogs={weekLogs} phases={contextPhases} rowOrders={exerciseRowOrder} getCellOverride={getCellOverride} onClose={() => setFullSheetWeek(null)} />}
-      {sheetWeek !== null && selectedProgram && <SheetColumnModal key={`${selectedProgram.id}:${sheetWeek}`} program={selectedProgram} week={sheetWeek} baseWeek={currentPhase.baseWeek} weekLogs={weekLogs} phases={contextPhases} exerciseIds={allExerciseIds} getCellOverride={getCellOverride} onClose={() => setSheetWeek(null)} />}
       {orderChanges.length > 0 && (
         <details className="mb-4 rounded-lg border lb-rule p-3 text-sm">
           <summary className="cursor-pointer font-medium">Hareket sırası değişimleri ({orderChanges.length})</summary>

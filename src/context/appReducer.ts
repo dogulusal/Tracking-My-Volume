@@ -90,8 +90,6 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
 function reduceData(state: AppState, action: AppAction): AppState {
   switch (action.type) {
-    case 'SET_SHEET_MAPPINGS':
-      return { ...state, sheetColumnMappings: { ...state.sheetColumnMappings, ...action.payload } };
     case 'START_NEXT_PHASE':
       return startNextPhase(state, action.payload.id, action.payload.startAt);
     case 'CLEAR_HISTORY_DATA': {
