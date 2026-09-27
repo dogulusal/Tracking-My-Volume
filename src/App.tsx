@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AppProvider } from '@/context/AppContext';
 import { Header } from '@/components/layout/Header';
@@ -13,15 +12,13 @@ import { Export } from '@/pages/Export';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { useCloudSync } from '@/hooks/useCloudSync';
 import { LoginPromptModal } from '@/components/shared/LoginPromptModal';
+import { SheetSetupModal } from '@/components/shared/SheetSetupModal';
 
 // Inner component — must be inside AppProvider to access context hooks
 function AppContent() {
   const isMobileDevice = useIsMobileDevice();
   const { configured, syncStatus } = useCloudSync();
-  const [loginPromptDismissed, setLoginPromptDismissed] = useState(false);
-
-  // Show login prompt once per session when Supabase is configured but user is signed out
-  const showLoginPrompt = configured && syncStatus === 'signed_out' && !loginPromptDismissed;
+  const showLoginPrompt = configured && syncStatus === 'signed_out';
 
   return (
     <div
@@ -44,9 +41,8 @@ function AppContent() {
         </Routes>
       </main>
       <BottomNav />
-      {showLoginPrompt && (
-        <LoginPromptModal onDismiss={() => setLoginPromptDismissed(true)} />
-      )}
+      {showLoginPrompt && <LoginPromptModal />}
+      {syncStatus === 'synced' && <SheetSetupModal />}
     </div>
   );
 }

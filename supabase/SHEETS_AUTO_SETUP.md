@@ -37,16 +37,19 @@ Sonra `supabase/sheets-auto-cron.sql` içindeki proje URL'si ve işçi anahtarı
 yer tutucularını değiştirip SQL Editor'de **bir kez** çalıştır. Cron her dakika
 bekleyen değişiklikleri işler; geçici Google/API hataları tekrar denenir.
 
-Otomatik aktarım arayüzü varsayılan olarak açıktır. Sunucu geçici olarak
-kullanılamıyorsa ön yüz derlemesine `VITE_SHEETS_AUTO_SYNC_ENABLED=false`
-ekleyerek düğmeyi gizleyebilirsin.
+Giriş yapan hesapta henüz bağlantı yoksa uygulama bir kerelik Google Sheets
+izin ekranını açar. Kullanıcı kendi dosyasını oluşturur veya mevcut dosyasını
+bağlar. Bağlantı ve şifreli yenileme belirteci `sheet_auto_connections`
+tablosunda kullanıcı hesabına bağlı saklanır. Sonraki veri değişiklikleri
+`user_states` tetikleyicisiyle kuyruğa alınır ve cron tarafından işlenir;
+kullanıcı başına otomatik aktarımı açma/kapama tercihi yoktur.
 
 ## 3. Doğrulama
 
 1. Bulut hesabına giriş yap; Sheets ayarındaki client ID ile Function secret
    içindeki `GOOGLE_CLIENT_ID` aynı olsun.
-2. Dışa / içe aktarma ekranından **Otomatik aktarımı aç** düğmesine bas ve
-   Google iznini ver.
+2. İlk girişten sonra açılan kurulum ekranında Google iznini ver ve kendi
+   Sheet dosyanı oluştur veya mevcut dosyanı bağla.
 3. Bir antrenman kaydet. Kuyruk durumu kaybolup son aktarım saati göründüğünde
    Google dosyasında ilgili `Oto` faz sekmesini kontrol et.
 4. Bir notu değiştir ve bir hareketi sil. Sonraki aktarımın yalnızca ilgili

@@ -581,7 +581,6 @@ export function Export() {
                     {autoSheets.status.connection.status === 'reauthorize' ? 'Google iznini yenile' : 'Yeni dosyaya bağlan'}
                   </button>}
                 <button disabled={autoSheets.busy} onClick={() => void autoSheets.refresh()} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">Durumu yenile</button>
-                <button disabled={autoSheets.busy} onClick={() => void autoSheets.disconnect()} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">Otomatik aktarımı kapat</button>
               </div>
               {showSyncChoices && <div className="mt-3 p-3 rounded-lg border lb-rule space-y-3">
                 <p className="text-xs text-(--color-text-secondary)">

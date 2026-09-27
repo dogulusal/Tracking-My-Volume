@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useState } from 'react';
+import { AppContext } from '@/context/AppContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { loadGis, SHEETS_SCOPE } from '@/lib/googleSheets';
 
@@ -12,7 +13,10 @@ const emptyStatus: AutoStatus = { connection: null, queue: null };
 
 export function useAutoSheetSync(clientId: string, spreadsheetId: string, enabled = true,
   onCreated?: (spreadsheetId: string) => void) {
+  const userId = useContext(AppContext)?.cloud.userId ?? null;
   const [status, setStatus] = useState<AutoStatus>(emptyStatus);
+  const [statusOwner, setStatusOwner] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,19 +37,27 @@ export function useAutoSheetSync(clientId: string, spreadsheetId: string, enable
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!enabled || !isSupabaseConfigured) return;
-    try { setStatus(await call('status') as AutoStatus); }
-    catch { setStatus(emptyStatus); }
-  }, [call, enabled]);
+    if (!enabled || !isSupabaseConfigured || !userId) return;
+    try {
+      const next = await call('status') as AutoStatus;
+      setStatus(next);
+      setStatusError(null);
+      setStatusOwner(userId);
+    } catch (error) {
+      if (statusOwner !== userId) setStatus(emptyStatus);
+      setStatusError(error instanceof Error ? error.message : 'Bağlantı durumu alınamadı.');
+      setStatusOwner(userId);
+    }
+  }, [call, enabled, userId, statusOwner]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !userId) return;
     if (clientId) void loadGis().catch(() => {});
     void refresh();
     const interval = window.setInterval(() => void refresh(), 30_000);
     window.addEventListener('focus', refresh);
     return () => { window.clearInterval(interval); window.removeEventListener('focus', refresh); };
-  }, [clientId, refresh, enabled]);
+  }, [clientId, refresh, enabled, userId]);
 
   const connect = (createNew = false) => {
     if (!clientId || (!createNew && !spreadsheetId)) { setError('Önce Sheet adresini ve OAuth istemci kimliğini kaydet.'); return; }
@@ -89,5 +101,7 @@ export function useAutoSheetSync(clientId: string, spreadsheetId: string, enable
     finally { setBusy(false); }
   };
 
-  return { status, busy, error, connect, disconnect, configure, refresh };
+  return { status: statusOwner === userId ? status : emptyStatus,
+    ready: Boolean(userId && statusOwner === userId), statusError, busy, error,
+    connect, disconnect, configure, refresh };
 }
