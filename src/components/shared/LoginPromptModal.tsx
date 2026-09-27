@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useCloudSync } from '@/hooks/useCloudSync';
 
 export function LoginPromptModal() {
-  const { signInWithGithub, signInWithGoogle } = useCloudSync();
+  const { signInWithGithub, signInWithGoogle, authError } = useCloudSync();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSignIn = async (provider: 'github' | 'google') => {
@@ -12,9 +12,8 @@ export function LoginPromptModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50" />
-      <div className="relative bg-(--color-bg-card) rounded-lg p-6 w-full max-w-sm border lb-rule shadow-2xl">
+    <div className="logbook flex min-h-screen items-center justify-center bg-(--color-bg-primary) p-4 text-(--color-text-primary)">
+      <div className="bg-(--color-bg-card) rounded-lg p-6 w-full max-w-sm border lb-rule shadow-2xl">
         <div className="flex items-center gap-3 mb-3">
           <span className="text-2xl">☁️</span>
           <h3 className="text-base font-semibold">Bulut senkron</h3>
@@ -35,6 +34,7 @@ export function LoginPromptModal() {
             GitHub ile Giriş Yap
           </button>
         </div>
+        {authError && <p role="alert" className="mt-3 text-sm text-amber-300">{authError}</p>}
         <p className="mt-4 text-center text-xs text-(--color-text-secondary)">
           <a className="underline" href={`${import.meta.env.BASE_URL}about.html`}>Uygulama hakkında</a>
           {' · '}

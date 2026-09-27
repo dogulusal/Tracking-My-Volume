@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useState } from 'react';
 import { AppContext } from '@/context/AppContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { APP_CREATED_SHEETS_SCOPE, loadGis, SHEETS_SCOPE } from '@/lib/googleSheets';
+import { APP_CREATED_SHEETS_SCOPE, loadGis, SHEETS_ACCOUNT_SCOPE, SHEETS_SCOPE } from '@/lib/googleSheets';
 
 interface AutoStatus {
   connection: { spreadsheet_id: string; status: 'active' | 'reauthorize'; access_scope: 'all' | 'app_files';
@@ -14,7 +14,9 @@ const emptyStatus: AutoStatus = { connection: null, queue: null };
 
 export function useAutoSheetSync(clientId: string, spreadsheetId: string, enabled = true,
   onCreated?: (spreadsheetId: string) => void) {
-  const userId = useContext(AppContext)?.cloud.userId ?? null;
+  const cloud = useContext(AppContext)?.cloud;
+  const userId = cloud?.userId ?? null;
+  const userEmail = cloud?.userEmail ?? null;
   const [status, setStatus] = useState<AutoStatus>(emptyStatus);
   const [statusOwner, setStatusOwner] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
@@ -76,7 +78,9 @@ export function useAutoSheetSync(clientId: string, spreadsheetId: string, enable
       const appCreatedFile = createNew || (status.connection?.spreadsheet_id === targetId
         && status.connection.access_scope === 'app_files');
       const codeClient = google.accounts.oauth2.initCodeClient({
-        client_id: clientId, scope: appCreatedFile ? APP_CREATED_SHEETS_SCOPE : SHEETS_SCOPE, ux_mode: 'popup',
+        client_id: clientId,
+        scope: `${appCreatedFile ? APP_CREATED_SHEETS_SCOPE : SHEETS_SCOPE} ${SHEETS_ACCOUNT_SCOPE}`,
+        login_hint: userEmail ?? undefined, ux_mode: 'popup',
         callback: response => {
           if (!response.code) { setError(response.error ?? 'Google izin vermedi.'); setBusy(false); return; }
           void call('connect', { code: response.code, spreadsheetId: targetId, createNew }).then(async data => {

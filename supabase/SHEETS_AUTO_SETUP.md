@@ -11,7 +11,8 @@ Mevcut web OAuth istemcisine ait **client secret** gerekli. Web istemcisinin
 izin verilen JavaScript kaynakları arasına canlı uygulama kökenini ekle:
 `https://dogulusal.github.io`. Yerel deneme için `http://localhost:5173` ekle.
 Sheets API etkin olmalı. Yeni hesap dosyası için `drive.file` (hassas olmayan)
-kapsamını Google Auth Platform > Data Access bölümüne ekle. Önceden var olan
+kapsamını, ayrıca hesap eşleştirmesi için `openid` ve `userinfo.email`
+kapsamlarını Google Auth Platform > Data Access bölümüne ekle. Önceden var olan
 bir Sheet dosyasını manuel bağlama akışı hâlâ `spreadsheets` kapsamını kullanır;
 bu kapsam hassastır ve Google doğrulaması gerektirir. Uzun süreli bağlantı için
 OAuth uygulamasını uygun yayın durumuna al.

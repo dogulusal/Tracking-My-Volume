@@ -22,6 +22,7 @@ export interface AppContextValue {
     configured: boolean;
     userEmail: string | null;
     userId: string | null;
+    hydrated: boolean;
     githubLogin: string | null;
     syncStatus: CloudSyncStatus;
     lastSyncedAt: string | null;
@@ -352,6 +353,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           configured: isSupabaseConfigured,
           userEmail: user?.email ?? null,
           userId: user?.id ?? null,
+          hydrated: Boolean(user && hydratedUserIdRef.current === user.id),
           githubLogin: (user?.user_metadata?.user_name as string | undefined) ?? null,
           syncStatus,
           lastSyncedAt,

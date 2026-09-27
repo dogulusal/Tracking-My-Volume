@@ -5,7 +5,7 @@ import { useCloudSync } from '@/hooks/useCloudSync';
 
 /** One-time Google consent; subsequent writes are handled by the server queue. */
 export function SheetSetupModal() {
-  const { signOut } = useCloudSync();
+  const { signOut, userEmail } = useCloudSync();
   const sheets = useGoogleSheets();
   const auto = useAutoSheetSync(sheets.settings.clientId, sheets.settings.spreadsheetId,
     true, spreadsheetId => sheets.setSettings({ spreadsheetId }));
@@ -17,7 +17,10 @@ export function SheetSetupModal() {
     }
   }, [connection?.spreadsheet_id, sheets.settings.spreadsheetId]);
 
-  if (!auto.ready || connection?.status === 'active') return null;
+  if (!auto.ready) return <div className="fixed inset-0 z-[130] flex items-center justify-center bg-(--color-bg-primary) text-sm text-(--color-text-primary)">
+    Sheet bağlantısı kontrol ediliyor…
+  </div>;
+  if (connection?.status === 'active') return null;
 
   const needsRenewal = connection?.status === 'reauthorize';
   const existingId = connection?.spreadsheet_id ?? sheets.settings.spreadsheetId;
@@ -33,6 +36,9 @@ export function SheetSetupModal() {
             ? 'Google erişimi sona erdi. Antrenmanlarının otomatik aktarımının sürmesi için izni yeniden ver.'
             : 'Antrenmanların kendi Google Sheet dosyana otomatik aktarılır. Google iznini bir kez verdiğinde dosyan oluşturulur ve sonraki kayıtlar kendiliğinden güncellenir.'}
         </p>
+        {userEmail && <p className="mb-4 text-xs text-(--color-text-secondary)">
+          Sheet, giriş yaptığın <strong className="text-(--color-text-primary)">{userEmail}</strong> hesabıyla bağlanacak.
+        </p>}
         {auto.statusError ? (
           <button onClick={() => void auto.refresh()} className="lb-press rounded-lg border lb-rule px-4 py-2 text-sm">
             Bağlantıyı yeniden dene

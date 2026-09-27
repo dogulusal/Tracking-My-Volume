@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { projectSheets } from '../_shared/sheetProjection.mjs';
 import { buildAutoSheetStyleRequests } from '../_shared/sheetStyle.mjs';
+import { matchesVerifiedGoogleEmail, requiresAccountMatch } from '../_shared/googleAccount.mjs';
 
 const url = Deno.env.get('SUPABASE_URL')!;
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -270,6 +271,17 @@ Deno.serve(async request => {
       const tokens = await exchangeCode(body.code, origin);
       const { data: previous } = await admin.from('sheet_auto_connections')
         .select('spreadsheet_id,managed_tabs,selection,access_scope').eq('user_id', user.id).maybeSingle();
+      // Keep existing grants working, but bind every new connection to the
+      // verified Google address of the signed-in app account.
+      if (requiresAccountMatch(createNew, previous?.spreadsheet_id, spreadsheetId)) {
+        const profileResult = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+          headers: { authorization: `Bearer ${tokens.access_token}` },
+        });
+        const profile = await profileResult.json().catch(() => ({}));
+        if (!profileResult.ok || !matchesVerifiedGoogleEmail(profile, user.email)) {
+          return response({ error: 'Sheet için, uygulamaya giriş yaptığın Google hesabıyla izin ver.' }, 400, origin);
+        }
+      }
       const { data: stateRow } = await admin.from('user_states').select('data').eq('user_id', user.id).maybeSingle();
       // A new account may connect before its first debounced cloud save.
       const state = stateRow?.data ?? { currentWeek: 0, phases: [{ id: 'phase-1', name: 'Faz 1', startWeek: 0, endWeek: null }],

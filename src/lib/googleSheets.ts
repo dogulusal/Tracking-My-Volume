@@ -22,6 +22,8 @@ const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
 export const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
 /** New accounts only need access to files this app creates. */
 export const APP_CREATED_SHEETS_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+/** Bind a new Sheet grant to the account used for app sign-in. */
+export const SHEETS_ACCOUNT_SCOPE = 'openid https://www.googleapis.com/auth/userinfo.email';
 
 interface TokenResponse {
   access_token?: string;
@@ -44,6 +46,7 @@ interface GoogleIdentityServices {
       initCodeClient: (config: {
         client_id: string;
         scope: string;
+        login_hint?: string;
         ux_mode: 'popup';
         callback: (response: { code?: string; error?: string }) => void;
         error_callback?: (error: { type?: string; message?: string }) => void;

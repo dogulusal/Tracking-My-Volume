@@ -17,8 +17,25 @@ import { SheetSetupModal } from '@/components/shared/SheetSetupModal';
 // Inner component — must be inside AppProvider to access context hooks
 function AppContent() {
   const isMobileDevice = useIsMobileDevice();
-  const { configured, syncStatus } = useCloudSync();
-  const showLoginPrompt = configured && syncStatus === 'signed_out';
+  const { configured, syncStatus, userId, hydrated, authError, refreshFromCloud, signOut } = useCloudSync();
+
+  if (configured && !userId) {
+    return syncStatus === 'auth_loading'
+      ? <div className="logbook flex min-h-screen items-center justify-center bg-(--color-bg-primary) text-(--color-text-primary)">Oturum kontrol ediliyor…</div>
+      : <LoginPromptModal />;
+  }
+  if (configured && !hydrated) {
+    return <div className="logbook flex min-h-screen items-center justify-center bg-(--color-bg-primary) p-5 text-(--color-text-primary)">
+      <div className="text-center">
+        <p>{syncStatus === 'error' ? 'Bulut verilerin yüklenemedi.' : 'Verilerin yükleniyor…'}</p>
+        {authError && <p role="alert" className="mt-2 text-sm text-amber-300">{authError}</p>}
+        {syncStatus === 'error' && <div className="mt-4 flex justify-center gap-4 text-sm underline">
+          <button onClick={() => void refreshFromCloud()}>Yeniden dene</button>
+          <button onClick={() => void signOut()}>Hesaptan çık</button>
+        </div>}
+      </div>
+    </div>;
+  }
 
   return (
     <div
@@ -41,8 +58,7 @@ function AppContent() {
         </Routes>
       </main>
       <BottomNav />
-      {showLoginPrompt && <LoginPromptModal />}
-      {syncStatus === 'synced' && <SheetSetupModal />}
+      {configured && <SheetSetupModal />}
     </div>
   );
 }
