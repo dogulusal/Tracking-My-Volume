@@ -1,789 +1,133 @@
-import { useState, useRef, useMemo, useContext, useEffect } from 'react';
+import { useRef, useState } from 'react';
 import { useExportImport } from '@/hooks/useExportImport';
-import { useWeekLogs } from '@/hooks/useWeekLogs';
-import { usePrograms } from '@/hooks/usePrograms';
-import { PageContainer } from '@/components/layout/PageContainer';
-import { Modal } from '@/components/shared/Modal';
-import { AppContext } from '@/context/AppContext';
-import { buildSheetTsv, buildMultiProgramTsv, buildSheetRows } from '@/utils/sheetExport';
-import { copyText } from '@/utils/clipboard';
 import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { useAutoSheetSync } from '@/hooks/useAutoSheetSync';
-import { useColorSettings } from '@/hooks/useColorSettings';
-import { buildStatusMap } from '@/utils/sheetFormat';
-import { useLastSheetExport } from '@/hooks/useLastSheetExport';
-import { programsForPhase } from '@/utils/programVersions';
+import { useCloudSync } from '@/hooks/useCloudSync';
+import { PageContainer } from '@/components/layout/PageContainer';
+import { Modal } from '@/components/shared/Modal';
 
-const ALL_PROGRAMS = 'all';
+const AUTO_SYNC_ENABLED = import.meta.env.VITE_SHEETS_AUTO_SYNC_ENABLED !== 'false';
 
-type SheetConfirm =
-  { kind: 'overwrite'; tabs: string[] };
+const syncTime = (iso: string) => new Date(iso).toLocaleString('tr-TR',
+  { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
 
+/**
+ * Workouts reach the cloud and the Sheet on their own after every save, so
+ * this page only says where the Sheet is and whether it is up to date, and
+ * keeps a backup file for the day something goes wrong.
+ */
 export function Export() {
-  const {
-    exportAll,
-    exportRange,
-    importData,
-    importFromText,
-    resetAll,
-    quickBackup,
-    backupSettings,
-    backupMeta,
-    setBackupSettings,
-  } = useExportImport();
-  const { currentWeek, weekLogs } = useWeekLogs();
-  const { programs } = usePrograms();
-  const ctx = useContext(AppContext);
-  const exerciseRowOrder = ctx?.state.exerciseRowOrder;
-  const phases = ctx?.state.phases;
-  const statusColors = ctx?.state.statusColors;
-  const { getCellOverride } = useColorSettings();
-
-  // Sheets export state
-  const [sheetProgramId, setSheetProgramId] = useState<string>(ALL_PROGRAMS);
-  const [sheetFrom, setSheetFrom] = useState(0);
-  const [sheetTo, setSheetTo] = useState(currentWeek);
-  const [showSheetPreview, setShowSheetPreview] = useState(false);
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
-
-  // Google Sheets API state
+  const { exportAll, importData, resetAll } = useExportImport();
+  const { configured } = useCloudSync();
+  // The Sheet is written by the cloud worker; without a cloud there is none.
+  const showSheet = configured && AUTO_SYNC_ENABLED;
   const sheets = useGoogleSheets();
-  const autoSheets = useAutoSheetSync(sheets.settings.clientId, sheets.settings.spreadsheetId,
-    import.meta.env.VITE_SHEETS_AUTO_SYNC_ENABLED !== 'false',
+  const auto = useAutoSheetSync(sheets.settings.clientId, sheets.settings.spreadsheetId, showSheet,
     spreadsheetId => sheets.setSettings({ spreadsheetId }));
-  useEffect(() => {
-    const connectedId = autoSheets.status.connection?.spreadsheet_id;
-    if (connectedId && !sheets.settings.spreadsheetId) sheets.setSettings({ spreadsheetId: connectedId });
-  }, [autoSheets.status.connection?.spreadsheet_id, sheets.settings.spreadsheetId]);
-  const [sheetAddressDraft, setSheetAddressDraft] = useState(sheets.settings.spreadsheetId);
-  const [googleClientDraft, setGoogleClientDraft] = useState(sheets.settings.clientId);
-  useEffect(() => setSheetAddressDraft(sheets.settings.spreadsheetId), [sheets.settings.spreadsheetId]);
-  useEffect(() => setGoogleClientDraft(sheets.settings.clientId), [sheets.settings.clientId]);
-  const { lastExport, recordExport } = useLastSheetExport();
-  const [showSheetSettings, setShowSheetSettings] = useState(false);
-  const [sheetConfirm, setSheetConfirm] = useState<SheetConfirm | null>(null);
-  const [showSyncChoices, setShowSyncChoices] = useState(false);
-  const [syncPhaseId, setSyncPhaseId] = useState('');
-  const [syncProgramId, setSyncProgramId] = useState('all');
-  const [syncWeekMode, setSyncWeekMode] = useState<'latest' | 'one' | 'all'>('latest');
-  const [syncWeekNumber, setSyncWeekNumber] = useState(currentWeek);
-  const syncPhase = phases?.find(phase => phase.id === syncPhaseId);
-  const syncPrograms = ctx?.state && syncPhase ? programsForPhase(ctx.state, syncPhase.id) : [];
-  const latestLoggedWeek = (phase: NonNullable<typeof phases>[number]) => Math.max(phase.startWeek,
-    ...weekLogs.filter(log => log.weekNumber >= phase.startWeek && log.weekNumber <= (phase.endWeek ?? currentWeek)).map(log => log.weekNumber));
-  const openSyncChoices = () => {
-    const selected = autoSheets.status.connection?.selection;
-    const current = phases?.find(phase => currentWeek >= phase.startWeek && (phase.endWeek == null || currentWeek <= phase.endWeek));
-    setSyncPhaseId(selected?.phaseId ?? current?.id ?? phases?.[0]?.id ?? '');
-    setSyncProgramId(selected?.programId ?? 'all');
-    setSyncWeekMode(selected?.weekMode ?? 'latest');
-    setSyncWeekNumber(selected?.weekNumber ?? (current ? latestLoggedWeek(current) : currentWeek));
-    setShowSyncChoices(true);
-  };
-  const saveSyncChoices = async () => {
-    if (await autoSheets.configure({ phaseId: syncPhaseId, programId: syncProgramId === 'all' ? null : syncProgramId,
-      weekMode: syncWeekMode, weekNumber: syncWeekMode === 'latest' && syncPhase ? latestLoggedWeek(syncPhase) : syncWeekNumber })) {
-      setShowSyncChoices(false);
-    }
-  };
-
-  const [fromWeek, setFromWeek] = useState(0);
-  const [toWeek, setToWeek] = useState(currentWeek);
-  const [showResetModal, setShowResetModal] = useState(false);
-  const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  // Text import state
-  const [showTextImport, setShowTextImport] = useState(false);
-  const [textInput, setTextInput] = useState('');
-  const [programName, setProgramName] = useState('');
-  const [startWeekInput, setStartWeekInput] = useState(0);
-
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const isCurrentWeekBackedUp = backupMeta.lastBackupWeek === currentWeek;
 
-  const sheetTsv = useMemo(() => {
-    const from = Math.min(sheetFrom, sheetTo);
-    const to = Math.max(sheetFrom, sheetTo);
-    if (sheetProgramId === ALL_PROGRAMS) {
-      return buildMultiProgramTsv(programs, {
-        weekLogs,
-        fromWeek: from,
-        toWeek: to,
-        phases,
-        rowOrders: exerciseRowOrder,
-        state: ctx?.state,
-      });
-    }
-    const program = programs.find(p => p.id === sheetProgramId);
-    if (!program) return '';
-    return buildSheetTsv({
-      program,
-      weekLogs,
-      fromWeek: from,
-      toWeek: to,
-      phases,
-      rowOrder: exerciseRowOrder?.[program.id],
-      state: ctx?.state,
-    });
-  }, [sheetProgramId, sheetFrom, sheetTo, programs, weekLogs, exerciseRowOrder, phases, ctx]);
-
-  // One tab per program, named after the program — the same shape the sheet
-  // already has. Shares the selection above so both buttons send the same thing.
-  const sheetTargets = useMemo(() => {
-    const from = Math.min(sheetFrom, sheetTo);
-    const to = Math.max(sheetFrom, sheetTo);
-    const selected = sheetProgramId === ALL_PROGRAMS
-      ? programs
-      : programs.filter(p => p.id === sheetProgramId);
-    const weekLabels: string[] = [];
-    for (let week = from; week <= to; week++) weekLabels.push(`H${week}`);
-
-    return selected.map(program => ({
-      programId: program.id,
-      tab: program.name,
-      weekLabels,
-      values: buildSheetRows({
-        program,
-        weekLogs,
-        fromWeek: from,
-        toWeek: to,
-        phases,
-        rowOrder: exerciseRowOrder?.[program.id],
-        state: ctx?.state,
-      }),
-      // Same comparison the History grid paints with, carried to the sheet.
-      statuses: buildStatusMap({
-        program,
-        weekLogs,
-        fromWeek: from,
-        toWeek: to,
-        phases,
-        getCellOverride,
-      }),
-    }));
-  }, [sheetProgramId, sheetFrom, sheetTo, programs, weekLogs, exerciseRowOrder, phases, getCellOverride, ctx]);
-
-  const sentWeek = Math.max(sheetFrom, sheetTo);
-
-  /** Picks up where the sheet was left off, up to the week being logged now. */
-  const applySinceLastExport = () => {
-    setSheetFrom(lastExport.week === null ? 0 : Math.min(lastExport.week + 1, currentWeek));
-    setSheetTo(currentWeek);
-    setCopyState('idle');
-  };
-
-  const handleSheetPush = async (options: { createMissing?: boolean; overwriteUnmergeable?: boolean } = {}) => {
-    const result = await sheets.push(sheetTargets, { createMissing: true, ...options, statusColors });
-
-    if (result.status === 'needs-tabs') {
-      setImportMessage({ type: 'error', text: `Sekme oluşturulamadı: ${result.missingTabs.join(', ')}.` });
-      return;
-    }
-    if (result.status === 'needs-overwrite') {
-      setSheetConfirm({ kind: 'overwrite', tabs: result.tabs });
-      return;
-    }
-    setSheetConfirm(null);
-
-    if (result.status !== 'done') {
-      setImportMessage({ type: 'error', text: result.message });
-      return;
-    }
-
-    if (result.written.length > 0) recordExport(sentWeek);
-
-    // A partial write is reported as one, not rounded up to success.
-    const wrote = result.written.length > 0
-      ? `${result.written.join(', ')} sekmesine yazıldı (${result.updatedCells} hücre).`
-      : 'Hiçbir sekmeye yazılamadı.';
-    const missed = result.failed.length > 0
-      ? ` Başarısız: ${result.failed.map(f => `${f.tab} (${f.message})`).join(', ')}.`
-      : '';
-    setImportMessage({
-      type: result.failed.length > 0 ? 'error' : 'success',
-      text: wrote + missed,
-    });
-  };
-
-  const handleSheetCopy = async () => {
-    if (!sheetTsv) {
-      setImportMessage({ type: 'error', text: 'Kopyalanacak veri yok.' });
-      return;
-    }
-    const copied = await copyText(sheetTsv);
-    setCopyState(copied ? 'copied' : 'failed');
-    if (copied) recordExport(sentWeek);
-    if (!copied) setShowSheetPreview(true);
-  };
+  const connection = auto.status.connection;
+  const queue = auto.status.queue;
+  const spreadsheetId = connection?.spreadsheet_id || sheets.settings.spreadsheetId;
+  const failure = queue?.last_error ?? connection?.last_error;
+  const sheetStatus = !auto.ready ? 'Durum kontrol ediliyor…'
+    : !connection ? 'Sheet bağlı değil.'
+    : connection.status === 'reauthorize' ? 'Google izni sona erdi. İzni yenileyene kadar Sheet güncellenmez.'
+    : queue?.status === 'pending' || queue?.status === 'processing' ? 'Son kayıt aktarılıyor…'
+    : failure ? `Son aktarım başarısız: ${failure} Kendiliğinden yeniden denenecek.`
+    : connection.last_synced_at ? `Güncel · son aktarım ${syncTime(connection.last_synced_at)}`
+    : 'İlk aktarım bekleniyor.';
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      const result = importData(content);
-      if (result.success) {
-        setImportMessage({ type: 'success', text: 'Veri başarıyla yüklendi!' });
-      } else {
-        setImportMessage({ type: 'error', text: result.error || 'Bilinmeyen hata' });
-      }
+    reader.onload = event => {
+      const result = importData(event.target?.result as string);
+      setMessage(result.success
+        ? { ok: true, text: 'Yedek yüklendi.' }
+        : { ok: false, text: result.error || 'Yedek okunamadı.' });
     };
     reader.readAsText(file);
-    // Reset file input
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const handleTextImport = () => {
-    if (!textInput.trim()) {
-      setImportMessage({ type: 'error', text: 'Lütfen tablo verisini yapıştırın.' });
-      return;
-    }
-    if (!programName.trim()) {
-      setImportMessage({ type: 'error', text: 'Lütfen program adı girin.' });
-      return;
-    }
-    const result = importFromText(textInput, programName, startWeekInput);
-    if (result.success) {
-      setImportMessage({ type: 'success', text: `"${programName}" programı başarıyla yüklendi!` });
-      setTextInput('');
-      setProgramName('');
-      setShowTextImport(false);
-    } else {
-      setImportMessage({ type: 'error', text: result.error || 'Bilinmeyen hata' });
-    }
-  };
-
-  const handleReset = () => {
-    resetAll();
-    setShowResetModal(false);
-    setImportMessage({ type: 'success', text: 'Tüm veriler sıfırlandı.' });
+    e.target.value = '';
   };
 
   return (
     <PageContainer>
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Dışa / içe aktarma</h1>
-      </div>
-      <div className="space-y-6 max-w-lg">
-        {/* Backup automation */}
-        <div className="rounded-lg p-5 border lb-rule">
-          <h3 className="font-semibold text-base mb-2">Yedek otomasyonu</h3>
-          <div className="flex items-center gap-2 mb-3">
-            <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
-              isCurrentWeekBackedUp
-                ? 'text-emerald-300 bg-emerald-900/25 border-emerald-700/50'
-                : 'text-amber-300 bg-amber-900/20 border-amber-700/40'
-            }`}>
-              {isCurrentWeekBackedUp ? `H${currentWeek} yedeklendi` : `H${currentWeek} henuz yedeklenmedi`}
-            </span>
-          </div>
-
-          <div className="text-xs text-(--color-text-secondary) bg-(--color-bg-input) border border-(--color-border) rounded-lg px-3 py-2 mb-3 space-y-1">
-            <p>Hafta bittiginde + Yeni Hafta butonuna bastiginda otomasyon devreye girer.</p>
-            <p>Hatirlat modunda sadece uyari gorursun, Otomatik indir modunda JSON yedek otomatik iner.</p>
-          </div>
-
-          <p className="text-sm text-(--color-text-secondary) mb-3">
-            Son yedek: {backupMeta.lastBackupAt
-              ? `${new Date(backupMeta.lastBackupAt).toLocaleString('tr-TR')} (H${backupMeta.lastBackupWeek ?? '?'})`
-              : 'Henuz yok'}
-          </p>
-
-          {backupMeta.pendingBackupWeek !== null && (
-            <p className="text-xs font-semibold text-amber-300 bg-amber-900/20 border border-amber-700/40 rounded-lg px-3 py-2 mb-3">
-              H{backupMeta.pendingBackupWeek} tamamlandi. Yedek alinmasi onerilir.
+      <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-2">Dışa Aktar</h1>
+      <div className="max-w-lg">
+        {showSheet && (
+          <section className="py-5 border-b lb-rule">
+            <h2 className="text-base font-semibold">Google Sheet</h2>
+            <p className="mt-1 text-sm text-(--color-text-secondary)">
+              Her kayıttan sonra Sheet’in kendiliğinden güncellenir. Yeni faza geçince o fazın sekmesi açılır;
+              biten fazın sekmesi son haliyle kalır.
             </p>
-          )}
-
-          <div className="space-y-3 mb-3">
-            <label className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-(--color-text-secondary)">Hafta bitince otomasyon aktif</span>
-              <input
-                type="checkbox"
-                checked={backupSettings.enabled}
-                onChange={e => setBackupSettings({ enabled: e.target.checked })}
-                className="h-4 w-4"
-              />
-            </label>
-
-            <label className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-(--color-text-secondary)">Otomatik aksiyon</span>
-              <select
-                value={backupSettings.mode}
-                onChange={e => setBackupSettings({ mode: e.target.value as 'notify' | 'download' })}
-                className="px-2 py-1 bg-(--color-bg-input) border border-(--color-border) rounded text-sm focus:outline-none focus:border-(--color-accent)"
-              >
-                <option value="notify">Sadece hatirlat</option>
-                <option value="download">Otomatik indir</option>
-              </select>
-            </label>
-          </div>
-
-          <button
-            onClick={() => {
-              quickBackup('quick');
-              setImportMessage({ type: 'success', text: 'Hizli yedek indirildi.' });
-            }}
-            className="lb-press px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg"
-          >
-            Hizli Yedek Al
-          </button>
-        </div>
-
-        {/* Status Message */}
-        {importMessage && (
-          <div className={`p-4 rounded-xl text-sm font-semibold ${
-            importMessage.type === 'success'
-              ? 'bg-green-900/50 text-green-300 border border-green-700'
-              : 'bg-red-900/50 text-red-300 border border-red-700'
-          }`}>
-            {importMessage.text}
-          </div>
+            <p role="status" className="mt-3 text-sm">{sheetStatus}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {spreadsheetId && (
+                <a href={`https://docs.google.com/spreadsheets/d/${encodeURIComponent(spreadsheetId)}/edit`}
+                  target="_blank" rel="noreferrer"
+                  className="lb-press px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg">
+                  Sheet’i aç ↗
+                </a>
+              )}
+              {connection?.status === 'reauthorize' && (
+                <button disabled={auto.busy} onClick={() => auto.connect()}
+                  className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg disabled:opacity-50">
+                  {auto.busy ? 'Bağlanıyor…' : 'İzni yenile'}
+                </button>
+              )}
+            </div>
+            {auto.error && <p role="alert" className="mt-2 text-sm" style={{ color: 'var(--lb-drop)' }}>{auto.error}</p>}
+          </section>
         )}
 
-        {/* Google Sheets */}
-        <div className="rounded-lg p-5 border lb-rule">
-          <h3 className="font-semibold text-base mb-2">Sheets'e aktar</h3>
-          <p className="text-sm text-(--color-text-secondary) mb-3">
-            Geçmiş tablosunu panoya kopyalar. Google Sheets'te bir hücreye yapıştırdığında
-            satır ve sütunlara kendiliğinden dağılır. Hareketin sonuçları tek satırda kalır;
-            altındaki SIRA satırı haftadan haftaya kaçıncı sırada olduğunu gösterir.
+        <section className="py-5 border-b lb-rule">
+          <h2 className="text-base font-semibold">Yedek</h2>
+          <p className="mt-1 text-sm text-(--color-text-secondary)">
+            Verin her kayıtta buluta da gider. Bu dosya, bir şey ters giderse geri dönebilmen için.
           </p>
-
-          <div className="space-y-3 mb-3">
-            <div>
-              <label className="lb-label block mb-1">Program:</label>
-              <select
-                value={sheetProgramId}
-                onChange={e => { setSheetProgramId(e.target.value); setCopyState('idle'); }}
-                className="w-full px-2 py-1.5 bg-(--color-bg-input) border border-(--color-border) rounded text-sm focus:outline-none focus:border-(--color-accent)"
-              >
-                <option value={ALL_PROGRAMS}>Tüm programlar</option>
-                {programs.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1">
-                <label className="lb-label">Başlangıç:</label>
-                <input
-                  type="number"
-                  value={sheetFrom}
-                  onChange={e => { setSheetFrom(Number(e.target.value)); setCopyState('idle'); }}
-                  min={0}
-                  className="w-16 px-2 py-1 bg-(--color-bg-input) border border-(--color-border) rounded text-sm focus:outline-none focus:border-(--color-accent)"
-                />
-              </div>
-              <div className="flex items-center gap-1">
-                <label className="lb-label">Bitiş:</label>
-                <input
-                  type="number"
-                  value={sheetTo}
-                  onChange={e => { setSheetTo(Number(e.target.value)); setCopyState('idle'); }}
-                  min={0}
-                  className="w-16 px-2 py-1 bg-(--color-bg-input) border border-(--color-border) rounded text-sm focus:outline-none focus:border-(--color-accent)"
-                />
-              </div>
-              <button
-                onClick={applySinceLastExport}
-                className="lb-press px-3 py-1.5 border lb-rule text-xs font-medium rounded-lg"
-              >
-                Son gönderimden beri
-              </button>
-            </div>
-
-            <p className="lb-label">
-              {lastExport.week === null
-                ? 'Sheet henüz hiç güncellenmedi.'
-                : `Sheet H${lastExport.week}'e kadar güncel` +
-                  (lastExport.at ? ` (${new Date(lastExport.at).toLocaleDateString('tr-TR')}).` : '.')}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button onClick={() => { exportAll(); setMessage({ ok: true, text: 'Yedek indirildi.' }); }}
+              className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg">
+              Yedeği indir
+            </button>
+            <button onClick={() => fileInputRef.current?.click()}
+              className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg">
+              Yedekten yükle
+            </button>
+            <input ref={fileInputRef} type="file" accept=".json,application/json" onChange={handleImport} className="hidden" />
+          </div>
+          <p className="lb-label mt-2">Yüklenen yedek şu anki verinin yerine geçer; öncesinde şu anki halin ayrıca indirilir.</p>
+          {message && (
+            <p role="status" className="mt-3 text-sm" style={{ color: message.ok ? 'var(--lb-gain)' : 'var(--lb-drop)' }}>
+              {message.text}
             </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={handleSheetCopy}
-              className="lb-press px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg"
-            >
-              📋 Sheets için kopyala
-            </button>
-            <button
-              onClick={() => setShowSheetPreview(v => !v)}
-              className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg"
-            >
-              {showSheetPreview ? 'Önizlemeyi gizle' : 'Önizle'}
-            </button>
-            {copyState === 'copied' && (
-              <span className="text-sm font-semibold text-emerald-300">Kopyalandı</span>
-            )}
-            {copyState === 'failed' && (
-              <span className="text-sm font-semibold text-amber-300">
-                Tarayıcı kopyalamayı engelledi — aşağıdaki metni elle seç.
-              </span>
-            )}
-          </div>
-
-          {showSheetPreview && (
-            <textarea
-              readOnly
-              value={sheetTsv}
-              rows={10}
-              onFocus={e => e.currentTarget.select()}
-              className="mt-3 w-full px-3 py-2 bg-(--color-bg-input) border border-(--color-border) rounded text-xs font-mono whitespace-pre resize-y focus:outline-none focus:border-(--color-accent)"
-            />
           )}
+        </section>
 
-          {/* Direct write over the Sheets API — same selection, no paste step */}
-          <div className="mt-5 pt-5 border-t lb-rule">
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <h4 className="font-semibold text-sm">Doğrudan gönder</h4>
-              <button
-                onClick={() => setShowSheetSettings(v => !v)}
-                className="lb-label underline underline-offset-2"
-              >
-                {showSheetSettings ? 'Ayarları gizle' : 'Google ayarları'}
-              </button>
-            </div>
-
-            <p className="text-sm text-(--color-text-secondary) mb-3">
-              Yapıştırmadan, seçili programları sheet'indeki kendi sekmelerine yazar. Yalnızca
-              gönderdiğin hafta sütunları güncellenir — sheet'teki eski haftalar yerinde kalır.
-              Program sekmesi yoksa otomatik oluşturulur.
-            </p>
-
-            {showSheetSettings && (
-              <div className="space-y-3 mb-3 bg-(--color-bg-input) border border-(--color-border) rounded-lg p-3">
-                <div>
-                  <label className="lb-label block mb-1">OAuth istemci kimliği:</label>
-                  <input
-                    type="text"
-                    value={googleClientDraft}
-                    onChange={e => setGoogleClientDraft(e.target.value)}
-                    onBlur={() => { if (googleClientDraft.trim() && googleClientDraft !== sheets.settings.clientId) sheets.setSettings({ clientId: googleClientDraft }); }}
-                    placeholder="...apps.googleusercontent.com"
-                    className="w-full px-3 py-2 bg-(--color-bg-primary) border border-(--color-border) rounded text-sm font-mono focus:outline-none focus:border-(--color-accent)"
-                  />
-                </div>
-                <div>
-                  <label className="lb-label block mb-1">Sheet adresi veya kimliği:</label>
-                  <input
-                    type="text"
-                    value={sheetAddressDraft}
-                    onChange={e => setSheetAddressDraft(e.target.value)}
-                    onBlur={() => { if (sheetAddressDraft.trim() && sheetAddressDraft !== sheets.settings.spreadsheetId) sheets.setSettings({ spreadsheetId: sheetAddressDraft }); }}
-                    placeholder="https://docs.google.com/spreadsheets/d/..."
-                    className="w-full px-3 py-2 bg-(--color-bg-primary) border border-(--color-border) rounded text-sm font-mono focus:outline-none focus:border-(--color-accent)"
-                  />
-                </div>
-                <p className="text-xs text-(--color-text-secondary) leading-relaxed">
-                  İstemci kimliği bu kurulum için hazır geliyor; değiştirmen gerekmez.
-                  Başka bir Google projesine bağlanacaksan buraya kendi kimliğini yaz —
-                  o projede bu uygulamanın adresi izin verilen JavaScript kaynağı olmalı.
-                </p>
-              </div>
-            )}
-
-            {!sheets.isConfigured ? (
-              <p className="text-xs font-semibold text-amber-300 bg-amber-900/20 border border-amber-700/40 rounded-lg px-3 py-2">
-                Kendi Sheet’ini aşağıdan oluşturabilirsin. Mevcut bir dosyayı kullanmak istersen Google ayarlarına adresini gir.
-              </p>
-            ) : (
-              <>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => handleSheetPush()}
-                    disabled={sheets.busy !== 'idle'}
-                    className="lb-press px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg disabled:opacity-50"
-                  >
-                    {sheets.busy === 'sending' ? 'Gönderiliyor…' : "Sheets'e gönder"}
-                  </button>
-                  <button
-                    onClick={() => sheets.connect()}
-                    disabled={sheets.busy !== 'idle'}
-                    className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg disabled:opacity-50"
-                  >
-                    {sheets.busy === 'connecting' ? 'Bağlanıyor…' : 'Bağlantıyı sına'}
-                  </button>
-                </div>
-
-                {sheets.meta && (
-                  <p className="mt-2 text-xs text-(--color-text-secondary)">
-                    Bağlı: <span className="font-semibold">{sheets.meta.title}</span> —
-                    sekmeler: {sheets.meta.tabs.map(tab => tab.title).join(', ') || 'yok'}
-                  </p>
-                )}
-                {Object.keys(sheets.settings.tabByProgramId).length > 0 && (
-                  <p className="mt-1 text-xs text-(--color-text-secondary)">
-                    Eşleşme:{' '}
-                    {Object.entries(sheets.settings.tabByProgramId)
-                      .map(([programId, tab]) =>
-                        `${programs.find(p => p.id === programId)?.name ?? '(silinmiş)'} → ${tab}`)
-                      .join(', ')}
-                    {' · '}
-                    <button onClick={sheets.forgetTabMapping} className="underline underline-offset-2">
-                      sıfırla
-                    </button>
-                  </p>
-                )}
-                {sheets.lastPushAt && (
-                  <p className="mt-1 text-xs text-(--color-text-secondary)">
-                    Son gönderim: {new Date(sheets.lastPushAt).toLocaleString('tr-TR')}
-                  </p>
-                )}
-                {sheets.error && (
-                  <p className="mt-2 text-xs font-semibold text-amber-300">{sheets.error}</p>
-                )}
-              </>
-            )}
-          </div>
-          {import.meta.env.VITE_SHEETS_AUTO_SYNC_ENABLED !== 'false' && <div className="mt-5 pt-5 border-t lb-rule">
-            <h4 className="font-semibold text-sm mb-2">Otomatik Sheets senkronizasyonu</h4>
-            <p className="text-sm text-(--color-text-secondary) mb-3">
-              Varsayılan aktarım yalnızca etkin fazın son haftasından başlar. Geçmiş fazları, antrenmanları ve haftaları
-              istersen aşağıdan seçebilirsin. Seçtiğin “Oto” sekmesi otomatik güncellenir; elle yapılan değişiklikler yenilenir.
-            </p>
-            {!ctx?.cloud.userEmail && <p className="text-xs mb-2">Otomatik aktarım için önce bulut hesabına giriş yap.</p>}
-            {autoSheets.status.connection ? <>
-              <p className="text-xs mb-2">
-                {autoSheets.status.connection.status === 'active' ? 'Etkin' : 'Google izni yenilenmeli'}
-                {` · Dosya: ${autoSheets.status.connection.spreadsheet_id}`}
-                {autoSheets.status.connection.last_synced_at
-                  ? ` · Son aktarım: ${new Date(autoSheets.status.connection.last_synced_at).toLocaleString('tr-TR')}` : ' · İlk aktarım bekleniyor'}
-                {autoSheets.status.queue ? ` · Kuyruk: ${autoSheets.status.queue.status}` : ''}
-              </p>
-              {(autoSheets.status.connection.last_error || autoSheets.status.queue?.last_error) &&
-                <p role="status" className="text-xs text-amber-300 mb-2">
-                  {autoSheets.status.queue?.last_error ?? autoSheets.status.connection.last_error}
-                </p>}
-              <div className="flex gap-2 flex-wrap">
-                <button disabled={autoSheets.busy} onClick={openSyncChoices} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">
-                  Aktarımı seç
-                </button>
-                {(autoSheets.status.connection.status === 'reauthorize'
-                  || autoSheets.status.connection.spreadsheet_id !== sheets.settings.spreadsheetId) &&
-                  <button disabled={autoSheets.busy} onClick={() => autoSheets.connect()} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">
-                    {autoSheets.status.connection.status === 'reauthorize' ? 'Google iznini yenile' : 'Yeni dosyaya bağlan'}
-                  </button>}
-                <button disabled={autoSheets.busy} onClick={() => void autoSheets.refresh()} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">Durumu yenile</button>
-              </div>
-              {showSyncChoices && <div className="mt-3 p-3 rounded-lg border lb-rule space-y-3">
-                <p className="text-xs text-(--color-text-secondary)">
-                  Bu seçim sonraki otomatik aktarımlarda da geçerli olur. Kapsamı değiştirince önceki “Oto” sekmelerinin yerini yeni seçim alır; özgün sekmelerin korunur. Mevcut fazı takip ederken yeni faza geçersen biten fazın sekmesi silinmez, son haliyle kalır.
-                </p>
-                <label className="block text-sm">Faz
-                  <select aria-label="Aktarılacak faz" value={syncPhaseId} onChange={e => {
-                    const phase = phases?.find(item => item.id === e.target.value);
-                    setSyncPhaseId(e.target.value); setSyncProgramId('all'); setSyncWeekNumber(phase ? latestLoggedWeek(phase) : currentWeek);
-                  }} className="mt-1 block w-full bg-(--color-bg-input) border lb-rule rounded-lg px-3 py-2">
-                    {phases?.map(phase => <option key={phase.id} value={phase.id}>{phase.name}</option>)}
-                  </select>
-                </label>
-                <label className="block text-sm">Antrenman
-                  <select aria-label="Aktarılacak antrenman" value={syncProgramId} onChange={e => setSyncProgramId(e.target.value)} className="mt-1 block w-full bg-(--color-bg-input) border lb-rule rounded-lg px-3 py-2">
-                    <option value="all">Tüm antrenmanlar</option>
-                    {syncPrograms.map(program => <option key={program.id} value={program.id}>{program.name}</option>)}
-                  </select>
-                </label>
-                <label className="block text-sm">Haftalar
-                  <select aria-label="Aktarılacak haftalar" value={syncWeekMode} onChange={e => setSyncWeekMode(e.target.value as 'latest' | 'one' | 'all')} className="mt-1 block w-full bg-(--color-bg-input) border lb-rule rounded-lg px-3 py-2">
-                    <option value="latest">Son haftadan başlayarak</option>
-                    <option value="one">Seçtiğim bir hafta</option>
-                    <option value="all">Tüm haftalar</option>
-                  </select>
-                </label>
-                {syncWeekMode === 'one' && syncPhase && <label className="block text-sm">Hafta
-                  <select aria-label="Seçilen hafta" value={syncWeekNumber} onChange={e => setSyncWeekNumber(Number(e.target.value))} className="mt-1 block w-full bg-(--color-bg-input) border lb-rule rounded-lg px-3 py-2">
-                    {Array.from({ length: Math.max(1, (syncPhase.endWeek ?? currentWeek) - syncPhase.startWeek + 1) }, (_, index) => syncPhase.startWeek + index)
-                      .map(week => <option key={week} value={week}>H{week - syncPhase.startWeek} (genel hafta {week})</option>)}
-                  </select>
-                </label>}
-                <div className="flex gap-2">
-                  <button disabled={autoSheets.busy} onClick={() => void saveSyncChoices()} className="lb-press px-4 py-2 bg-(--color-text-primary) text-(--color-bg-primary) rounded-lg text-sm">Seçimi aktar</button>
-                  <button onClick={() => setShowSyncChoices(false)} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm">Vazgeç</button>
-                </div>
-              </div>}
-            </> : <div className="flex gap-2 flex-wrap">
-              {!sheets.settings.spreadsheetId && <button disabled={!ctx?.cloud.userEmail || autoSheets.busy}
-                onClick={() => autoSheets.connect(true)}
-                className="lb-press px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg disabled:opacity-50">
-                {autoSheets.busy ? 'Oluşturuluyor…' : 'Kendi Sheet’imi oluştur ve bağla'}
-              </button>}
-              {sheets.isConfigured && <button disabled={!ctx?.cloud.userEmail || autoSheets.busy}
-                onClick={() => autoSheets.connect()}
-                className="lb-press px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg disabled:opacity-50">
-                {autoSheets.busy ? 'Bağlanıyor…' : 'Mevcut Sheet’e bağlan'}
-              </button>}
-            </div>}
-            {autoSheets.error && <p role="status" className="text-xs text-amber-300 mt-2">{autoSheets.error}</p>}
-          </div>}
-        </div>
-
-        {/* Export All */}
-        <div className="rounded-lg p-5 border lb-rule">
-          <h3 className="font-semibold text-base mb-2">Tüm veriyi indir</h3>
-          <p className="text-sm text-(--color-text-secondary) mb-3">
-            Tüm programlar ve antrenman kayıtlarını JSON olarak indir.
-          </p>
-          <button
-            onClick={exportAll}
-            className="lb-press px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg"
-          >
-            📥 JSON İndir
+        <section className="py-5">
+          <button onClick={() => setConfirmReset(true)} className="lb-press text-sm underline underline-offset-2"
+            style={{ color: 'var(--lb-drop)' }}>
+            Tüm veriyi sil…
           </button>
-        </div>
-
-        {/* Export Range */}
-        <div className="rounded-lg p-5 border lb-rule">
-          <h3 className="font-semibold text-base mb-2">Hafta aralığı indir</h3>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="flex items-center gap-1">
-              <label className="lb-label">Başlangıç:</label>
-              <input
-                type="number"
-                value={fromWeek}
-                onChange={e => setFromWeek(Number(e.target.value))}
-                min={0}
-                className="w-16 px-2 py-1 bg-(--color-bg-input) border border-(--color-border) rounded text-sm focus:outline-none focus:border-(--color-accent)"
-              />
-            </div>
-            <div className="flex items-center gap-1">
-              <label className="lb-label">Bitiş:</label>
-              <input
-                type="number"
-                value={toWeek}
-                onChange={e => setToWeek(Number(e.target.value))}
-                min={0}
-                className="w-16 px-2 py-1 bg-(--color-bg-input) border border-(--color-border) rounded text-sm focus:outline-none focus:border-(--color-accent)"
-              />
-            </div>
-          </div>
-          <button
-            onClick={() => exportRange(fromWeek, toWeek)}
-            className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg"
-          >
-            Aralığı İndir
-          </button>
-        </div>
-
-        {/* Import */}
-        <div className="rounded-lg p-5 border lb-rule">
-          <h3 className="font-semibold text-base mb-2">Veri yükle (JSON)</h3>
-          <p className="text-sm text-(--color-text-secondary) mb-3">
-            Daha önce dışa aktarılmış bir JSON dosyasını yükle. Mevcut verinin üzerine yazılır.
-          </p>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            onChange={handleImport}
-            className="block w-full text-sm text-(--color-text-secondary) file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border file:border-solid file:text-sm file:font-medium file:bg-transparent file:text-(--color-text-primary)"
-          />
-        </div>
-
-        {/* Text/Spreadsheet Import */}
-        <div className="rounded-lg p-5 border lb-rule">
-          <h3 className="font-semibold text-base mb-2">Tablo/spreadsheet'ten yükle</h3>
-          <p className="text-sm text-(--color-text-secondary) mb-3">
-            Excel, Google Sheets veya herhangi bir tablodan kopyala-yapıştır ile veri yükle.
-            Format: <code className="text-xs bg-(--color-bg-input) px-1 rounded">Egzersiz | Set | H0 | H1 | H2 | ...</code>
-          </p>
-          {!showTextImport ? (
-            <button
-              onClick={() => setShowTextImport(true)}
-              className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg"
-            >
-              📋 Tablo Yapıştır
-            </button>
-          ) : (
-            <div className="space-y-3">
-              <div>
-                <label className="lb-label block mb-1">Program Adı:</label>
-                <input
-                  type="text"
-                  value={programName}
-                  onChange={e => setProgramName(e.target.value)}
-                  placeholder="Örn: Upper 1, Lower A..."
-                  className="w-full px-3 py-2 bg-(--color-bg-input) border border-(--color-border) rounded text-sm focus:outline-none focus:border-(--color-accent)"
-                />
-              </div>
-              <div>
-                <label className="lb-label block mb-1">Başlangıç Haftası:</label>
-                <input
-                  type="number"
-                  value={startWeekInput}
-                  onChange={e => setStartWeekInput(Number(e.target.value))}
-                  min={0}
-                  className="w-20 px-2 py-1 bg-(--color-bg-input) border border-(--color-border) rounded text-sm focus:outline-none focus:border-(--color-accent)"
-                />
-              </div>
-              <div>
-                <label className="lb-label block mb-1">Tablo Verisi (Tab/virgül ile ayrılmış):</label>
-                <textarea
-                  value={textInput}
-                  onChange={e => setTextInput(e.target.value)}
-                  placeholder={"Egzersiz\tSet\tH0\tH1\tH2\nSmith Machine\t1\t45x5\t45x5F\t45x6F\nLateral Ön\t1\t35x6\t35x5F\t35x6F"}
-                  rows={8}
-                  className="w-full px-3 py-2 bg-(--color-bg-input) border border-(--color-border) rounded text-sm font-mono focus:outline-none focus:border-(--color-accent) resize-y"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleTextImport}
-                  className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg"
-                >
-                  Yükle
-                </button>
-                <button
-                  onClick={() => { setShowTextImport(false); setTextInput(''); }}
-                  className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg"
-                >
-                  İptal
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Reset */}
-        <div className="rounded-lg p-5 border" style={{ borderColor: 'var(--lb-drop)' }}>
-          <h3 className="font-semibold text-base mb-2" style={{ color: 'var(--lb-drop)' }}>Tehlikeli bölge</h3>
-          <p className="text-sm text-(--color-text-secondary) mb-3">
-            Tüm verileri sıfırla. Bu işlem geri alınamaz.
-          </p>
-          <button
-            onClick={() => setShowResetModal(true)}
-            className="lb-press px-5 py-2.5 border text-sm font-semibold rounded-lg"
-            style={{ borderColor: 'var(--lb-drop)', color: 'var(--lb-drop)' }}
-          >
-            🗑️ Veriyi Sıfırla
-          </button>
-        </div>
+        </section>
       </div>
 
       <Modal
-        isOpen={showResetModal}
-        onClose={() => setShowResetModal(false)}
-        onConfirm={handleReset}
-        title="Veriyi Sıfırla"
-        message="Tüm programlar ve antrenman kayıtları silinecek. Bu işlem geri alınamaz. Emin misiniz?"
-        confirmText="Evet, Sıfırla"
-        confirmVariant="danger"
-      />
-
-      <Modal
-        isOpen={sheetConfirm?.kind === 'overwrite'}
-        onClose={() => setSheetConfirm(null)}
+        isOpen={confirmReset}
+        onClose={() => setConfirmReset(false)}
         onConfirm={() => {
-          setSheetConfirm(null);
-          void handleSheetPush({ createMissing: true, overwriteUnmergeable: true });
+          resetAll();
+          setConfirmReset(false);
+          setMessage({ ok: true, text: 'Tüm veriler silindi. Silmeden önceki hali yedek olarak indirildi.' });
         }}
-        title="Sekmenin üzerine yazılsın mı?"
-        message={`Şu sekmelerin içeriği bu uygulamanın tablosuna benzemiyor: ${sheetConfirm?.tabs.join(', ') ?? ''}. Birleştirilemiyor; devam edersen içindekiler silinip yerine bu tablo yazılır.`}
-        confirmText="Üzerine yaz"
+        title="Tüm veri silinsin mi?"
+        message="Tüm programlar ve antrenman kayıtları silinecek. Silmeden önce şu anki halin yedek olarak indirilir."
+        confirmText="Evet, sil"
         confirmVariant="danger"
       />
     </PageContainer>

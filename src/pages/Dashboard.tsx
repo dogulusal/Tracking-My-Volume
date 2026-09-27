@@ -4,7 +4,6 @@ import { AppContext } from '@/context/AppContext';
 import { usePrograms } from '@/hooks/usePrograms';
 import { usePlans } from '@/hooks/usePlans';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
-import { useExportImport } from '@/hooks/useExportImport';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Modal } from '@/components/shared/Modal';
 import { calculateWeeklyVolume } from '@/utils/volumeCalculator';
@@ -20,13 +19,7 @@ export function Dashboard() {
   const ctx = useContext(AppContext);
   const phase = ctx?.state.phases.find(p => currentWeek >= p.startWeek && (p.endWeek === null || currentWeek <= p.endWeek));
   const weekLabel = `${phase?.name ?? ''} · H${currentWeek - (phase?.startWeek ?? 0)}`;
-  const { backupMeta, handleWeekTransitionBackup } = useExportImport();
   const { programs, addProgram } = usePrograms();
-
-  const handleIncrementWeek = () => {
-    handleWeekTransitionBackup(currentWeek);
-    incrementWeek();
-  };
 
   const activeProgramIds = useMemo(
     () => activePlanPrograms.map(p => p.id),
@@ -170,12 +163,6 @@ export function Dashboard() {
           </div>}
         </section>
 
-        {backupMeta.pendingBackupWeek !== null && (
-          <p className="lb-settle mt-5 text-sm border-l-2 pl-3 py-1 border-(--lb-drop) text-(--color-text-secondary)">
-            H{backupMeta.pendingBackupWeek} tamamlandı. Veriyi korumak için Dışa / İçe Aktarma sayfasından yedek al.
-          </p>
-        )}
-
         {/* ── Secondary figures: quiet, in a row, no boxes ── */}
         <div className="lb-settle flex gap-8 py-5 border-b lb-rule" style={{ animationDelay: '40ms' }}>
           <div>
@@ -249,7 +236,7 @@ export function Dashboard() {
       </div>
       {/* The week only moves forward in the app, so a stray tap needs a stop. */}
       <Modal isOpen={confirmNewWeek} onClose={() => setConfirmNewWeek(false)}
-        onConfirm={() => { setConfirmNewWeek(false); handleIncrementWeek(); }}
+        onConfirm={() => { setConfirmNewWeek(false); incrementWeek(); }}
         title="Yeni haftaya geçilsin mi?"
         message={`Bu hafta ${weekStats.completed}/${weekStats.total} antrenman kaydedildi. Geçtikten sonra haftayı uygulamadan geri alamazsın.`}
         confirmText="Yeni haftaya geç" />

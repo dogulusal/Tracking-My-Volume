@@ -5,8 +5,7 @@ import { APP_CREATED_SHEETS_SCOPE, loadGis, SHEETS_ACCOUNT_SCOPE, SHEETS_SCOPE }
 
 interface AutoStatus {
   connection: { spreadsheet_id: string; status: 'active' | 'reauthorize'; access_scope: 'all' | 'app_files';
-    last_error: string | null; last_synced_at: string | null;
-    selection: { phaseId: string; programId: string | null; weekMode: 'latest' | 'one' | 'all'; weekNumber: number } | null } | null;
+    last_error: string | null; last_synced_at: string | null } | null;
   queue: { status: 'pending' | 'processing' | 'error'; last_error: string | null } | null;
 }
 
@@ -102,14 +101,7 @@ export function useAutoSheetSync(clientId: string, spreadsheetId: string, enable
     finally { setBusy(false); }
   };
 
-  const configure = async (selection: { phaseId: string; programId: string | null; weekMode: 'latest' | 'one' | 'all'; weekNumber: number }) => {
-    setBusy(true); setError(null);
-    try { await call('configure', selection); await refresh(); return true; }
-    catch (e) { setError(e instanceof Error ? e.message : 'Aktarım seçimi kaydedilemedi.'); return false; }
-    finally { setBusy(false); }
-  };
-
   return { status: statusOwner === userId ? status : emptyStatus,
     ready: Boolean(userId && statusOwner === userId), statusError, busy, error,
-    connect, disconnect, configure, refresh };
+    connect, disconnect, refresh };
 }
