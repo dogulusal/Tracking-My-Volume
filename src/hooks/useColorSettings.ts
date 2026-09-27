@@ -19,7 +19,9 @@ export const DEFAULT_STATUS_BG_COLORS: Record<ExerciseStatus, { dark: string; li
   same: { dark: '#1f2937', light: '#d1d5db' },
   holiday: { dark: '#78350f', light: '#fde68a' },
   removed: { dark: '#111827', light: '#e5e7eb' },
-  new: { dark: '#1f2937', light: '#d1d5db' },
+  // The reference week (H0, or an exercise's first record): blue, so it is not
+  // mistaken for "same as last week".
+  new: { dark: '#172554', light: '#93c5fd' },
 };
 
 const STORAGE_KEY_CELLS = 'trackingVolume_cellColors';

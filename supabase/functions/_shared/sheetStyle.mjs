@@ -44,7 +44,7 @@ export function buildAutoSheetStyleRequests(sheetId, sheet, existingMerges = [])
     for (let row = headerRow + 1; row < notesRow; row++) {
       const values = sheet.rows[row];
       if (String(values[2] ?? '').trim()) {
-        paint(requests, range(sheetId, row, row + 1, 2, 3), { backgroundColorStyle: color('#dfe7ec'), textFormat: text('#24312b'), horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP' });
+        paint(requests, range(sheetId, row, row + 1, 2, 3), { backgroundColorStyle: color('#cfe2f3'), textFormat: text('#24312b'), horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP' });
       }
       for (let col = 3; col < values.length; col++) {
         const previous = score(values[col - 1]);

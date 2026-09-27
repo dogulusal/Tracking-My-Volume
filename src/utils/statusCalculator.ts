@@ -96,6 +96,6 @@ export function getStatusLabel(status: ExerciseStatus): string {
     case 'same': return 'Aynı';
     case 'holiday': return 'Tatil';
     case 'removed': return 'Kaldırıldı';
-    case 'new': return 'Yeni';
+    case 'new': return 'Referans';
   }
 }

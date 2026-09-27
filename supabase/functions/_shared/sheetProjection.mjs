@@ -48,7 +48,7 @@ export function projectSheets(state, selection = null) {
     const blocks = [];
     for (const program of [...programs.values()].filter(program => !selection?.programId || program.id === selection.programId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))) {
       const titleRow = rows.length;
-      rows.push([program.name, '', 'Yeşil: ilerleme  ·  Gri: aynı  ·  Kırmızı: düşüş']);
+      rows.push([program.name, '', 'Mavi: referans  ·  Yeşil: ilerleme  ·  Gri: aynı  ·  Kırmızı: düşüş']);
       rows.push(['Egzersiz', 'Set', ...Array.from({ length: weekCount }, (_, i) => `H${i}`)]);
       for (const exercise of program.exercises ?? []) {
         const values = [exercise.name, String(exercise.defaultSets ?? '')];

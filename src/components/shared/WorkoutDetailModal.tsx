@@ -53,7 +53,7 @@ const STATUS_OPTIONS: { value: ExerciseStatus; label: string; emoji: string }[] 
   { value: 'improved', label: 'İlerleme', emoji: '🟢' },
   { value: 'decreased', label: 'Düşüş', emoji: '🔴' },
   { value: 'same', label: 'Aynı', emoji: '⚪' },
-  { value: 'new', label: 'Yeni', emoji: '🔵' },
+  { value: 'new', label: 'Referans', emoji: '🔵' },
   { value: 'holiday', label: 'Tatil', emoji: '🟡' },
   { value: 'removed', label: 'Kaldırıldı', emoji: '⚫' },
 ];

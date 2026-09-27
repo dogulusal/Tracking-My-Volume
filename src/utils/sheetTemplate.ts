@@ -56,7 +56,7 @@ export function buildPhaseTemplateRequests(sheetId: number, layout: PhaseSheetLa
     rows[block.titleRow - 1].values = [
       textCell(block.name),
       textCell(''),
-      textCell('Yeşil: ilerleme  ·  Gri: aynı  ·  Kırmızı: düşüş'),
+      textCell('Mavi: referans  ·  Yeşil: ilerleme  ·  Gri: aynı  ·  Kırmızı: düşüş'),
     ];
     rows[block.headerRow - 1].values = ['Egzersiz', 'Set', ...Array.from({ length: 26 }, (_, i) => `H${i}`)].map(textCell);
     for (const ex of block.exercises) rows[ex.row - 1].values = [textCell(ex.name), textCell(String(ex.sets))];

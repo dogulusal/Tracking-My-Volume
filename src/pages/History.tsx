@@ -45,7 +45,7 @@ const STATUS_OPTIONS: { value: ExerciseStatus; label: string }[] = [
   { value: 'improved', label: 'İlerleme' },
   { value: 'decreased', label: 'Düşüş' },
   { value: 'same', label: 'Aynı' },
-  { value: 'new', label: 'Yeni' },
+  { value: 'new', label: 'Referans' },
   { value: 'holiday', label: 'Tatil' },
   { value: 'removed', label: 'Kaldırıldı' },
 ];
@@ -911,7 +911,7 @@ export function History() {
                         : status === 'decreased'
                           ? 'var(--lb-drop)'
                           : status === 'new'
-                            ? 'var(--color-text-primary)'
+                            ? 'var(--lb-ref)'
                             : 'var(--color-text-secondary)';
 
                       return (
@@ -936,7 +936,7 @@ export function History() {
                           <div className="flex items-center justify-between mb-1.5">
                             <span className="text-sm font-semibold">{exercise.exerciseName}</span>
                             <span className="text-[11px] font-semibold" style={{ color: statusColor }}>
-                              {status === 'improved' ? '▲ İlerleme' : status === 'decreased' ? '▼ Düşüş' : status === 'new' ? '★ Yeni' : '= Aynı'}
+                              {status === 'improved' ? '▲ İlerleme' : status === 'decreased' ? '▼ Düşüş' : status === 'new' ? '★ Referans' : '= Aynı'}
                             </span>
                           </div>
                           {/* Set pills */}

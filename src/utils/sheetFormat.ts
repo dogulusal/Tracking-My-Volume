@@ -24,8 +24,9 @@ export const SHEET_STATUS_COLORS: Record<ExerciseStatus, string> = {
   same: '#f1f3f4',
   holiday: '#f5e6c8',
   removed: '#434343',
-  // A baseline has no comparison; distinguish it without claiming improvement.
-  new: '#dfe7ec',
+  // The reference week has no comparison. Blue marks it as the reference
+  // without claiming improvement; the earlier grey-blue read as "same".
+  new: '#cfe2f3',
 };
 
 export interface StatusMapOptions {

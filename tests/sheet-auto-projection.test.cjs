@@ -117,5 +117,6 @@ test('automatic selection limits phase, workout and week while retaining the vis
     request.repeatCell?.range.startRowIndex === 2 && request.repeatCell.range.startColumnIndex === 2
       && request.repeatCell.range.endColumnIndex === 3);
   const baseRgb = baseline.repeatCell.cell.userEnteredFormat.backgroundColorStyle.rgbColor;
-  assert.deepEqual([baseRgb.red, baseRgb.green, baseRgb.blue].map(value => Math.round(value * 255)), [223, 231, 236]);
+  assert.deepEqual([baseRgb.red, baseRgb.green, baseRgb.blue].map(value => Math.round(value * 255)), [207, 226, 243]);
+  assert.match(one.rows[0][2], /Mavi: referans/);
 });

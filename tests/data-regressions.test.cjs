@@ -521,9 +521,10 @@ test('current-week phase transition keeps current and future records intact with
   assert.equal(appReducer(result, { type: 'START_NEXT_PHASE', payload: { id: 'accidental-repeat', startAt: 'current' } }), result);
 });
 
-test('Sheets baseline is neutral gray', () => {
+test('Sheets reference week is blue, apart from the grey of "same"', () => {
   const { SHEET_STATUS_COLORS } = loadTS('src/utils/sheetFormat.ts');
-  assert.equal(SHEET_STATUS_COLORS.new, '#dfe7ec');
+  assert.equal(SHEET_STATUS_COLORS.new, '#cfe2f3');
+  assert.notEqual(SHEET_STATUS_COLORS.new, SHEET_STATUS_COLORS.same);
   assert.equal(SHEET_STATUS_COLORS.improved, '#d9ead3');
   assert.equal(SHEET_STATUS_COLORS.decreased, '#f4cccc');
   assert.equal(SHEET_STATUS_COLORS.holiday, '#f5e6c8');
