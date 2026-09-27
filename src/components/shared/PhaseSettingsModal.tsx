@@ -1,14 +1,11 @@
-import { AppContext } from '@/context/AppContext';
-import { useContext, useState } from 'react';
+import { useState } from 'react';
 import type { PhaseDefinition } from '@/types';
 import { normalizePhaseBoundaries } from '@/utils/phases';
-import { phaseTransitionError } from '@/utils/programVersions';
 
 export function PhaseSettingsModal({ phases, currentWeek, onSave, onClose }: {
   phases: PhaseDefinition[]; currentWeek: number;
   onSave: (phases: PhaseDefinition[]) => void; onClose: () => void;
 }) {
-  const ctx = useContext(AppContext);
   const [draft, setDraft] = useState(phases);
   const [error, setError] = useState('');
   const update = (id: string, patch: Partial<PhaseDefinition>) => { setDraft(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p)); setError(''); };
@@ -18,18 +15,6 @@ export function PhaseSettingsModal({ phases, currentWeek, onSave, onClose }: {
       <div className="flex items-center justify-between gap-3"><h2 id="phase-settings-title" className="text-lg font-semibold">Faz ayarları</h2><button onClick={onClose} aria-label="Kapat" className="lb-press p-2">✕</button></div>
       <p className="text-sm mt-3">Programda hareket veya gün değiştirmek kendiliğinden faz açmaz. Yeni faz ekleyip programı değiştirdiğin haftayı başlangıç seçebilirsin.</p>
       <p className="lb-label my-3">Şu an toplam hafta {currentWeek}. Başlangıçlar toplam hafta numarasıdır; seçilen hafta kendi fazında H0 olur. Son hafta alanına 20 yazarsan bu faz H20’de biter. Sonraki toplam hafta yeni fazın H0’ı olur. Antrenmanlar ve notlar silinmez.</p>
-      {phases.length >= 3 && <div className="border lb-rule rounded-lg p-3 mb-4">
-        <p className="text-sm mb-2">Faz 2 H20 kaydı korunur ve tüm setleri, ağırlıkları, rep, RIR, tarih ve notlarıyla Faz 3 H0’a kopyalanır. Şu an H0’da bulunan kayıtlar H1’e taşınır. H1’de çakışan kayıt varsa üzerine yazılmaz. Bu işlem yalnızca bir kez uygulanır.</p>
-        <button className="lb-press px-3 py-2 border lb-rule rounded text-sm" onClick={() => {
-          if (!ctx) return;
-          const payload = { previousPhaseId: phases[1].id, lastWeek: 20, nextId: phases[2]?.id ?? crypto.randomUUID() };
-          const issue = phaseTransitionError(ctx.state, payload.previousPhaseId, payload.lastWeek, payload.nextId);
-          if (issue) { setError(issue); return; }
-          ctx.dispatch({ type: 'CONFIGURE_PHASE_TRANSITION', payload });
-          onClose();
-        }}>H20’yi H0’a kopyala, mevcut H0’ı H1’e taşı</button>
-        <p className="lb-label mt-2">Uygun kayıt bulunduğunda bu düzeltme yeni sürüm açılırken otomatik olarak da uygulanır.</p>
-      </div>}
       <div className="space-y-3">{draft.map((phase, index) => <div key={phase.id} className="border lb-rule rounded-lg p-3">
         <div className="grid grid-cols-[minmax(0,1fr)_110px] gap-3">
           <label className="text-sm">Faz adı<input value={phase.name} onChange={e => update(phase.id, { name: e.target.value })} className="w-full mt-1 px-3 py-2 border lb-rule rounded bg-(--color-bg-input)" /></label>
