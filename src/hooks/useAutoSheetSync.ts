@@ -1,10 +1,11 @@
 import { useCallback, useContext, useEffect, useState } from 'react';
 import { AppContext } from '@/context/AppContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { loadGis, SHEETS_SCOPE } from '@/lib/googleSheets';
+import { APP_CREATED_SHEETS_SCOPE, loadGis, SHEETS_SCOPE } from '@/lib/googleSheets';
 
 interface AutoStatus {
-  connection: { spreadsheet_id: string; status: 'active' | 'reauthorize'; last_error: string | null; last_synced_at: string | null;
+  connection: { spreadsheet_id: string; status: 'active' | 'reauthorize'; access_scope: 'all' | 'app_files';
+    last_error: string | null; last_synced_at: string | null;
     selection: { phaseId: string; programId: string | null; weekMode: 'latest' | 'one' | 'all'; weekNumber: number } | null } | null;
   queue: { status: 'pending' | 'processing' | 'error'; last_error: string | null } | null;
 }
@@ -60,7 +61,8 @@ export function useAutoSheetSync(clientId: string, spreadsheetId: string, enable
   }, [clientId, refresh, enabled, userId]);
 
   const connect = (createNew = false) => {
-    if (!clientId || (!createNew && !spreadsheetId)) { setError('Önce Sheet adresini ve OAuth istemci kimliğini kaydet.'); return; }
+    const targetId = createNew ? '' : spreadsheetId || status.connection?.spreadsheet_id || '';
+    if (!clientId || (!createNew && !targetId)) { setError('Önce Sheet adresini ve OAuth istemci kimliğini kaydet.'); return; }
     if (!supabase) { setError('Bulut bağlantısı ayarlı değil.'); return; }
     setError(null);
     setBusy(true);
@@ -71,11 +73,13 @@ export function useAutoSheetSync(clientId: string, spreadsheetId: string, enable
       return;
     }
     try {
+      const appCreatedFile = createNew || (status.connection?.spreadsheet_id === targetId
+        && status.connection.access_scope === 'app_files');
       const codeClient = google.accounts.oauth2.initCodeClient({
-        client_id: clientId, scope: SHEETS_SCOPE, ux_mode: 'popup',
+        client_id: clientId, scope: appCreatedFile ? APP_CREATED_SHEETS_SCOPE : SHEETS_SCOPE, ux_mode: 'popup',
         callback: response => {
           if (!response.code) { setError(response.error ?? 'Google izin vermedi.'); setBusy(false); return; }
-          void call('connect', { code: response.code, spreadsheetId: createNew ? '' : spreadsheetId, createNew }).then(async data => {
+          void call('connect', { code: response.code, spreadsheetId: targetId, createNew }).then(async data => {
             if (createNew && data.spreadsheetId) onCreated?.(data.spreadsheetId);
             await refresh();
           }).catch(e => setError(e instanceof Error ? e.message : 'Otomatik bağlantı kurulamadı.'))

@@ -18,8 +18,10 @@ import { buildSheetLayoutRequests } from '@/utils/sheetLayout';
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
 
-/** Write access to the spreadsheets the user picks. */
+/** Legacy/manual access to a spreadsheet the user already owns. */
 export const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
+/** New accounts only need access to files this app creates. */
+export const APP_CREATED_SHEETS_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 interface TokenResponse {
   access_token?: string;

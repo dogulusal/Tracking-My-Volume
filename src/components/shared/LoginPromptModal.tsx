@@ -35,6 +35,11 @@ export function LoginPromptModal() {
             GitHub ile Giriş Yap
           </button>
         </div>
+        <p className="mt-4 text-center text-xs text-(--color-text-secondary)">
+          <a className="underline" href={`${import.meta.env.BASE_URL}about.html`}>Uygulama hakkında</a>
+          {' · '}
+          <a className="underline" href={`${import.meta.env.BASE_URL}privacy.html`}>Gizlilik Politikası</a>
+        </p>
       </div>
     </div>
   );

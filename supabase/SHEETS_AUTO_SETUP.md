@@ -10,8 +10,11 @@ Bu sekmelerin içeriği uygulama verisinden yeniden üretilir.
 Mevcut web OAuth istemcisine ait **client secret** gerekli. Web istemcisinin
 izin verilen JavaScript kaynakları arasına canlı uygulama kökenini ekle:
 `https://dogulusal.github.io`. Yerel deneme için `http://localhost:5173` ekle.
-Sheets API etkin olmalı. OAuth izin ekranında Sheets yazma kapsamı tanımlı
-olmalı. Uzun süreli bağlantı için OAuth uygulamasını uygun yayın durumuna al.
+Sheets API etkin olmalı. Yeni hesap dosyası için `drive.file` (hassas olmayan)
+kapsamını Google Auth Platform > Data Access bölümüne ekle. Önceden var olan
+bir Sheet dosyasını manuel bağlama akışı hâlâ `spreadsheets` kapsamını kullanır;
+bu kapsam hassastır ve Google doğrulaması gerektirir. Uzun süreli bağlantı için
+OAuth uygulamasını uygun yayın durumuna al.
 Secret'ı bu repoya veya sohbete koyma.
 
 ## 2. Supabase
@@ -20,6 +23,8 @@ Secret'ı bu repoya veya sohbete koyma.
 çalıştır veya migration olarak uygula. Ardından CLI oturumu açıp projeyi
 bağlayarak `npx supabase functions deploy sheets-auto-sync --no-verify-jwt`
 komutunu çalıştır.
+`20260927120000_sheet_auto_access_scope.sql` geçişi mevcut bağlantılara `all`
+kapsamı atar; uygulamanın yeni oluşturduğu dosyalar `app_files` olarak kaydedilir.
 
 Function Secrets içine şu değerleri koy:
 

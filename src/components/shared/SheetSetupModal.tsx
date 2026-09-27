@@ -52,7 +52,8 @@ export function SheetSetupModal() {
         {(auto.error || auto.statusError) &&
           <p role="alert" className="mt-3 text-sm text-amber-300">{auto.error ?? auto.statusError}</p>}
         <p className="mt-4 text-xs text-(--color-text-secondary)">
-          Google hesabında dosya oluşturma ve düzenleme izni istenir. Bağlantı hesabına bağlı olarak sunucuda saklanır.
+          Yeni dosya için yalnızca bu uygulamanın oluşturduğu dosyalara erişim izni istenir.
+          Bağlantı hesabına bağlı olarak sunucuda saklanır.
         </p>
         <button onClick={() => void signOut()} className="mt-4 text-xs underline">Hesaptan çık</button>
       </div>

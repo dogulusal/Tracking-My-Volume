@@ -208,7 +208,7 @@ Deno.serve(async request => {
     if (authError || !user) return response({ error: 'Giriş geçersiz.' }, 401, origin);
     if (body.action === 'status') {
       const [{ data: connection }, { data: queue }] = await Promise.all([
-        admin.from('sheet_auto_connections').select('spreadsheet_id,status,last_error,last_synced_at,selection').eq('user_id', user.id).maybeSingle(),
+        admin.from('sheet_auto_connections').select('spreadsheet_id,status,access_scope,last_error,last_synced_at,selection').eq('user_id', user.id).maybeSingle(),
         admin.from('sheet_auto_queue').select('status,last_error,updated_at').eq('user_id', user.id).maybeSingle(),
       ]);
       return response({ connection, queue }, 200, origin);
@@ -269,7 +269,7 @@ Deno.serve(async request => {
       if (!googleClientId || !googleClientSecret) throw new Error('Sunucu Google OAuth ayarları eksik.');
       const tokens = await exchangeCode(body.code, origin);
       const { data: previous } = await admin.from('sheet_auto_connections')
-        .select('spreadsheet_id,managed_tabs,selection').eq('user_id', user.id).maybeSingle();
+        .select('spreadsheet_id,managed_tabs,selection,access_scope').eq('user_id', user.id).maybeSingle();
       const { data: stateRow } = await admin.from('user_states').select('data').eq('user_id', user.id).maybeSingle();
       // A new account may connect before its first debounced cloud save.
       const state = stateRow?.data ?? { currentWeek: 0, phases: [{ id: 'phase-1', name: 'Faz 1', startWeek: 0, endWeek: null }],
@@ -306,6 +306,8 @@ Deno.serve(async request => {
       }
       const { error } = await admin.from('sheet_auto_connections').upsert({ user_id: user.id,
         spreadsheet_id: spreadsheetId, refresh_token_ciphertext: await encrypt(tokens.refresh_token),
+        access_scope: createNew ? 'app_files'
+          : previous?.spreadsheet_id === spreadsheetId ? previous.access_scope ?? 'all' : 'all',
         managed_tabs: createNew ? createdTabs : previous?.spreadsheet_id === spreadsheetId ? previous.managed_tabs : {},
         selection,
         status: 'active', last_error: null, updated_at: new Date().toISOString(),
