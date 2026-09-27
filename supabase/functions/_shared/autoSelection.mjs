@@ -2,15 +2,25 @@
 // Node's regression tests can run them.
 
 /**
+ * The scope a new connection and each new phase start with: the whole current
+ * phase from its H0, the reference every later week is compared against.
+ * Starting at the latest logged week left H0 empty whenever the Sheet was
+ * connected mid-phase or the first sync of a phase ran after its second week.
+ */
+export function followingSelection(currentPhase) {
+  return { phaseId: currentPhase.id, programId: null, weekMode: 'all',
+    weekNumber: currentPhase.startWeek, followCurrentPhase: true };
+}
+
+/**
  * The selection a sync writes. One that follows the current phase moves on
  * when a new phase starts. The finished phase's tab leaves `managedTabs` in the
  * same step, so it stays in the file as that phase's record even when this
  * sync fails and a retry no longer sees the phase change. `finished` carries
  * what is needed for one last write to it.
  */
-export function resolveAutoSelection(previous, currentPhase, latestLoggedWeek, managedTabs) {
-  const following = { phaseId: currentPhase.id, programId: null, weekMode: 'latest',
-    weekNumber: latestLoggedWeek, followCurrentPhase: true };
+export function resolveAutoSelection(previous, currentPhase, managedTabs) {
+  const following = followingSelection(currentPhase);
   const phaseChanged = previous?.followCurrentPhase && previous.phaseId !== currentPhase.id;
   if (previous && !phaseChanged) return { selection: previous, managedTabs, finished: null };
   if (!previous || !(previous.phaseId in managedTabs)) return { selection: following, managedTabs, finished: null };

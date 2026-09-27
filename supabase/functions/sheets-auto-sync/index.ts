@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { projectSheets } from '../_shared/sheetProjection.mjs';
 import { buildAutoSheetStyleRequests } from '../_shared/sheetStyle.mjs';
 import { matchesVerifiedGoogleEmail, requiresAccountMatch } from '../_shared/googleAccount.mjs';
-import { dropStaleManagedTabs, followsCurrentPhase, resolveAutoSelection } from '../_shared/autoSelection.mjs';
+import { dropStaleManagedTabs, followingSelection, followsCurrentPhase, resolveAutoSelection } from '../_shared/autoSelection.mjs';
 
 const url = Deno.env.get('SUPABASE_URL')!;
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -91,10 +91,7 @@ async function syncUser(userId: string) {
   const currentPhase = [...(state.phases ?? [])].reverse().find((phase: { startWeek: number; endWeek: number | null }) =>
     state.currentWeek >= phase.startWeek && (phase.endWeek == null || state.currentWeek <= phase.endWeek));
   if (!currentPhase) throw new Error('Etkin faz bulunamadı.');
-  const latestLoggedWeek = Math.max(currentPhase.startWeek, ...(state.weekLogs ?? [])
-    .filter((log: { weekNumber: number }) => log.weekNumber >= currentPhase.startWeek && log.weekNumber <= state.currentWeek)
-    .map((log: { weekNumber: number }) => log.weekNumber));
-  const resolved = resolveAutoSelection(connection.selection, currentPhase, latestLoggedWeek, managedTabs);
+  const resolved = resolveAutoSelection(connection.selection, currentPhase, managedTabs);
   const { selection, finished } = resolved;
   managedTabs = resolved.managedTabs;
   if (selection !== connection.selection) {
@@ -297,11 +294,7 @@ Deno.serve(async request => {
       const currentPhase = [...(state?.phases ?? [])].reverse().find((phase: { startWeek: number; endWeek: number | null }) =>
         state.currentWeek >= phase.startWeek && (phase.endWeek == null || state.currentWeek <= phase.endWeek));
       if (!currentPhase) throw new Error('Etkin faz bulunamadı.');
-      const latestLoggedWeek = Math.max(currentPhase.startWeek, ...(state.weekLogs ?? [])
-        .filter((log: { weekNumber: number }) => log.weekNumber >= currentPhase.startWeek && log.weekNumber <= state.currentWeek)
-        .map((log: { weekNumber: number }) => log.weekNumber));
-      const selection = previous?.selection ?? { phaseId: currentPhase.id, programId: null,
-        weekMode: 'latest', weekNumber: latestLoggedWeek, followCurrentPhase: true };
+      const selection = previous?.selection ?? followingSelection(currentPhase);
       let createdTabs: Record<string, number> = {};
       if (createNew) {
         if (previous?.spreadsheet_id) return response({ error: 'Bu hesabın zaten bağlı bir Sheet dosyası var.' }, 409, origin);
