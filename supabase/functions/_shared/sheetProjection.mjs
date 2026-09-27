@@ -3,18 +3,8 @@
 const cleanTitle = (name, startWeek) => `Oto · ${String(name || `Faz ${startWeek}`).replace(/[\[\]:*?/\\]/g, ' ').trim()} · ${startWeek}`.slice(0, 100);
 const intensityLabel = { failure: 'F', rir1: '+1', rir2: '+2', rir3: '+3' };
 const fullSet = set => `${set.weight} x ${set.reps} ${intensityLabel[set.intensity] ?? ''}`.trim();
-const setText = sets => {
-  if (!Array.isArray(sets) || !sets.length) return '-';
-  const first = sets[0];
-  if (sets.every(set => set.weight === first.weight && set.reps === first.reps && set.intensity === first.intensity)) {
-    return fullSet(first);
-  }
-  return sets.map((set, index) => {
-    if (!index) return fullSet(set);
-    const sameWeight = set.weight === sets[index - 1].weight;
-    return sameWeight ? ` | ${set.reps} ${intensityLabel[set.intensity] ?? ''}`.trimEnd() : `\n${fullSet(set)}`;
-  }).join('');
-};
+// Every set on its own line, as the app's History grid writes it.
+const setText = sets => Array.isArray(sets) && sets.length ? sets.map(fullSet).join('\n') : '-';
 
 export function projectSheets(state, selection = null) {
   const phases = [...(state.phases ?? [])].sort((a, b) => a.startWeek - b.startWeek);

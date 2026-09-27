@@ -33,7 +33,12 @@ export function buildAutoSheetStyleRequests(sheetId, sheet, existingMerges = [])
     paint(requests, range(sheetId, notesRow, notesRow + 1, 0, width), { backgroundColorStyle: color('#fff4d6'), textFormat: text('#5f5130', false, 9), horizontalAlignment: 'LEFT', verticalAlignment: 'TOP', wrapStrategy: 'CLIP' });
     size(requests, sheetId, 'ROWS', titleRow, titleRow + 1, 34);
     size(requests, sheetId, 'ROWS', headerRow, headerRow + 1, 30);
-    if (notesRow > headerRow + 1) size(requests, sheetId, 'ROWS', headerRow + 1, notesRow, 34);
+    // Each set is its own line, so a row grows with its longest cell; same
+    // estimate as the manual send (sheetLayout.ts).
+    for (let row = headerRow + 1; row < notesRow; row++) {
+      const lines = Math.max(1, ...sheet.rows[row].slice(2).map(value => String(value ?? '').split('\n').length));
+      size(requests, sheetId, 'ROWS', row, row + 1, Math.max(34, lines * 18 + 12));
+    }
     size(requests, sheetId, 'ROWS', notesRow, notesRow + 1, 72);
     if (notesRow + 2 <= sheet.rows.length) size(requests, sheetId, 'ROWS', notesRow + 1, Math.min(notesRow + 3, sheet.rows.length), 10);
     for (let row = headerRow + 1; row < notesRow; row++) {

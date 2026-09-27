@@ -53,11 +53,11 @@ function parseSetEntry(raw: string, lastWeight: number): { set: SetLog; weight: 
 }
 
 // ─── Parse a cell containing one or more sets ─────────
-// Handles: "45x5F|4F", "72.5x6F | 7F", "45 x 5 F"
+// Handles: "45x5F|4F", "72.5x6F | 7F", "45 x 5 F", and one set per line
 export function parseCellToSets(cell: string, expectedSets = 1): SetLog[] {
   if (!cell || cell.trim() === '' || cell.trim() === '-') return [];
 
-  const parts = cell.split('|');
+  const parts = cell.split(/[|\n]/);
   const sets: SetLog[] = [];
   let lastWeight = 0;
 

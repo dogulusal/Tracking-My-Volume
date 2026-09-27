@@ -14,26 +14,13 @@ export function formatSet(set: SetLog): string {
   return `${set.weight} x ${set.reps} ${INTENSITY_LABELS[set.intensity]}`;
 }
 
-function formatSetShort(set: SetLog): string {
-  return `${set.reps} ${INTENSITY_LABELS[set.intensity]}`;
-}
-
 /**
- * Keep sets at the same weight on one line. A weight change starts a new line,
- * which makes dense History/Sheets cells easier to scan without losing the
- * user's established pipe separator.
+ * Every set on its own line, written in full. The older shorthand (one line for
+ * identical sets, "| 8 F" for the same weight) leaned on the Set column and
+ * confused people new to the log.
  */
 export function formatSets(sets: SetLog[]): string {
-  if (sets.length === 0) return '';
-  const first = sets[0];
-  if (sets.every(set => set.weight === first.weight && set.reps === first.reps && set.intensity === first.intensity)) {
-    return formatSet(first);
-  }
-  return sets.map((set, index) => {
-    if (index === 0) return formatSet(set);
-    const sameWeight = set.weight === sets[index - 1].weight;
-    return `${sameWeight ? ' | ' : '\n'}${sameWeight ? formatSetShort(set) : formatSet(set)}`;
-  }).join('');
+  return sets.map(formatSet).join('\n');
 }
 
 /**

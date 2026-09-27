@@ -23,6 +23,21 @@ test('a scope the user chose is kept, and changing it still replaces the old aut
   assert.deepEqual(dropStaleManagedTabs({ faz3: 11, faz2: 22 }, new Set(['faz2'])), { managedTabs: { faz2: 22 }, remove: [11] });
 });
 
+test('automatic tabs write every set on its own line and make the row tall enough for it', async () => {
+  const { projectSheets } = await import('../supabase/functions/_shared/sheetProjection.mjs');
+  const { buildAutoSheetStyleRequests } = await import('../supabase/functions/_shared/sheetStyle.mjs');
+  const set = { weight: 70, reps: 7, intensity: 'failure' };
+  const state = { currentWeek: 0, phases: [{ id: 'p', name: 'Faz 1', startWeek: 0, endWeek: null }],
+    programVersions: [{ phaseId: 'p', fromWeek: 0, programs: [{ id: 'upper', name: 'Upper', order: 0,
+      exercises: [{ id: 'row', name: 'Row', isActive: true, defaultSets: 3 }] }] }],
+    weekLogs: [{ programId: 'upper', weekNumber: 0, exercises: [{ exerciseId: 'row', sets: [set, set, { ...set, reps: 6 }] }] }] };
+  const [sheet] = projectSheets(state);
+  assert.equal(sheet.rows[2][2], '70 x 7 F\n70 x 7 F\n70 x 6 F');
+  const height = buildAutoSheetStyleRequests(1, sheet).find(request =>
+    request.updateDimensionProperties?.range.dimension === 'ROWS' && request.updateDimensionProperties.range.startIndex === 2);
+  assert.equal(height.updateDimensionProperties.properties.pixelSize, 3 * 18 + 12);
+});
+
 test('a new account keeps a writable phase tab before its first program', async () => {
   const { projectSheets } = await import('../supabase/functions/_shared/sheetProjection.mjs');
   const state = { currentWeek: 0, phases: [{ id: 'phase-1', name: 'Faz 1', startWeek: 0, endWeek: null }],

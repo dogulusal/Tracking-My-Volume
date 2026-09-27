@@ -667,19 +667,23 @@ test('single shorthand expands to the declared set count; explicit pipes stay or
   assert.equal(sets.length, 2);
   assert.deepEqual(sets[0], sets[1]);
   assert.notEqual(sets[0], sets[1]);
-  assert.equal(formatSets(sets), '70 x 8 F');
+  assert.equal(formatSets(sets), '70 x 8 F\n70 x 8 F');
   const split = parseCellToSets('70 x 8 F | 8 +1', 2);
   assert.equal(split.length, 2);
   assert.equal(split[0].intensity, 'failure');
   assert.equal(split[1].intensity, 'rir1');
-  assert.equal(formatSets(split), '70 x 8 F | 8 +1');
+  assert.equal(formatSets(split), '70 x 8 F\n70 x 8 +1');
   assert.equal(parseCellToSets('70 x 8 F | 8 +1', 3).length, 2);
+  // What the grid writes now reads back set for set.
+  assert.deepEqual(parseCellToSets(formatSets(split), 3), split);
 });
 
-test('formatting mixed sets never drops duplicates or rearranges the set order', () => {
+test('every set is written on its own line, in full, without pipes', () => {
   const set = { weight: 70, reps: 8, intensity: 'failure' };
-  assert.equal(formatSets([set, { ...set, intensity: 'rir1' }, set]), '70 x 8 F | 8 +1 | 8 F');
+  assert.equal(formatSets([set, { ...set, intensity: 'rir1' }, set]), '70 x 8 F\n70 x 8 +1\n70 x 8 F');
   assert.equal(formatSets([set, { ...set, weight: 60 }, set]), '70 x 8 F\n60 x 8 F\n70 x 8 F');
+  assert.equal(formatSets([set]), '70 x 8 F');
+  assert.equal(formatSets([]), '');
 });
 
 test('table import uses the Set column when a cell uses shorthand', () => {
