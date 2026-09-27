@@ -243,7 +243,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** One sync at a time; a request arriving mid-sync runs once more afterwards. */
   const runSync = useCallback(async (): Promise<SyncResult> => {
     if (!isSupabaseConfigured || !supabase) return { ok: false, message: 'Supabase bağlantısı ayarlı değil.' };
-    if (!user) return { ok: false, message: 'Bulut verisi için önce giriş yapmalısın.' };
+    if (!user) return { ok: false, message: identityRef.current ? OFFLINE_MESSAGE : 'Bulut verisi için önce giriş yapmalısın.' };
     if (syncingRef.current) {
       syncAgainRef.current = true;
       return { ok: false, message: 'Senkron sürüyor.' };

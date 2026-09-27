@@ -7,7 +7,7 @@ interface CloudSyncModalProps {
 }
 
 export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
-  const { configured, userEmail, syncStatus, lastSyncedAt, authError, signInWithGithub, signInWithGoogle, signOut, refreshFromCloud } = useCloudSync();
+  const { configured, userId, userEmail, syncStatus, lastSyncedAt, authError, signInWithGithub, signInWithGoogle, signOut, refreshFromCloud } = useCloudSync();
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isGithubLoading, setIsGithubLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -66,7 +66,7 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
           </div>
         )}
 
-        {configured && !userEmail && (
+        {configured && !userId && (
           <div className="space-y-3 mb-4">
             <button onClick={handleGoogleSignIn} disabled={isGoogleLoading || isGithubLoading}
               className="lb-press w-full px-4 py-2 rounded-md bg-(--color-text-primary) text-(--color-bg-primary) disabled:opacity-50 text-sm font-semibold">
@@ -83,10 +83,10 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
           </div>
         )}
 
-        {configured && userEmail && (
+        {configured && userId && (
           <div className="space-y-3 mb-4 text-sm">
             <p className="text-(--color-text-secondary)">
-              Giris yapilan hesap: <span className="text-(--color-text-primary) font-semibold">{userEmail}</span>
+              Giris yapilan hesap: <span className="text-(--color-text-primary) font-semibold">{userEmail ?? 'bu cihazdaki hesap'}</span>
             </p>
             <p className="text-(--color-text-secondary)">
               Son senkron: <span className="text-(--color-text-primary)">{lastSyncedAt ? new Date(lastSyncedAt).toLocaleString('tr-TR') : 'Henuz yok'}</span>

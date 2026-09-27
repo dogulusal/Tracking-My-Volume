@@ -14,7 +14,7 @@ export function Header() {
   const [dark, setDark] = useState(isDarkMode());
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
-  const { configured, userEmail, githubLogin, syncStatus, authError } = useCloudSync();
+  const { configured, userId, userEmail, githubLogin, syncStatus, authError } = useCloudSync();
 
   useEffect(() => {
     setDark(isDarkMode());
@@ -37,7 +37,7 @@ export function Header() {
     ? 'Bulut kapalı'
     : userEmail
       ? (syncStatus === 'syncing' || syncStatus === 'auth_loading' ? 'Senkron...' : (githubLogin ?? userEmail))
-      : 'Giriş yap';
+      : userId ? 'Çevrimdışı' : 'Giriş yap';
   const mobileCloudLabel = cloudLabel.length > 12 ? `${cloudLabel.slice(0, 12)}...` : cloudLabel;
 
   return (
