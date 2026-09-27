@@ -1,6 +1,18 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+test('a new account keeps a writable phase tab before its first program', async () => {
+  const { projectSheets } = await import('../supabase/functions/_shared/sheetProjection.mjs');
+  const state = { currentWeek: 0, phases: [{ id: 'phase-1', name: 'Faz 1', startWeek: 0, endWeek: null }],
+    programs: [], programVersions: [], weekLogs: [] };
+  const [sheet] = projectSheets(state, { phaseId: 'phase-1', programId: null, weekMode: 'latest', weekNumber: 0 });
+  assert.equal(sheet.phaseId, 'phase-1');
+  assert.equal(sheet.blocks.length, 0);
+  assert.match(sheet.rows[1][0], /Henüz antrenman programı yok/);
+  state.programs = [{ id: 'upper', name: 'Upper 1', order: 0, exercises: [] }];
+  assert.equal(projectSheets(state)[0].rows[0][0], 'Upper 1');
+});
+
 test('automatic phase tabs use their own definitions and logs, including deletions', async () => {
   const { projectSheets } = await import('../supabase/functions/_shared/sheetProjection.mjs');
   const exercise = (id, name) => ({ id, name, isActive: true, defaultSets: 2 });

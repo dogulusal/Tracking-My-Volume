@@ -74,7 +74,10 @@ export function projectSheets(state, selection = null) {
       blocks.push({ titleRow, headerRow: titleRow + 1, notesRow: rows.length - 1 });
       rows.push([], []);
     }
+    // A new account has no workouts yet. Keep its managed phase tab so the
+    // worker can clear/write it without trying to delete the file's last tab.
+    if (!rows.length) rows.push([phase.name], ['Henüz antrenman programı yok.']);
     return { phaseId: phase.id, title: cleanTitle(phase.name, phase.startWeek), rows, blocks,
       rowCount: Math.max(100, rows.length + 1), columnCount: Math.max(28, width) };
-  }).filter(sheet => sheet.rows.length > 0);
+  });
 }
