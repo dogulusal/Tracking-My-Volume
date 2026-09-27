@@ -1,6 +1,28 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+test('starting a new phase keeps the finished phase tab in the file, also when the sync is retried', async () => {
+  const { resolveAutoSelection, dropStaleManagedTabs } = await import('../supabase/functions/_shared/autoSelection.mjs');
+  const following = { phaseId: 'faz3', programId: null, weekMode: 'latest', weekNumber: 36, followCurrentPhase: true };
+  const first = resolveAutoSelection(following, { id: 'faz4' }, 57, { faz3: 11 });
+  assert.equal(first.selection.phaseId, 'faz4');
+  assert.deepEqual(first.finished, { selection: following, sheetId: 11 });
+  assert.deepEqual(first.managedTabs, {});
+  // The worker creates the Faz 4 tab (22), then fails. The retry starts from
+  // what was saved with the selection and must not delete tab 11.
+  const retry = resolveAutoSelection(first.selection, { id: 'faz4' }, 57, { ...first.managedTabs, faz4: 22 });
+  assert.equal(retry.finished, null);
+  assert.deepEqual(dropStaleManagedTabs(retry.managedTabs, new Set(['faz4'])), { managedTabs: { faz4: 22 }, remove: [] });
+});
+
+test('a scope the user chose is kept, and changing it still replaces the old automatic tab', async () => {
+  const { resolveAutoSelection, dropStaleManagedTabs } = await import('../supabase/functions/_shared/autoSelection.mjs');
+  const chosen = { phaseId: 'faz2', programId: 'upper', weekMode: 'all', weekNumber: 15, followCurrentPhase: false };
+  assert.deepEqual(resolveAutoSelection(chosen, { id: 'faz3' }, 40, { faz2: 22 }), { selection: chosen, managedTabs: { faz2: 22 }, finished: null });
+  assert.equal(resolveAutoSelection(null, { id: 'faz3' }, 40, {}).selection.phaseId, 'faz3');
+  assert.deepEqual(dropStaleManagedTabs({ faz3: 11, faz2: 22 }, new Set(['faz2'])), { managedTabs: { faz2: 22 }, remove: [11] });
+});
+
 test('a new account keeps a writable phase tab before its first program', async () => {
   const { projectSheets } = await import('../supabase/functions/_shared/sheetProjection.mjs');
   const state = { currentWeek: 0, phases: [{ id: 'phase-1', name: 'Faz 1', startWeek: 0, endWeek: null }],

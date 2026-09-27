@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { projectSheets } from '../_shared/sheetProjection.mjs';
 import { buildAutoSheetStyleRequests } from '../_shared/sheetStyle.mjs';
 import { matchesVerifiedGoogleEmail, requiresAccountMatch } from '../_shared/googleAccount.mjs';
+import { dropStaleManagedTabs, resolveAutoSelection } from '../_shared/autoSelection.mjs';
 
 const url = Deno.env.get('SUPABASE_URL')!;
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -85,7 +86,7 @@ async function syncUser(userId: string) {
   const metadata = await googleRequest(token, `${encodeURIComponent(spreadsheetId)}?fields=sheets(properties(sheetId,title,gridProperties),merges)`);
   const existing = metadata.sheets?.map((sheet: { properties: Record<string, unknown>; merges?: unknown[] }) =>
     ({ ...sheet.properties, merges: sheet.merges ?? [] })) ?? [];
-  const managedTabs: Record<string, number> = { ...(connection.managed_tabs ?? {}) };
+  let managedTabs: Record<string, number> = { ...(connection.managed_tabs ?? {}) };
   const state = stateRow.data;
   const currentPhase = [...(state.phases ?? [])].reverse().find((phase: { startWeek: number; endWeek: number | null }) =>
     state.currentWeek >= phase.startWeek && (phase.endWeek == null || state.currentWeek <= phase.endWeek));
@@ -93,17 +94,25 @@ async function syncUser(userId: string) {
   const latestLoggedWeek = Math.max(currentPhase.startWeek, ...(state.weekLogs ?? [])
     .filter((log: { weekNumber: number }) => log.weekNumber >= currentPhase.startWeek && log.weekNumber <= state.currentWeek)
     .map((log: { weekNumber: number }) => log.weekNumber));
-  const previousSelection = connection.selection;
-  const selection = !previousSelection || (previousSelection.followCurrentPhase && previousSelection.phaseId !== currentPhase.id)
-    ? { phaseId: currentPhase.id, programId: null, weekMode: 'latest', weekNumber: latestLoggedWeek, followCurrentPhase: true }
-    : previousSelection;
-  if (selection !== previousSelection) {
-    const { error } = await admin.from('sheet_auto_connections').update({ selection }).eq('user_id', userId);
+  const resolved = resolveAutoSelection(connection.selection, currentPhase, latestLoggedWeek, managedTabs);
+  const { selection, finished } = resolved;
+  managedTabs = resolved.managedTabs;
+  if (selection !== connection.selection) {
+    const { error } = await admin.from('sheet_auto_connections').update({ selection, managed_tabs: managedTabs }).eq('user_id', userId);
     if (error) throw error;
   }
-  const projected = projectSheets(state, selection);
-  for (const sheet of projected) {
-    let sheetId = managedTabs[sheet.phaseId];
+  const current = projectSheets(state, selection);
+  // The finished phase's tab gets one last write, so a workout logged just
+  // before the new phase started is in it.
+  const targets = [
+    ...current.map((sheet: typeof current[number]) => ({ sheet, sheetId: undefined as number | undefined })),
+    ...(finished && existing.some((item: { sheetId: number }) => item.sheetId === finished.sheetId)
+      ? projectSheets(state, finished.selection).map((sheet: typeof current[number]) => ({ sheet, sheetId: finished.sheetId as number | undefined }))
+      : []),
+  ];
+  for (const target of targets) {
+    const { sheet } = target;
+    let sheetId = target.sheetId ?? managedTabs[sheet.phaseId];
     let tab = existing.find((item: { sheetId: number }) => item.sheetId === sheetId);
     if (!tab) {
       const titleExists = existing.some((item: { title: string }) => item.title === sheet.title);
@@ -148,16 +157,15 @@ async function syncUser(userId: string) {
       method: 'POST', body: JSON.stringify({ requests }),
     });
   }
-  const activePhaseIds = new Set(projected.map((sheet: { phaseId: string }) => sheet.phaseId));
-  for (const [phaseId, sheetId] of Object.entries(managedTabs)) {
-    if (activePhaseIds.has(phaseId)) continue;
+  const stale = dropStaleManagedTabs(managedTabs, new Set(current.map((sheet: { phaseId: string }) => sheet.phaseId)));
+  for (const sheetId of stale.remove) {
     if (existing.some((item: { sheetId: number }) => item.sheetId === sheetId)) {
       await googleRequest(token, `${encodeURIComponent(spreadsheetId)}:batchUpdate`, {
         method: 'POST', body: JSON.stringify({ requests: [{ deleteSheet: { sheetId } }] }),
       });
     }
-    delete managedTabs[phaseId];
   }
+  managedTabs = stale.managedTabs;
   const { error } = await admin.from('sheet_auto_connections').update({
     managed_tabs: managedTabs, last_synced_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString(),
   }).eq('user_id', userId);

@@ -1,0 +1,35 @@
+// Decisions of the automatic Sheet worker that need no network, kept here so
+// Node's regression tests can run them.
+
+/**
+ * The selection a sync writes. One that follows the current phase moves on
+ * when a new phase starts. The finished phase's tab leaves `managedTabs` in the
+ * same step, so it stays in the file as that phase's record even when this
+ * sync fails and a retry no longer sees the phase change. `finished` carries
+ * what is needed for one last write to it.
+ */
+export function resolveAutoSelection(previous, currentPhase, latestLoggedWeek, managedTabs) {
+  const following = { phaseId: currentPhase.id, programId: null, weekMode: 'latest',
+    weekNumber: latestLoggedWeek, followCurrentPhase: true };
+  const phaseChanged = previous?.followCurrentPhase && previous.phaseId !== currentPhase.id;
+  if (previous && !phaseChanged) return { selection: previous, managedTabs, finished: null };
+  if (!previous || !(previous.phaseId in managedTabs)) return { selection: following, managedTabs, finished: null };
+  const { [previous.phaseId]: sheetId, ...rest } = managedTabs;
+  return { selection: following, managedTabs: rest, finished: { selection: previous, sheetId } };
+}
+
+/**
+ * Managed tabs outside the current selection are deleted: the user changed
+ * the scope and the Export screen says the new selection replaces them.
+ */
+export function dropStaleManagedTabs(managedTabs, keptPhaseIds) {
+  /** @type {Record<string, number>} */
+  const kept = {};
+  /** @type {number[]} */
+  const remove = [];
+  for (const [phaseId, sheetId] of Object.entries(managedTabs)) {
+    if (keptPhaseIds.has(phaseId)) kept[phaseId] = sheetId;
+    else remove.push(sheetId);
+  }
+  return { managedTabs: kept, remove };
+}

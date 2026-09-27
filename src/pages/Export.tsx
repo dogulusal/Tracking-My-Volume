@@ -572,7 +572,7 @@ export function Export() {
               </div>
               {showSyncChoices && <div className="mt-3 p-3 rounded-lg border lb-rule space-y-3">
                 <p className="text-xs text-(--color-text-secondary)">
-                  Bu seçim sonraki otomatik aktarımlarda da geçerli olur. Kapsamı değiştirince önceki “Oto” sekmelerinin yerini yeni seçim alır; özgün sekmelerin korunur.
+                  Bu seçim sonraki otomatik aktarımlarda da geçerli olur. Kapsamı değiştirince önceki “Oto” sekmelerinin yerini yeni seçim alır; özgün sekmelerin korunur. Mevcut fazı takip ederken yeni faza geçersen biten fazın sekmesi silinmez, son haliyle kalır.
                 </p>
                 <label className="block text-sm">Faz
                   <select aria-label="Aktarılacak faz" value={syncPhaseId} onChange={e => {
