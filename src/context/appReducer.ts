@@ -2,7 +2,6 @@ import { configurePhaseTransition, initializeProgramVersions, programVersionAt, 
 import type { AppState, AppAction } from '@/types';
 import { CURRENT_DATA_VERSION } from '@/data/migrations';
 import { normalizeGoogleSettings } from '@/utils/googleSheetsSettings';
-import { startNextPhase } from '@/utils/phases';
 import { syncWeekLogFromProgramEdit } from '@/utils/exerciseSync';
 
 export const initialState: AppState = {
@@ -79,19 +78,11 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     const current = programVersionAt(next, next.currentWeek);
     return { ...next, programs: current.programs, plans: current.plans, activePlanId: current.activePlanId };
   }
-  if (action.type === 'START_NEXT_PHASE') {
-    const transition = startNextPhase(state, action.payload.id, action.payload.startAt);
-    if (transition === state) return state;
-    const next = { ...initializeProgramVersions(state), phases: transition.phases, currentWeek: transition.currentWeek };
-    return appReducer(next, { type: 'SET_PHASES', payload: next.phases });
-  }
   return reduceData(state, action);
 }
 
 function reduceData(state: AppState, action: AppAction): AppState {
   switch (action.type) {
-    case 'START_NEXT_PHASE':
-      return startNextPhase(state, action.payload.id, action.payload.startAt);
     case 'CLEAR_HISTORY_DATA': {
       const { programId, weeks, exerciseId, updatedAt } = action.payload;
       return { ...state, weekLogs: state.weekLogs.flatMap(log => {

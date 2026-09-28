@@ -33,7 +33,6 @@ export function PhaseSettingsModal({ phases, currentWeek, onSave, onClose }: {
         </div>
       </div>)}</div>
       <button onClick={() => { setDraft(prev => [...prev, { id: crypto.randomUUID(), name: `Faz ${prev.length + 1}`, startWeek: currentWeek, endWeek: null }]); setError(''); }} className="lb-press my-3 px-3 py-2 border lb-rule rounded-lg text-sm">+ Faz ekle</button>
-      <p className="lb-label">Başlangıcı değişen fazın Sheet hedefini yeniden eşleştirmen gerekebilir. Mevcut Sheet hücreleri otomatik taşınmaz.</p>
       {error && <p role="alert" className="text-sm mt-3">{error}</p>}
       <div className="flex justify-end gap-3 mt-4"><button onClick={onClose} className="lb-press px-4 py-2 border lb-rule rounded-lg">İptal</button><button onClick={() => { try { onSave(normalizePhaseBoundaries(draft)); } catch (e) { setError(e instanceof Error ? e.message : 'Fazları kontrol et.'); } }} className="lb-press px-4 py-2 bg-(--color-text-primary) text-(--color-bg-primary) rounded-lg">Kaydet</button></div>
     </div>

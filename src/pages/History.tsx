@@ -1,6 +1,5 @@
 import { programVersionAt, programsForPhase } from '@/utils/programVersions';
 import { useNavigate } from 'react-router-dom';
-import { Modal } from '@/components/shared/Modal';
 import { PhaseSettingsModal } from '@/components/shared/PhaseSettingsModal';
 import { useState, useMemo, useEffect, useLayoutEffect, useContext } from 'react';
 import { usePrograms } from '@/hooks/usePrograms';
@@ -48,13 +47,11 @@ const STATUS_OPTIONS: { value: ExerciseStatus; label: string }[] = [
 const HISTORY_STATE_KEY = 'history-page-state-v1';
 
 export function History() {
-  const [showNewPhase, setShowNewPhase] = useState(false);
-  const [confirmNewWeek, setConfirmNewWeek] = useState(false);
   const [showPhaseSettings, setShowPhaseSettings] = useState(false);
   const navigate = useNavigate();
   const [deletionMessage, setDeletionMessage] = useState('');
   const { programs: initialPrograms } = usePrograms();
-  const { weekLogs, currentWeek, saveWorkout, incrementWeek } = useWeekLogs();
+  const { weekLogs, currentWeek, saveWorkout } = useWeekLogs();
   const {
     getCellColor, setCellColor, removeCellColor, getCellOverride, resetAllOverrides,
     isDark, getStatusBgColor, setStatusBgColor, resetStatusColors, hasCustomStatusColors,
@@ -478,14 +475,7 @@ export function History() {
       <div className="mb-6 flex flex-wrap gap-3 items-center justify-between">
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Antrenman Geçmişi</h1>
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => setShowPhaseSettings(true)} className="lb-press px-3 py-1.5 border lb-rule text-xs font-semibold rounded-lg">Faz ayarları</button>
-          <button onClick={() => setShowNewPhase(true)} disabled={contextPhases.some(phase => phase.startWeek >= currentWeek)} title="Mevcut hafta yeni fazın H0 haftası olur. Zaten faz başlangıcındaysan yeni bir faz eklenmez." className="lb-press px-3 py-1.5 border lb-rule text-xs font-semibold rounded-lg disabled:opacity-40">+ Yeni faz</button>
-          <button
-            onClick={() => setConfirmNewWeek(true)}
-            className="lb-press px-3 py-1.5 border lb-rule text-xs font-semibold rounded-lg"
-          >
-            + Yeni Hafta
-          </button>
+          <button onClick={() => setShowPhaseSettings(true)} className="lb-press px-3 py-1.5 border lb-rule text-xs font-semibold rounded-lg">Fazlar</button>
           <button
             onClick={() => setShowColorSettings(s => !s)}
             className={`lb-press p-2 rounded-lg text-lg border ${
@@ -498,19 +488,6 @@ export function History() {
         </div>
       </div>
 
-      <Modal isOpen={showNewPhase} onClose={() => setShowNewPhase(false)} title={`Faz ${contextPhases.length + 1} başlat`}
-        message="Mevcut hafta yeni fazın H0 haftası olacak. Bu haftanın ve sonraki haftaların kayıtları yeni fazda görünür; daha eski haftalar önceki fazlarda kalır. Hiçbir antrenman veya not silinmez. Sheet sekmesi ayrıca seçilir."
-        confirmText="Yeni fazı başlat" onConfirm={() => {
-          ctx?.dispatch({ type: 'START_NEXT_PHASE', payload: { id: crypto.randomUUID(), startAt: 'current' } });
-          setSelectedPhaseIdx(contextPhases.length);
-          setPageStart(0);
-          setShowNewPhase(false);
-        }} />
-      <Modal isOpen={confirmNewWeek} onClose={() => setConfirmNewWeek(false)}
-        onConfirm={() => { setConfirmNewWeek(false); incrementWeek(); }}
-        title="Yeni haftaya geçilsin mi?"
-        message="Geçtikten sonra haftayı uygulamadan geri alamazsın."
-        confirmText="Yeni haftaya geç" />
       {showPhaseSettings && <PhaseSettingsModal phases={contextPhases} currentWeek={currentWeek} onClose={() => setShowPhaseSettings(false)} onSave={updated => {
         ctx?.dispatch({ type: 'SET_PHASES', payload: updated });
         const visible = updated.filter(p => p.startWeek <= currentWeek);

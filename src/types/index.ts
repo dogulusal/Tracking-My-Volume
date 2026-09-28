@@ -109,7 +109,6 @@ export type AppAction =
   | { type: 'REMOVE_PHASE_EXERCISE'; payload: { phaseId: string; programId: string; exerciseId: string } }
   | { type: 'CONFIGURE_PHASE_TRANSITION'; payload: { previousPhaseId: string; lastWeek: number; nextId: string } }
   | { type: 'COPY_PHASE_PROGRAM'; payload: { week: number; sourceWeek: number } }
-  | { type: 'START_NEXT_PHASE'; payload: { id: string; startAt?: 'next' | 'current' } }
   | { type: 'CLEAR_HISTORY_DATA'; payload: { programId: string; weeks: number[]; exerciseId?: string; updatedAt: string } }
   | { type: 'SET_GOOGLE_SHEETS_SETTINGS'; payload: GoogleSheetsPreferences }
   | { type: 'ADD_PROGRAM'; atWeek?: number; payload: Program }

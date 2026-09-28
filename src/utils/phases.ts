@@ -1,4 +1,4 @@
-import type { AppState, PhaseDefinition } from '@/types';
+import type { PhaseDefinition } from '@/types';
 
 export function normalizePhaseBoundaries(phases: PhaseDefinition[]): PhaseDefinition[] {
   if (!phases.length) throw new Error('En az bir faz gerekli.');
@@ -13,19 +13,4 @@ export function normalizePhaseBoundaries(phases: PhaseDefinition[]): PhaseDefini
     if (index > 0 && sorted[index - 1].startWeek === phase.startWeek) throw new Error('İki faz aynı haftadan başlayamaz.');
     return { ...phase, name: phase.name.trim(), endWeek: sorted[index + 1] ? sorted[index + 1].startWeek - 1 : null };
   });
-}
-
-export function nextPhaseStart(state: Pick<AppState, 'currentWeek' | 'weekLogs' | 'phases'>): number {
-  return Math.max(state.currentWeek, ...state.weekLogs.map(log => log.weekNumber), ...state.phases.map(phase => phase.endWeek ?? phase.startWeek)) + 1;
-}
-
-export function startNextPhase(state: AppState, id: string, startAt: 'next' | 'current' = 'next'): AppState {
-  if (state.phases.some(phase => phase.id === id)) return state;
-  const startWeek = startAt === 'current' ? state.currentWeek : nextPhaseStart(state);
-  // A phase must contain at least one week, and phase ranges must not overlap.
-  if (state.phases.some(phase => phase.startWeek >= startWeek)) return state;
-  return { ...state, currentWeek: startWeek, phases: [
-    ...state.phases.map(phase => phase.endWeek === null || phase.endWeek >= startWeek ? { ...phase, endWeek: startWeek - 1 } : phase),
-    { id, name: `Faz ${state.phases.length + 1}`, startWeek, endWeek: null },
-  ] };
 }

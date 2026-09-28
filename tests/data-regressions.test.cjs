@@ -362,7 +362,8 @@ test('day removal, copying and future effective weeks respect phase boundaries a
 
 test('new phases preserve earlier program definitions when their first week is edited', () => {
   const raw = { ...versionFixture(), currentWeek: 37 };
-  let state = appReducer(raw, { type: 'START_NEXT_PHASE', payload: { id: 'p4', startAt: 'current' } });
+  const { normalizePhaseBoundaries } = loadTS('src/utils/phases.ts');
+  let state = appReducer(raw, { type: 'SET_PHASES', payload: normalizePhaseBoundaries([...raw.phases, { id: 'p4', name: 'Faz 4', startWeek: 37, endWeek: null }]) });
   const old = programVersionAt(state, 36);
   state = appReducer(state, { type: 'UPDATE_PROGRAM', payload: { ...programVersionAt(state, 37).programs[0], exercises: [] } });
   assert.deepEqual(programVersionAt(state, 36), old);
@@ -402,28 +403,6 @@ test('OAuth returns to the application root without forwarding route, query or f
   const { authRedirectUrl } = loadTS('src/utils/authRedirect.ts');
   assert.equal(authRedirectUrl('https://dogulusal.github.io/history?from=export#example', '/Tracking-My-Volume/'), 'https://dogulusal.github.io/Tracking-My-Volume/');
   assert.equal(authRedirectUrl('http://localhost:5173/workout', '/'), 'http://localhost:5173/');
-});
-
-test('current-week phase transition keeps current and future records intact without advancing the week', () => {
-  const state = { ...initialState, currentWeek: 35, weekLogs: [34, 35, 36].map(weekNumber => ({ id: String(weekNumber), weekNumber, notes: 'preserved', exercises: [] })) };
-  const result = appReducer(state, { type: 'START_NEXT_PHASE', payload: { id: 'phase3', startAt: 'current' } });
-  assert.equal(result.currentWeek, 35);
-  assert.equal(result.phases[1].endWeek, 34);
-  assert.equal(result.phases[2].startWeek, 35);
-  assert.equal(result.weekLogs, state.weekLogs);
-  assert.equal(appReducer(result, { type: 'START_NEXT_PHASE', payload: { id: 'accidental-repeat', startAt: 'current' } }), result);
-});
-
-test('starting phase 3 retains all history and begins after the latest stored week', () => {
-  const state = { ...initialState, currentWeek: 35, weekLogs: [{ id: 'future', weekNumber: 36, programId: 'lower1', notes: 'keep', exercises: [] }] };
-  const result = appReducer(state, { type: 'START_NEXT_PHASE', payload: { id: 'third' } });
-  assert.equal(result.currentWeek, 37);
-  assert.deepEqual(result.phases[2], { id: 'third', name: 'Faz 3', startWeek: 37, endWeek: null });
-  assert.equal(result.phases[1].endWeek, 36);
-  assert.equal(result.weekLogs, state.weekLogs);
-  assert.equal(result.programs, state.programs);
-  assert.equal(state.phases[1].endWeek, null);
-  assert.equal(appReducer(result, { type: 'START_NEXT_PHASE', payload: { id: 'third' } }), result);
 });
 
 test('clearing a history column removes notes and holiday without affecting adjacent weeks or programs', () => {
