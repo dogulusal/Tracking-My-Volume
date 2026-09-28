@@ -18,7 +18,9 @@ export function useWeekLogs() {
       if (existing) {
         dispatch({
           type: 'UPDATE_WORKOUT',
-          payload: { ...log, id: existing.id, updatedAt: new Date().toISOString() },
+          // Fields the caller does not know about (History saves a cell
+          // without the hard-day mark) stay as they were.
+          payload: { ...existing, ...log, id: existing.id, updatedAt: new Date().toISOString() },
         });
       } else {
         dispatch({

@@ -68,3 +68,14 @@ test('a stall counts the weeks since the best set at the current weight, and a n
   const moved = stallOf(movementSessions([...weekLogs, log('a', 9, [set(93, 7)])], 'pec fly'));
   assert.equal(moved.weeks, 0);
 });
+
+test('targets and stalls pass over hard days', () => {
+  const weekLogs = [
+    log('a', 0, [set(91.75, 9, 'rir1')]),
+    log('a', 1, [set(80, 6)], { offDay: true }),
+  ];
+  assert.deepEqual(previousRecord(weekLogs, 'a', 'a-fly', 2), [set(91.75, 9, 'rir1')]);
+  // The light hard day is not a reset: the stall still runs from week 0.
+  assert.deepEqual(stallOf(movementSessions([...weekLogs, log('a', 5, [set(91.75, 9)])], 'pec fly')).since, 0);
+  assert.deepEqual(previousRecord([weekLogs[1]], 'a', 'a-fly', 2), [set(80, 6)], 'only hard days left: the nearest counts');
+});

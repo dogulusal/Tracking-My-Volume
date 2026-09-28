@@ -121,25 +121,19 @@ export function History() {
 
   const getWeekLog = (weekNumber: number) => programLogs.find(w => w.weekNumber === weekNumber);
 
-  // Find nearest previous week in the current phase that has data for this exercise.
-  const getPrevExerciseWithinPhase = (weekNum: number, exerciseId: string): { weekNumber: number; log: ExerciseLog } | null => {
-    for (let w = weekNum - 1; w >= baseWeek; w--) {
-      const prev = getExerciseLog(w, exerciseId);
-      if (prev) return { weekNumber: w, log: prev };
-    }
-    return null;
-  };
-
   const openCell = (row: GridRow, week: number) => {
     const record = getExerciseLog(week, row.exerciseId);
-    const previous = getPrevExerciseWithinPhase(week, row.exerciseId);
+    // The week the cell's colour was measured against, so the comparison
+    // shown is the one that coloured it (hard days are passed over).
+    const compareWeek = row.cells.find(cell => cell.week === week)?.compareWeek;
+    const previous = compareWeek === undefined ? undefined : getExerciseLog(compareWeek, row.exerciseId);
     setModalData({
       exerciseName: row.name,
       exerciseId: row.exerciseId,
       weekNumber: week,
       currentSets: record?.sets ?? [],
-      previousSets: previous?.log.sets,
-      previousWeek: previous ? getDisplayWeek(previous.weekNumber) : undefined,
+      previousSets: previous?.sets,
+      previousWeek: previous && compareWeek !== undefined ? getDisplayWeek(compareWeek) : undefined,
       weekNotes: getWeekLog(week)?.notes,
       exerciseNote: record?.note,
       isEmpty: !record || record.sets.length === 0,

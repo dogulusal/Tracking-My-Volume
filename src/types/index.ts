@@ -70,6 +70,9 @@ export interface WeekLog {
   exercises: ExerciseLog[];
   notes: string;
   isHoliday: boolean;
+  // Trained, but ill, short of sleep or in a rush: the next workout is
+  // compared with the one before it instead.
+  offDay?: boolean;
   updatedAt: string;
 }
 

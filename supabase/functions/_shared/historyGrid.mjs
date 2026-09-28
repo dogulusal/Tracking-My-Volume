@@ -161,8 +161,8 @@ export function buildPhaseGrid(state, phaseId) {
       if (exercise.isActive && !ids.includes(exercise.id)) ids.push(exercise.id);
     }
     const ordered = isLatestPhase ? applySavedOrder(ids, state.exerciseRowOrder?.[program.id]) : ids;
-    const recordAt = (week, exerciseId) => programLogs.find(log => log.weekNumber === week)
-      ?.exercises?.find(exercise => exercise.exerciseId === exerciseId);
+    const logAt = week => programLogs.find(log => log.weekNumber === week);
+    const recordAt = (week, exerciseId) => logAt(week)?.exercises?.find(exercise => exercise.exerciseId === exerciseId);
 
     const rows = ordered.map(exerciseId => {
       const defined = definition?.exercises?.find(exercise => exercise.id === exerciseId);
@@ -172,10 +172,21 @@ export function buildPhaseGrid(state, phaseId) {
         const record = recordAt(week, exerciseId);
         if (!record) return { week, text: '', status: null };
         if (!record.sets?.length) return { week, text: '-', status: null };
-        let previous = null;
-        for (let earlier = week - 1; earlier >= phase.startWeek && !previous; earlier--) previous = recordAt(earlier, exerciseId) ?? null;
+        // The nearest earlier record, passing over days marked hard (ill, no
+        // sleep, in a rush): the next week is measured against the last
+        // normal one. With only hard days before it, the nearest still counts.
+        let compareWeek = null;
+        let fallbackWeek = null;
+        for (let earlier = week - 1; earlier >= phase.startWeek && compareWeek === null; earlier--) {
+          if (!recordAt(earlier, exerciseId)) continue;
+          fallbackWeek ??= earlier;
+          if (!logAt(earlier).offDay) compareWeek = earlier;
+        }
+        compareWeek ??= fallbackWeek;
+        const previous = compareWeek === null ? null : recordAt(compareWeek, exerciseId);
         return { week, text: record.sets.map(formatSetLine).join('\n'), sets: record.sets,
-          status: previous ? calculateExerciseStatus(record.sets, previous.sets) : 'new' };
+          status: previous ? calculateExerciseStatus(record.sets, previous.sets) : 'new',
+          ...(compareWeek !== null && { compareWeek }) };
       });
       return { exerciseId, name: defined?.name || loggedName.get(exerciseId) || exerciseId,
         defaultSets: defined?.defaultSets ?? null, cells };
@@ -186,7 +197,7 @@ export function buildPhaseGrid(state, phaseId) {
       const log = programLogs.find(item => item.weekNumber === week);
       const exerciseNotes = (log?.exercises ?? []).filter(exercise => exercise.note?.trim())
         .map(exercise => `${exercise.exerciseName}: ${exercise.note.trim()}`);
-      return [log?.notes ?? '', ...exerciseNotes].filter(Boolean).join('\n');
+      return [log?.offDay ? 'Zor gün' : '', log?.notes ?? '', ...exerciseNotes].filter(Boolean).join('\n');
     });
     return { ...program, rows, notes };
   });

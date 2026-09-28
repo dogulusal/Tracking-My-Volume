@@ -29,12 +29,14 @@ export type ProgressionRule = { repTop: number; step: number; source: 'manual' |
  * the reps reached before each weight increase and the size of the increase,
  * over the last five increases. Increases are read day by day (Upper 1 after
  * Upper 1), because two days may train the movement at different weights.
- * Steps over 10 kg are typos or machine changes, not progress.
+ * Steps over 10 kg are typos or machine changes, not progress. Hard days
+ * say nothing about the rule and are left out.
  */
 export function progressionRule(sessions: MovementSession[], settings?: ExerciseSettings): ProgressionRule {
   const jumps: { reps: number; step: number }[] = [];
   const lastByDay = new Map<string, SetLog>();
   for (const session of sessions) {
+    if (session.log.offDay) continue;
     const top = bestSet(session.exercise.sets);
     if (!top) continue;
     const before = lastByDay.get(session.log.programId);
@@ -69,17 +71,21 @@ export function nextTarget(previousSets: SetLog[], rule: ProgressionRule): Targe
 
 /**
  * The record this workout will be compared with: the same day's nearest
- * earlier session of the exercise, in any phase.
+ * earlier session of the exercise, in any phase, passing over hard days
+ * unless only hard days are left (as the History grid does).
  */
 export function previousRecord(weekLogs: WeekLog[], programId: string, exerciseId: string, week: number): SetLog[] | null {
   const earlier = weekLogs
     .filter(log => log.programId === programId && log.weekNumber < week && !log.isHoliday)
     .sort((a, b) => b.weekNumber - a.weekNumber);
+  let fallback: SetLog[] | null = null;
   for (const log of earlier) {
     const sets = log.exercises.find(exercise => exercise.exerciseId === exerciseId)?.sets.filter(set => set.reps > 0);
-    if (sets?.length) return sets;
+    if (!sets?.length) continue;
+    if (!log.offDay) return sets;
+    fallback ??= sets;
   }
-  return null;
+  return fallback;
 }
 
 export type Stall = { weeks: number; since: number; weight: number; best: SetLog };
@@ -88,10 +94,12 @@ export type Stall = { weeks: number; since: number; weight: number; best: SetLog
  * How long the movement has gone without beating its best set at the weight
  * it is on now, across every day that trains it: weeks from the first session
  * that reached that best to the latest session. Moving to another weight
- * (up, or down for a reset) starts the count again.
+ * (up, or down for a reset) starts the count again. Hard days are left
+ * out, so a light day does not look like a reset.
  */
 export function stallOf(sessions: MovementSession[]): Stall | null {
   const tops = sessions
+    .filter(session => !session.log.offDay)
     .map(session => ({ week: session.log.weekNumber, top: bestSet(session.exercise.sets) }))
     .filter((item): item is { week: number; top: SetLog } => item.top !== null);
   if (!tops.length) return null;

@@ -59,7 +59,7 @@ export function WorkoutEntry() {
   const [searchParams] = useSearchParams();
   const returnPath = searchParams.get('from') === 'history' ? '/history' : '/';
   const { getProgramById, updateProgram } = usePrograms(Number(weekParam) || 0);
-  const { getLogForWeek, getPreviousLog, saveWorkout } = useWeekLogs();
+  const { getLogForWeek, saveWorkout } = useWeekLogs();
   const isMobile = useIsMobileDevice();
 
   const weekNumber = Number(weekParam) || 0;
@@ -68,10 +68,16 @@ export function WorkoutEntry() {
   const displayWeek = weekNumber - (phase?.startWeek ?? 0);
   const program = getProgramById(programId || '');
   const existingLog = getLogForWeek(programId || '', weekNumber);
-  const previousCandidate = getPreviousLog(programId || '', weekNumber);
-  const previousLog = previousCandidate && previousCandidate.weekNumber >= (phase?.startWeek ?? 0) ? previousCandidate : null;
+  // The workout this one is measured against, as History colours it: the
+  // nearest earlier one in the phase, passing over holidays and hard days
+  // (unless only hard days are left).
+  const earlierInPhase = (ctx?.state.weekLogs ?? [])
+    .filter(log => log.programId === programId && log.weekNumber < weekNumber && log.weekNumber >= (phase?.startWeek ?? 0) && !log.isHoliday)
+    .sort((a, b) => b.weekNumber - a.weekNumber);
+  const previousLog = earlierInPhase.find(log => !log.offDay) ?? earlierInPhase[0] ?? null;
 
   const [isHoliday, setIsHoliday] = useState(existingLog?.isHoliday || false);
+  const [offDay, setOffDay] = useState(existingLog?.offDay || false);
   const [notes, setNotes] = useState(existingLog?.notes || '');
   const [date, setDate] = useState(
     existingLog?.date || new Date().toISOString().split('T')[0]
@@ -209,6 +215,7 @@ export function WorkoutEntry() {
           notes?: string;
           date?: string;
           isHoliday?: boolean;
+          offDay?: boolean;
           savedAt?: string;
           completedSets?: Record<string, boolean>;
         };
@@ -226,6 +233,7 @@ export function WorkoutEntry() {
           if (typeof draft.notes === 'string') setNotes(draft.notes);
           if (typeof draft.date === 'string') setDate(draft.date);
           if (typeof draft.isHoliday === 'boolean') setIsHoliday(draft.isHoliday);
+          if (typeof draft.offDay === 'boolean') setOffDay(draft.offDay);
           setIsDirty(true); // keep persisting it until the user saves
           return;
         }
@@ -244,6 +252,7 @@ export function WorkoutEntry() {
       setNotes(existingLog.notes || '');
       setDate(existingLog.date);
       setIsHoliday(existingLog.isHoliday || false);
+      setOffDay(existingLog.offDay || false);
       return;
     }
 
@@ -286,11 +295,11 @@ export function WorkoutEntry() {
     try {
       localStorage.setItem(
         draftKey,
-        JSON.stringify({ exerciseLogs, notes, date, isHoliday, completedSets, savedAt: new Date().toISOString() })
+        JSON.stringify({ exerciseLogs, notes, date, isHoliday, offDay, completedSets, savedAt: new Date().toISOString() })
       );
       setDraftStatus('saved');
     } catch { setDraftStatus('error'); }
-  }, [exerciseLogs, notes, date, isHoliday, isDirty, draftKey, completedSets]);
+  }, [exerciseLogs, notes, date, isHoliday, offDay, isDirty, draftKey, completedSets]);
 
   useEffect(() => {
     localStorage.setItem(REST_TIMER_KEY, String(restDurationSec));
@@ -486,6 +495,7 @@ export function WorkoutEntry() {
       exercises: exerciseLogs.map(({ note, ...exercise }) => note?.trim() ? { ...exercise, note: note.trim() } : exercise),
       notes,
       isHoliday,
+      offDay: !isHoliday && offDay,
       updatedAt: new Date().toISOString(),
     });
     localStorage.removeItem(draftKey);
@@ -763,7 +773,8 @@ export function WorkoutEntry() {
       )}
 
       {/* Holiday Toggle */}
-      <label className="lb-press flex items-center gap-3 px-3 py-3 -mx-3 rounded-lg border-b lb-rule mb-6 cursor-pointer">
+      <div className="mb-6">
+      <label className="lb-press flex items-center gap-3 px-3 py-3 -mx-3 rounded-lg border-b lb-rule cursor-pointer">
         <input
           type="checkbox"
           checked={isHoliday}
@@ -772,6 +783,21 @@ export function WorkoutEntry() {
         />
         <span className="text-sm font-medium">Bu günü tatil olarak işaretle</span>
       </label>
+      {!isHoliday && (
+        <label className="lb-press flex items-center gap-3 px-3 py-3 -mx-3 rounded-lg border-b lb-rule cursor-pointer">
+          <input
+            type="checkbox"
+            checked={offDay}
+            onChange={e => { setOffDay(e.target.checked); setIsDirty(true); }}
+            className="w-5 h-5 rounded shrink-0"
+          />
+          <span className="min-w-0">
+            <span className="block text-sm font-medium">Zor gün — hasta, uykusuz, ağrılı ya da acele</span>
+            <span className="lb-label block mt-0.5">Bu günün rengi yine hesaplanır; sonraki hafta bununla değil, ondan önceki normal günle kıyaslanır.</span>
+          </span>
+        </label>
+      )}
+      </div>
 
       {/* Rest timer control */}
       {!isHoliday && (

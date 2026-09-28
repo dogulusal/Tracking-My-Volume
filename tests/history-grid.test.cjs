@@ -62,3 +62,26 @@ test('a phase that has not started has no weeks, and a missing phase has no grid
   assert.deepEqual(buildPhaseGrid(state, 'p2').weeks, []);
   assert.equal(buildPhaseGrid(state, 'nope'), null);
 });
+
+test('a hard day keeps its own colour but the next week is measured against the last normal one', async () => {
+  const { buildPhaseGrid } = await import('../supabase/functions/_shared/historyGrid.mjs');
+  const press = sets => [{ exerciseId: 'press', exerciseName: 'Press', sets }];
+  const state = {
+    currentWeek: 3,
+    phases: [{ id: 'p', name: 'Faz', startWeek: 0, endWeek: null }],
+    programVersions: [{ phaseId: 'p', fromWeek: 0, programs: [{ id: 'upper', name: 'Upper', order: 0, exercises: [exercise('press', 'Press')] }] }],
+    weekLogs: [
+      log(0, press([set(60, 8)])),
+      log(1, press([set(60, 5)]), { offDay: true, notes: 'uykusuz' }),
+      log(2, press([set(60, 7)])),
+      log(3, press([set(60, 6)])),
+    ],
+  };
+  const cells = buildPhaseGrid(state, 'p').programs[0].rows[0].cells;
+  // Week 2 would be green against the hard day's 5 reps; against week 0's 8 it is a drop.
+  assert.deepEqual(cells.map(cell => [cell.status, cell.compareWeek]), [['new', undefined], ['decreased', 0], ['decreased', 0], ['decreased', 2]]);
+  assert.deepEqual(buildPhaseGrid(state, 'p').programs[0].notes, ['', 'Zor gün\nuykusuz', '', '']);
+  // With nothing but hard days before it, the nearest record still counts.
+  const onlyHard = { ...state, weekLogs: [log(0, press([set(60, 8)]), { offDay: true }), log(1, press([set(60, 9)]))] };
+  assert.deepEqual(buildPhaseGrid(onlyHard, 'p').programs[0].rows[0].cells.slice(0, 2).map(cell => cell.status), ['new', 'improved']);
+});
