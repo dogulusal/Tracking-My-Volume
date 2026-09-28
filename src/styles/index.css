@@ -59,6 +59,11 @@
   --color-status-new-bg: #93c5fd;
 }
 
+/* Native scrollbars, selects and pickers follow the theme. Without this the
+   browser keeps drawing its light controls on the dark theme. */
+:root { color-scheme: light; }
+:root.dark { color-scheme: dark; }
+
 body {
   font-family: system-ui, -apple-system, sans-serif;
   color: var(--color-text-primary);
@@ -103,6 +108,44 @@ input[type="number"]::-webkit-outer-spin-button {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* Scroll areas inside a page: a thin rounded thumb on a clear track, no
+   arrow buttons. Chrome, Edge and Safari take the ::-webkit-scrollbar rules;
+   setting scrollbar-color there would make Chrome ignore them, so the
+   standard properties are only for browsers without the pseudo-elements. */
+.lb-scroll {
+  --lb-thumb: color-mix(in srgb, var(--color-text-secondary) 40%, transparent);
+  --lb-thumb-hover: color-mix(in srgb, var(--color-text-secondary) 70%, transparent);
+}
+.lb-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.lb-scroll::-webkit-scrollbar-track,
+.lb-scroll::-webkit-scrollbar-corner { background: transparent; }
+.lb-scroll::-webkit-scrollbar-button { display: none; }
+.lb-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--lb-thumb);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 999px;
+}
+.lb-scroll::-webkit-scrollbar-thumb:hover { background-color: var(--lb-thumb-hover); }
+@supports not selector(::-webkit-scrollbar) {
+  .lb-scroll { scrollbar-width: thin; scrollbar-color: var(--lb-thumb) transparent; }
+}
+
+/* A shade at the top/bottom edge while there is more to scroll. The cover
+   layers scroll with the content and hide the shade at either end; set
+   --lb-fade-bg to the surface the list sits on. */
+.lb-scroll-fade {
+  --lb-fade-shade: rgb(0 0 0 / 0.14);
+  background:
+    linear-gradient(var(--lb-fade-bg) 30%, transparent) center top / 100% 28px,
+    linear-gradient(transparent, var(--lb-fade-bg) 70%) center bottom / 100% 28px,
+    radial-gradient(farthest-side at 50% 0, var(--lb-fade-shade), transparent) center top / 100% 10px,
+    radial-gradient(farthest-side at 50% 100%, var(--lb-fade-shade), transparent) center bottom / 100% 10px;
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
+}
+.dark .lb-scroll-fade { --lb-fade-shade: rgb(0 0 0 / 0.55); }
 
 /* Bottom sheet animation */
 @keyframes slideUp {

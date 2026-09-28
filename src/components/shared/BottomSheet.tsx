@@ -31,7 +31,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
       <div className="fixed inset-0 z-[999] flex items-end" onClick={onClose}>
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
         <div
-          className="relative w-full bg-(--color-bg-card) border-t border-(--color-border) rounded-t-2xl animate-slide-up max-h-[85vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]"
+          className="relative w-full bg-(--color-bg-card) border-t border-(--color-border) rounded-t-2xl animate-slide-up max-h-[85vh] lb-scroll overflow-y-auto pb-[env(safe-area-inset-bottom)]"
           onClick={e => e.stopPropagation()}
         >
           <div className="sticky top-0 bg-(--color-bg-card) pt-3 pb-2 px-5 z-10">
@@ -61,7 +61,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
     <div className="fixed inset-0 z-[999] flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative bg-(--color-bg-card) border border-(--color-border) rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl"
+        className="relative bg-(--color-bg-card) border border-(--color-border) rounded-2xl p-6 w-full max-w-lg max-h-[80vh] lb-scroll overflow-y-auto shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         {title && (

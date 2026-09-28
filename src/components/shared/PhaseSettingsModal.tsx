@@ -11,7 +11,7 @@ export function PhaseSettingsModal({ phases, currentWeek, onSave, onClose }: {
   const update = (id: string, patch: Partial<PhaseDefinition>) => { setDraft(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p)); setError(''); };
   const preview = (() => { try { return normalizePhaseBoundaries(draft); } catch { return null; } })();
   return <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-labelledby="phase-settings-title">
-    <div className="bg-(--color-bg-card) border lb-rule rounded-xl w-full max-w-xl max-h-[90dvh] overflow-auto p-5">
+    <div className="bg-(--color-bg-card) border lb-rule rounded-xl w-full max-w-xl max-h-[90dvh] lb-scroll overflow-auto p-5">
       <div className="flex items-center justify-between gap-3"><h2 id="phase-settings-title" className="text-lg font-semibold">Faz ayarları</h2><button onClick={onClose} aria-label="Kapat" className="lb-press p-2">✕</button></div>
       <p className="text-sm mt-3">Programda hareket veya gün değiştirmek kendiliğinden faz açmaz. Yeni faz ekleyip programı değiştirdiğin haftayı başlangıç seçebilirsin.</p>
       <p className="lb-label my-3">Şu an toplam hafta {currentWeek}. Başlangıçlar toplam hafta numarasıdır; seçilen hafta kendi fazında H0 olur. Son hafta alanına 20 yazarsan bu faz H20’de biter. Sonraki toplam hafta yeni fazın H0’ı olur. Antrenmanlar ve notlar silinmez.</p>

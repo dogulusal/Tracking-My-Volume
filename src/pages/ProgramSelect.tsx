@@ -208,7 +208,7 @@ export function ProgramSelect() {
                   <span className="lb-label">Kayıt yok</span>
                 )}
               </div>
-              <div className="space-y-2 max-h-64 overflow-auto">
+              <div className="lb-scroll lb-scroll-fade [--lb-fade-bg:var(--color-bg-input)] -mr-2 pr-2 space-y-2 max-h-64 overflow-auto">
                   {visibleExercises.map(exercise => (
                     <div key={exercise.exerciseId} className="flex items-start justify-between gap-3">
                       <div className="min-w-0">

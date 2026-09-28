@@ -233,7 +233,7 @@ export function History() {
             <span className="text-[15px] font-bold" style={{ color: palette.titleText }}>{program.name}</span>
             <span className="text-xs" style={{ color: palette.legend }}>{GRID_LEGEND}</span>
           </div>
-          <div ref={scrollRef} className="overflow-x-auto [color-scheme:light] dark:[color-scheme:dark]">
+          <div ref={scrollRef} className="lb-scroll overflow-x-auto">
             <table className="border-separate border-spacing-0 text-[13px] leading-[18px]"
               style={{ tableLayout: 'fixed', width: cols.name + cols.sets + weeks.length * cols.week }}>
               <colgroup>
