@@ -3,6 +3,7 @@ import { useExportImport } from '@/hooks/useExportImport';
 import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { useAutoSheetSync } from '@/hooks/useAutoSheetSync';
 import { useCloudSync } from '@/hooks/useCloudSync';
+import { useStateSnapshots, type StateSnapshot } from '@/hooks/useStateSnapshots';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Modal } from '@/components/shared/Modal';
 
@@ -17,8 +18,11 @@ const syncTime = (iso: string) => new Date(iso).toLocaleString('tr-TR',
  * keeps a backup file for the day something goes wrong.
  */
 export function Export() {
-  const { exportAll, importData, resetAll } = useExportImport();
+  const { exportAll, importData, restoreState, resetAll } = useExportImport();
   const { configured } = useCloudSync();
+  const { snapshots, reload: reloadSnapshots, fetchData: fetchSnapshot } = useStateSnapshots(configured);
+  const [restoreTarget, setRestoreTarget] = useState<StateSnapshot | null>(null);
+  const [showAllSnapshots, setShowAllSnapshots] = useState(false);
   // The Sheet is written by the cloud worker; without a cloud there is none.
   const showSheet = configured && AUTO_SYNC_ENABLED;
   const sheets = useGoogleSheets();
@@ -39,6 +43,20 @@ export function Export() {
     : failure ? `Son aktarım başarısız: ${failure} Kendiliğinden yeniden denenecek.`
     : connection.last_synced_at ? `Güncel · son aktarım ${syncTime(connection.last_synced_at)}`
     : 'İlk aktarım bekleniyor.';
+
+  const handleRestore = async (snapshot: StateSnapshot) => {
+    setRestoreTarget(null);
+    try {
+      const result = restoreState(await fetchSnapshot(snapshot.id));
+      setMessage(result.success
+        ? { ok: true, text: `${syncTime(snapshot.taken_at)} kopyası geri yüklendi. Önceki halin indirildi ve bulutta da kopyası kaldı.` }
+        : { ok: false, text: result.error || 'Kopya okunamadı.' });
+      // The save that follows is what leaves the copy of the replaced state.
+      setTimeout(() => void reloadSnapshots(), 4000);
+    } catch (error) {
+      setMessage({ ok: false, text: `Kopya alınamadı: ${error instanceof Error ? error.message : String(error)}` });
+    }
+  };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -114,6 +132,38 @@ export function Export() {
             <input ref={fileInputRef} type="file" accept=".json,application/json" onChange={handleImport} className="hidden" />
           </div>
           <p className="lb-label mt-2">Yüklenen yedek şu anki verinin yerine geçer; öncesinde şu anki halin ayrıca indirilir.</p>
+          {snapshots && (
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold">Buluttaki otomatik kopyalar</h3>
+              <p className="lb-label mt-0.5">
+                Her gün ilk kayıttan önce ve antrenman sayısı azaldığında (yedek yükleme, silme) alınır; 30 gün saklanır.
+              </p>
+              {snapshots.length === 0 ? (
+                <p className="lb-label mt-3">Henüz kopya yok; bir sonraki kayıtta ilki alınır.</p>
+              ) : (
+                <ul className="mt-2">
+                  {(showAllSnapshots ? snapshots : snapshots.slice(0, 5)).map(snapshot => (
+                    <li key={snapshot.id} className="flex items-center gap-3 py-2.5 border-b lb-rule">
+                      <span className="flex-1 min-w-0 text-sm">
+                        {syncTime(snapshot.taken_at)}
+                        <span className="lb-label"> · {snapshot.workouts} antrenman{snapshot.reason === 'shrink' ? ' · azalmadan önce' : ''}</span>
+                      </span>
+                      <button onClick={() => setRestoreTarget(snapshot)}
+                        className="lb-press shrink-0 px-3 py-1.5 border lb-rule rounded-lg text-xs font-medium">
+                        Geri yükle
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {snapshots.length > 5 && (
+                <button onClick={() => setShowAllSnapshots(value => !value)}
+                  className="lb-press mt-2 text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)">
+                  {showAllSnapshots ? 'Daha az göster' : `Tümünü göster (${snapshots.length})`}
+                </button>
+              )}
+            </div>
+          )}
           {message && (
             <p role="status" className="mt-3 text-sm" style={{ color: message.ok ? 'var(--lb-gain)' : 'var(--lb-drop)' }}>
               {message.text}
@@ -128,6 +178,15 @@ export function Export() {
           </button>
         </section>
       </div>
+
+      <Modal
+        isOpen={restoreTarget !== null}
+        onClose={() => setRestoreTarget(null)}
+        onConfirm={() => { if (restoreTarget) void handleRestore(restoreTarget); }}
+        title="Bu kopya geri yüklensin mi?"
+        message={restoreTarget ? `${syncTime(restoreTarget.taken_at)} · ${restoreTarget.workouts} antrenman. Şu anki verinin yerine geçer; öncesinde şu anki halin indirilir ve bulutta da bir kopyası kalır.` : ''}
+        confirmText="Geri yükle"
+      />
 
       <Modal
         isOpen={confirmReset}

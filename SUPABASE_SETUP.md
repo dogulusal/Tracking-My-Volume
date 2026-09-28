@@ -7,6 +7,8 @@
 ## 2) SQL tablo ve RLS kur
 - Supabase Dashboard > SQL Editor > New query.
 - `supabase/schema.sql` dosyasindaki SQL'i calistir.
+- Otomatik bulut kopyalari icin `supabase/migrations/20260928120000_user_state_snapshots.sql`
+  dosyasini da calistir (Disa Aktar sayfasindaki "Buluttaki otomatik kopyalar"; tablo yoksa liste gorunmez).
 
 ## 3) Auth ayari
 - Authentication > Providers > GitHub acik olsun.

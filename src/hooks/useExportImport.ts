@@ -84,6 +84,14 @@ export function useExportImport() {
       }
     },
 
+    /** Replace everything with a cloud copy, after saving what is there now. */
+    restoreState: (data: unknown): { success: boolean; error?: string } => {
+      if (!validateImportData(data)) return { success: false, error: 'Kopya okunamadı' };
+      createSafetyBackup('before-restore');
+      dispatch({ type: 'IMPORT_DATA', payload: applyMigrations(data as AppState) });
+      return { success: true };
+    },
+
     resetAll: () => {
       createSafetyBackup('before-reset');
       dispatch({ type: 'RESET_DATA' });
