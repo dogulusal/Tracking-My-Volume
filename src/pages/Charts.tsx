@@ -1,9 +1,9 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { PageContainer } from '@/components/layout/PageContainer';
-import { ExerciseTrend, STATUS_INK } from '@/components/shared/ExerciseTrend';
+import { STATUS_INK, Sparkline, TrendChart, kg, phaseChange, repsLabel, topSet } from '@/components/shared/ExerciseTrend';
 import { AppContext } from '@/context/AppContext';
 import { currentPhaseIndex, startedPhases } from '@/utils/phases';
-import { buildPhaseGrid } from '../../supabase/functions/_shared/historyGrid.mjs';
+import { buildPhaseGrid, type GridRow } from '../../supabase/functions/_shared/historyGrid.mjs';
 
 const CHARTS_STATE_KEY = 'charts-page-state-v1';
 const COUNTED = [
@@ -13,6 +13,28 @@ const COUNTED = [
   { status: 'new', label: 'referans' },
 ] as const;
 type Counted = typeof COUNTED[number]['status'];
+
+/** One exercise as a line of the list; opening it draws the full chart. */
+function ExerciseLine({ row, startWeek, open, onToggle }: { row: GridRow; startWeek: number; open: boolean; onToggle: () => void }) {
+  const last = [...row.cells].reverse().find(cell => cell.sets?.length);
+  const top = last?.sets ? topSet(last.sets) : null;
+  return (
+    <li className="border-b lb-rule">
+      <button type="button" onClick={onToggle} aria-expanded={open}
+        className="lb-press w-full flex items-center gap-3 md:gap-6 -mx-2 px-2 py-3 rounded text-left">
+        <span className="flex-1 min-w-0 text-sm font-medium truncate">{row.name}</span>
+        <Sparkline cells={row.cells} className="w-20 sm:w-40 lg:w-72 shrink-0" />
+        <span className="w-28 md:w-32 shrink-0 flex items-center justify-end gap-2 lb-figure text-sm whitespace-nowrap">
+          <span aria-hidden="true" className="w-2 h-2 rounded-full shrink-0" style={{ background: last?.status ? STATUS_INK[last.status] : undefined }} />
+          {top && <span>{kg(top.weight)}<span className="text-(--color-text-secondary)"> × {repsLabel(top)}</span></span>}
+        </span>
+        <span className="hidden md:block w-24 shrink-0 text-right lb-figure text-xs text-(--color-text-secondary)">{phaseChange(row.cells)}</span>
+        <span aria-hidden="true" className={`w-3 shrink-0 text-(--color-text-secondary) transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
+      </button>
+      {open && <div className="lb-settle pt-1 pb-5"><TrendChart row={row} startWeek={startWeek} /></div>}
+    </li>
+  );
+}
 
 /**
  * Every exercise of a training day across one phase, drawn from the same grid
@@ -47,6 +69,7 @@ export function Charts() {
   }, [program]);
   const compared = counts.improved + counts.same + counts.decreased;
   const charted = program?.rows.filter(row => row.cells.some(cell => cell.sets?.length)) ?? [];
+  const [openId, setOpenId] = useState<string | null>(null);
   const unrecorded = program?.rows.filter(row => !charted.includes(row)) ?? [];
 
   return (
@@ -121,13 +144,21 @@ export function Charts() {
           {charted.length === 0 ? (
             <p className="lb-label py-10 text-center">Bu fazda {program.name} için kayıt yok.</p>
           ) : (
-            <div className="grid md:grid-cols-2 md:gap-x-10">
-              {charted.map((row, index) => (
-                <div key={row.exerciseId} className="lb-settle py-5 border-b lb-rule" style={{ animationDelay: `${Math.min(index, 8) * 35}ms` }}>
-                  <ExerciseTrend row={row} startWeek={grid!.startWeek} />
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="hidden md:flex items-center gap-6 pt-5 pb-2 border-b lb-rule lb-label">
+                <span className="flex-1">Hareket</span>
+                <span className="w-20 sm:w-40 lg:w-72">Seyir · en ağır set</span>
+                <span className="w-32 text-right">Son kayıt</span>
+                <span className="w-24 text-right">Faz başından</span>
+                <span className="w-3" />
+              </div>
+              <ul className="lb-settle">
+                {charted.map(row => (
+                  <ExerciseLine key={row.exerciseId} row={row} startWeek={grid!.startWeek} open={openId === row.exerciseId}
+                    onToggle={() => setOpenId(id => id === row.exerciseId ? null : row.exerciseId)} />
+                ))}
+              </ul>
+            </>
           )}
           {unrecorded.length > 0 && (
             <p className="lb-label mt-5">Bu fazda kaydı olmayan: {unrecorded.map(row => row.name).join(', ')}</p>
