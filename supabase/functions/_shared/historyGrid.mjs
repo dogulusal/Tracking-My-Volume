@@ -1,7 +1,8 @@
 // One phase of the training log laid out as a grid: exercise rows, week
 // columns, every set on its own line, a comparison status per cell and the
-// week notes. The History page and the automatic Sheet tab both draw from
-// this module, so a row, its text and its colour are the same in both places.
+// week notes. The History page, the Charts page and the automatic Sheet tab
+// all draw from this module, so a row, its text and its colour are the same
+// in every place.
 // No browser or Deno dependencies: it runs in the app, the Edge Function and
 // Node's regression tests.
 
@@ -173,7 +174,7 @@ export function buildPhaseGrid(state, phaseId) {
         if (!record.sets?.length) return { week, text: '-', status: null };
         let previous = null;
         for (let earlier = week - 1; earlier >= phase.startWeek && !previous; earlier--) previous = recordAt(earlier, exerciseId) ?? null;
-        return { week, text: record.sets.map(formatSetLine).join('\n'),
+        return { week, text: record.sets.map(formatSetLine).join('\n'), sets: record.sets,
           status: previous ? calculateExerciseStatus(record.sets, previous.sets) : 'new' };
       });
       return { exerciseId, name: defined?.name || loggedName.get(exerciseId) || exerciseId,

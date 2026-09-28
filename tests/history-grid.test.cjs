@@ -32,7 +32,9 @@ test('grid cells use the app comparison: every set and RIR, against the nearest 
   assert.deepEqual(press.cells.map(cell => cell.status), ['new', 'improved', 'holiday', 'improved']);
   // The second set improved while the first stayed: the Sheet used to call this "same".
   assert.equal(press.cells[1].text, '60 x 8 F\n60 x 7 F');
+  assert.equal(press.cells[1].sets.length, 2, 'Charts reads the sets from the same cell');
   assert.equal(press.cells[2].text, 'TATİL');
+  assert.equal(press.cells[2].sets, undefined);
   // H3 skipped over the holiday: compared with H1 (week 3), RIR up on the first set.
   assert.equal(press.cells[3].status, 'improved');
   const curl = grid.programs[0].rows.find(row => row.exerciseId === 'curl');

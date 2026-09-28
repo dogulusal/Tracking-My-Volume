@@ -1,4 +1,4 @@
-import type { WeekLog, ExerciseLog, SetLog } from '@/types';
+import type { WeekLog, ExerciseLog } from '@/types';
 
 /**
  * Calculate total volume for a single exercise log
@@ -35,12 +35,4 @@ export function calculateTotalWeekVolume(weekLogs: WeekLog[], weekNumber: number
   return weekLogs
     .filter(w => w.weekNumber === weekNumber && !w.isHoliday)
     .reduce((total, log) => total + calculateWeeklyVolume(log), 0);
-}
-
-/**
- * Get the heaviest set from an exercise log
- */
-export function getHeaviestSet(sets: SetLog[]): SetLog | null {
-  if (sets.length === 0) return null;
-  return sets.reduce((max, set) => (set.weight > max.weight ? set : max), sets[0]);
 }

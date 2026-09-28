@@ -9,20 +9,8 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { WorkoutDetailModal } from '@/components/shared/WorkoutDetailModal';
 import { AppContext } from '@/context/AppContext';
 import { GRID_LEGEND, buildPhaseGrid, statusFill, type GridRow } from '../../supabase/functions/_shared/historyGrid.mjs';
+import { currentPhaseIndex, startedPhases } from '@/utils/phases';
 import type { ExerciseLog, SetLog } from '@/types';
-
-type HistoryPhase = {
-  id: string;
-  label: string;
-  weeks: number[];
-  baseWeek: number;
-};
-
-function buildPhaseLabel(name: string, weeks: number[], baseWeek: number): string {
-  if (weeks.length === 0) return `${name} (H0-H0)`;
-  const endWeek = weeks[weeks.length - 1] - baseWeek;
-  return `${name} (H0-H${endWeek})`;
-}
 
 const HISTORY_STATE_KEY = 'history-page-state-v1';
 // The automatic Sheet writes in Arial; the grid reads the same.
@@ -62,18 +50,12 @@ export function History() {
     [weekLogs, selectedProgramId]
   );
 
-  // Phases that have reached their H0, each with the weeks it has so far.
-  const phases = useMemo<HistoryPhase[]>(() => contextPhases.map(p => {
-    const weeks: number[] = [];
-    for (let w = p.startWeek; w <= Math.min(p.endWeek ?? currentWeek, currentWeek); w++) weeks.push(w);
-    return { id: p.id, label: buildPhaseLabel(p.name, weeks, p.startWeek), weeks, baseWeek: p.startWeek };
-  }).filter(p => p.weeks.length > 0), [contextPhases, currentWeek]);
+  const phases = useMemo(() => startedPhases(contextPhases, currentWeek), [contextPhases, currentWeek]);
 
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(0);
   // Open on the phase that holds the current week.
   useLayoutEffect(() => {
-    const index = phases.findIndex(p => p.weeks.includes(currentWeek));
-    setSelectedPhaseIdx(index >= 0 ? index : Math.max(0, phases.length - 1));
+    setSelectedPhaseIdx(currentPhaseIndex(phases, currentWeek));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const currentPhase = phases[selectedPhaseIdx] ?? phases[0];
