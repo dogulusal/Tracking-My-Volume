@@ -45,8 +45,10 @@ export function Header() {
       {/* Neutral chrome — no accent tint, no glow. The header is navigation,
           not a place the app has anything to say about your progress. */}
       <header className="bg-(--color-bg-card) border-b lb-rule sticky top-0 z-50 pt-[env(safe-area-inset-top)]">
-        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/" className="text-lg font-semibold tracking-tight">
+        {/* On a narrow phone the account button gives way (it truncates),
+            never the name, and the gap keeps them from touching. */}
+        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+          <Link to="/" className="shrink-0 text-lg font-semibold tracking-tight">
             <span>Tracking</span>
             <span className="text-(--color-accent)">My</span>
             <span>Volume</span>
@@ -73,18 +75,18 @@ export function Header() {
             })}
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="min-w-0 flex items-center gap-2">
             <button
               onClick={() => setIsCloudModalOpen(true)}
               title={authError ?? undefined}
               style={syncStatus === 'error' ? { color: 'var(--lb-drop)', borderColor: 'var(--lb-drop)' } : undefined}
-              className="lb-press px-3 py-2 rounded-md text-xs md:text-sm font-medium border lb-rule max-w-[120px] md:max-w-none truncate"
+              className="lb-press min-w-0 px-3 py-2 rounded-md text-xs md:text-sm font-medium border lb-rule max-w-[120px] md:max-w-none truncate"
             >
               {syncStatus === 'error' && <span aria-hidden="true" className="mr-1">!</span>}
               <span className="md:hidden">{mobileCloudLabel}</span>
               <span className="hidden md:inline">{cloudLabel}</span>
             </button>
-            <div className="relative">
+            <div className="relative shrink-0">
             <button className="lb-press p-2.5 rounded-lg border lb-rule" aria-label="Ayarlar" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}><Icon name="settings" /></button>
             {settingsOpen && <>
             <button className="fixed inset-0 z-40 cursor-default" aria-label="Ayarları kapat" onClick={() => setSettingsOpen(false)} />
