@@ -14,6 +14,7 @@ export const STATUS_INK: Record<string, string> = {
 };
 
 const RIR_LABEL: Record<string, string> = { rir1: '+1', rir2: '+2', rir3: '+3', '+1': '+1', '+2': '+2', '+3': '+3' };
+const RIR_VALUE: Record<string, number> = { rir1: 1, rir2: 2, rir3: 3, '+1': 1, '+2': 2, '+3': 3 };
 
 // The heaviest set of the week; among equal weights, the first one logged.
 export const topSet = (sets: GridSet[]) => sets.reduce((best, set) => (set.weight > best.weight ? set : best), sets[0]);
@@ -84,9 +85,13 @@ export function phaseChange(cells: GridCell[]): string {
   const last = points[points.length - 1].top;
   const weight = Math.round((last.weight - first.weight) * 100) / 100;
   if (weight) return `${weight > 0 ? '+' : '−'}${kg(Math.abs(weight))} kg`;
+  // Same weight: reps and reserve both count, as they do for the colours.
   const reps = last.reps - first.reps;
-  if (reps) return `${reps > 0 ? '+' : '−'}${Math.abs(reps)} tekrar`;
-  return 'aynı';
+  const reserve = (RIR_VALUE[last.intensity] ?? 0) - (RIR_VALUE[first.intensity] ?? 0);
+  const parts = [];
+  if (reps) parts.push(`${reps > 0 ? '+' : '−'}${Math.abs(reps)} tekrar`);
+  if (reserve) parts.push(`${reserve > 0 ? '+' : '−'}${Math.abs(reserve)} RIR`);
+  return parts.length ? parts.join(' · ') : 'aynı';
 }
 
 const HEIGHT = 168;

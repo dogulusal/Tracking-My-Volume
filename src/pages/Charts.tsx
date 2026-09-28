@@ -31,7 +31,7 @@ function ExerciseLine({ row, startWeek, open, onToggle }: { row: GridRow; startW
           <span aria-hidden="true" className="w-2 h-2 rounded-full shrink-0" style={{ background: last?.status ? STATUS_INK[last.status] : undefined }} />
           {top && <span>{kg(top.weight)}<span className="text-(--color-text-secondary)"> × {repsLabel(top)}</span></span>}
         </span>
-        <span className="hidden md:block w-24 shrink-0 text-right lb-figure text-xs text-(--color-text-secondary)">{phaseChange(row.cells)}</span>
+        <span className="hidden md:block w-32 shrink-0 text-right lb-figure text-xs text-(--color-text-secondary) whitespace-nowrap">{phaseChange(row.cells)}</span>
         <span aria-hidden="true" className={`w-3 shrink-0 text-(--color-text-secondary) transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
       </button>
       {open && <div className="lb-settle pt-1 pb-5"><TrendChart row={row} startWeek={startWeek} /></div>}
@@ -175,7 +175,7 @@ export function Charts() {
                 <span className="flex-1">Hareket</span>
                 <span className="w-20 sm:w-40 lg:w-72">Seyir · en ağır set</span>
                 <span className="w-32 text-right">Son kayıt</span>
-                <span className="w-24 text-right">Faz başından</span>
+                <span className="w-32 text-right">Faz başından</span>
                 <span className="w-3" />
               </div>
               <ul className="lb-settle">
