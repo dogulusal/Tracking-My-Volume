@@ -5,6 +5,7 @@ import { usePrograms } from '@/hooks/usePrograms';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { PageContainer } from '@/components/layout/PageContainer';
+import { Modal } from '@/components/shared/Modal';
 import { formatSet } from '@/utils/formatters';
 import { moveItem } from '@/utils/reorder';
 import { syncExerciseLogs, syncProgramFromWorkout } from '@/utils/exerciseSync';
@@ -105,6 +106,7 @@ export function WorkoutEntry() {
   const [timerJustFinished, setTimerJustFinished] = useState(false);
   const [setInputDrafts, setSetInputDrafts] = useState<Record<string, string>>({});
   const [orderDiffersFromProgram, setOrderDiffersFromProgram] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const editedExerciseIdsRef = useRef<Set<string>>(new Set());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerTotalRef = useRef(restDurationSec);
@@ -422,6 +424,15 @@ export function WorkoutEntry() {
       updatedAt: new Date().toISOString(),
     });
     localStorage.removeItem(draftKey);
+    navigate(returnPath);
+  };
+
+  // Wipes this program's record for this week: sets, note, holiday mark and
+  // the unsaved draft. Other weeks and the program itself are untouched.
+  const handleClearWeek = () => {
+    if (!programId) return;
+    localStorage.removeItem(draftKey);
+    ctx?.dispatch({ type: 'CLEAR_HISTORY_DATA', payload: { programId, weeks: [weekNumber], updatedAt: new Date().toISOString() } });
     navigate(returnPath);
   };
 
@@ -1066,6 +1077,22 @@ export function WorkoutEntry() {
           className="w-full px-4 py-3 bg-(--color-bg-input) border lb-rule rounded-lg text-sm resize-none focus:outline-none focus:border-(--color-text-primary) placeholder:text-(--color-text-secondary)"
         />
       </div>
+
+      {(existingLog || isDirty) && (
+        <button onClick={() => setConfirmClear(true)} className="lb-press mt-6 text-sm underline underline-offset-2"
+          style={{ color: 'var(--lb-drop)' }}>
+          Bu haftanın kaydını sil…
+        </button>
+      )}
+      <Modal
+        isOpen={confirmClear}
+        onClose={() => setConfirmClear(false)}
+        onConfirm={handleClearWeek}
+        title="Bu haftanın kaydı silinsin mi?"
+        message={`${program.name} · H${displayWeek}: setler, not ve tatil işareti silinir. Diğer haftalar ve program değişmez.`}
+        confirmText="Sil"
+        confirmVariant="danger"
+      />
 
       {/* Save Button — the page's one primary action, so it gets the solid
           fill. Neutral, because saving isn't a gain or a drop. */}
