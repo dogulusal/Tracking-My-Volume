@@ -40,6 +40,7 @@ export function History() {
     previousSets?: SetLog[];
     previousWeek?: number;
     weekNotes?: string;
+    exerciseNote?: string;
     isEmpty: boolean;
   } | null>(null);
 
@@ -140,6 +141,7 @@ export function History() {
       previousSets: previous?.log.sets,
       previousWeek: previous ? getDisplayWeek(previous.weekNumber) : undefined,
       weekNotes: getWeekLog(week)?.notes,
+      exerciseNote: record?.note,
       isEmpty: !record || record.sets.length === 0,
     });
   };
@@ -280,6 +282,7 @@ export function History() {
         previousSets={modalData?.previousSets}
         previousWeek={modalData?.previousWeek}
         weekNotes={modalData?.weekNotes}
+        exerciseNote={modalData?.exerciseNote}
         isEmpty={modalData?.isEmpty || false}
         orderHistory={modalData ? orderHistoryForExercise(modalData.exerciseId) ?? undefined : undefined}
         onSaveSets={(sets) => {

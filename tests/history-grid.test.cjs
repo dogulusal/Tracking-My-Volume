@@ -17,7 +17,7 @@ function phaseState() {
     weekLogs: [
       log(0, [{ exerciseId: 'press', exerciseName: 'Press', sets: [set(50, 8)] }, { exerciseId: 'row', exerciseName: 'row_legacy', sets: [set(40, 10)] }]),
       log(2, [{ exerciseId: 'press', exerciseName: 'Press', sets: [set(60, 8), set(60, 6)] }], { notes: 'iyi gün' }),
-      log(3, [{ exerciseId: 'press', exerciseName: 'Press', sets: [set(60, 8), set(60, 7)] }, { exerciseId: 'curl', exerciseName: 'Curl', sets: [set(15, 10)] }]),
+      log(3, [{ exerciseId: 'press', exerciseName: 'Press', sets: [set(60, 8), set(60, 7)] }, { exerciseId: 'curl', exerciseName: 'Curl', sets: [set(15, 10)], note: ' haftaya 17.5 gir ' }]),
       log(4, [], { isHoliday: true }),
       log(5, [{ exerciseId: 'press', exerciseName: 'Press', sets: [set(60, 8, 'rir1'), set(60, 7)] }]),
     ],
@@ -40,7 +40,8 @@ test('grid cells use the app comparison: every set and RIR, against the nearest 
   const curl = grid.programs[0].rows.find(row => row.exerciseId === 'curl');
   // First record of an exercise that joined after H0 is its reference, not "no colour".
   assert.deepEqual(curl.cells.map(cell => cell.status), [null, 'new', 'holiday', null]);
-  assert.deepEqual(grid.programs[0].notes, ['iyi gün', '', '', '']);
+  // A movement's note joins the week's notes row under its name.
+  assert.deepEqual(grid.programs[0].notes, ['iyi gün', 'Curl: haftaya 17.5 gir', '', '']);
 });
 
 test('grid rows take names from the program, and only the latest phase follows the saved row order', async () => {

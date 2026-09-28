@@ -15,7 +15,13 @@ export function normalizePhaseBoundaries(phases: PhaseDefinition[]): PhaseDefini
   });
 }
 
-export type StartedPhase = { id: string; label: string; weeks: number[]; baseWeek: number };
+/** A week as the grid names it, e.g. "Faz 3 H2"; the bare week when no phase holds it. */
+export function weekLabel(phases: PhaseDefinition[], week: number): string {
+  const phase = phases.find(p => week >= p.startWeek && (p.endWeek === null || week <= p.endWeek));
+  return phase ? `${phase.name} H${week - phase.startWeek}` : `Hafta ${week}`;
+}
+
+export type StartedPhase ={ id: string; label: string; weeks: number[]; baseWeek: number };
 
 /**
  * Phases that have reached their H0, each with its weeks so far and the

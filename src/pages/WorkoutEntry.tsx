@@ -9,6 +9,9 @@ import { Modal } from '@/components/shared/Modal';
 import { formatSet } from '@/utils/formatters';
 import { moveItem } from '@/utils/reorder';
 import { syncExerciseLogs, syncProgramFromWorkout } from '@/utils/exerciseSync';
+import { exerciseKey } from '@/utils/muscleGroups';
+import { movementSessions, sessionsBefore } from '@/utils/movements';
+import { weekLabel } from '@/utils/phases';
 import type { SetLog, Intensity, ExerciseLog } from '@/types';
 
 const INTENSITY_OPTIONS: { value: Intensity; label: string }[] = [
@@ -107,6 +110,9 @@ export function WorkoutEntry() {
   const [setInputDrafts, setSetInputDrafts] = useState<Record<string, string>>({});
   const [orderDiffersFromProgram, setOrderDiffersFromProgram] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  // Exercises whose note box was opened; a note already written keeps it open.
+  const [noteOpenIds, setNoteOpenIds] = useState<ReadonlySet<string>>(new Set());
+  const [pinnedEdit, setPinnedEdit] = useState<{ key: string; text: string } | null>(null);
   const editedExerciseIdsRef = useRef<Set<string>>(new Set());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerTotalRef = useRef(restDurationSec);
@@ -121,6 +127,34 @@ export function WorkoutEntry() {
   const scheduledOscillatorsRef = useRef<OscillatorNode[]>([]);
 
   const draftKey = `draft-${programId}-${weekNumber}`;
+
+  const allLogs = ctx?.state.weekLogs;
+  const allPhases = ctx?.state.phases ?? [];
+  const exerciseSettings = ctx?.state.exerciseSettings;
+  // The last time this day was trained, in any phase. Its note is mostly a
+  // message to this workout ("pulldown ağırlık düşülebilir").
+  const previousNoteLog = useMemo(() => (allLogs ?? [])
+    .filter(log => log.programId === programId && log.weekNumber < weekNumber && !log.isHoliday)
+    .sort((a, b) => b.weekNumber - a.weekNumber)[0], [allLogs, programId, weekNumber]);
+  /** The movement's previous session, on any day, when it left a note. */
+  const lastNoteFor = useCallback((name: string) => {
+    const before = sessionsBefore(movementSessions(allLogs ?? [], exerciseKey(name)), { programId: programId ?? '', weekNumber, date });
+    const last = before[before.length - 1];
+    return last?.exercise.note?.trim() ? last : null;
+  }, [allLogs, programId, weekNumber, date]);
+  const programName = (id: string) => ctx?.state.programs.find(item => item.id === id)?.name ?? '';
+
+  const updateExerciseNote = (exerciseIdx: number, note: string) => {
+    setExerciseLogs(prev => prev.map((exercise, index) => index === exerciseIdx ? { ...exercise, note } : exercise));
+    setIsDirty(true);
+  };
+  // A pinned note is a setting of the movement, saved at once rather than
+  // with the workout.
+  const savePinned = () => {
+    if (!pinnedEdit) return;
+    ctx?.dispatch({ type: 'SET_EXERCISE_SETTINGS', payload: { key: pinnedEdit.key, settings: { note: pinnedEdit.text.trim() } } });
+    setPinnedEdit(null);
+  };
 
   // Populate the form exactly ONCE per program+week. `program`/`existingLog`/
   // `previousLog` are plain finds over context state, so a cloud sync (which
@@ -418,7 +452,7 @@ export function WorkoutEntry() {
       weekNumber,
       programId,
       date,
-      exercises: exerciseLogs,
+      exercises: exerciseLogs.map(({ note, ...exercise }) => note?.trim() ? { ...exercise, note: note.trim() } : exercise),
       notes,
       isHoliday,
       updatedAt: new Date().toISOString(),
@@ -690,6 +724,13 @@ export function WorkoutEntry() {
         />
       </div>
 
+      {previousNoteLog?.notes?.trim() && (
+        <div className="mb-6 border-l-2 lb-rule-strong pl-3">
+          <p className="lb-label">Geçen {program.name} notu · {weekLabel(allPhases, previousNoteLog.weekNumber)}</p>
+          <p className="text-sm mt-1 whitespace-pre-line">{previousNoteLog.notes.trim()}</p>
+        </div>
+      )}
+
       {/* Holiday Toggle */}
       <label className="lb-press flex items-center gap-3 px-3 py-3 -mx-3 rounded-lg border-b lb-rule mb-6 cursor-pointer">
         <input
@@ -816,7 +857,13 @@ export function WorkoutEntry() {
             <p className="lb-label">{exerciseLogs.length} egzersiz · {exerciseLogs.reduce((count, e) => count + e.sets.filter((_, i) => completedSets[`${e.exerciseId}:${i}`]).length, 0)}/{exerciseLogs.reduce((count, e) => count + e.sets.length, 0)} set işaretlendi</p>
             <button onClick={() => setShowAllExercises(!showAllExercises)} className="lb-press text-xs px-3 py-2 border lb-rule rounded-lg">{showAllExercises ? 'Tek egzersiz göster' : 'Tümünü aç'}</button>
           </div>
-          {exerciseLogs.map((exercise, exIdx) => (
+          {exerciseLogs.map((exercise, exIdx) => {
+            const key = exerciseKey(exercise.exerciseName);
+            const pinned = exerciseSettings?.[key]?.note;
+            const lastNote = lastNoteFor(exercise.exerciseName);
+            const editingPinned = pinnedEdit?.key === key;
+            const noteOpen = noteOpenIds.has(exercise.exerciseId) || exercise.note !== undefined;
+            return (
             <div key={exercise.exerciseId} className="pb-5 border-b lb-rule">
               <div className="flex items-center gap-2 mb-4">
                 <h3 className="font-semibold text-base flex-1 min-w-0">
@@ -825,7 +872,7 @@ export function WorkoutEntry() {
                     setExpandedExercise((expandedExercise === undefined ? exIdx === 0 : expandedExercise === exercise.exerciseId) ? null : exercise.exerciseId);
                   }}>
                     <span className="lb-label mr-3">{String(exIdx + 1).padStart(2, '0')}</span>{exercise.exerciseName}
-                    <span className="lb-label block mt-1">{exercise.sets.length} set · {exercise.sets.filter((_, i) => completedSets[`${exercise.exerciseId}:${i}`]).length} işaretlendi {showAllExercises || (expandedExercise === undefined ? exIdx === 0 : expandedExercise === exercise.exerciseId) ? '−' : '+'}</span>
+                    <span className="lb-label block mt-1">{exercise.sets.length} set · {exercise.sets.filter((_, i) => completedSets[`${exercise.exerciseId}:${i}`]).length} işaretlendi{pinned || lastNote ? ' · not var' : ''} {showAllExercises || (expandedExercise === undefined ? exIdx === 0 : expandedExercise === exercise.exerciseId) ? '−' : '+'}</span>
                   </button>
                 </h3>
                 <div className="flex items-center gap-1">
@@ -853,6 +900,34 @@ export function WorkoutEntry() {
               </div>
 
               <div id={`exercise-${exercise.exerciseId}`} hidden={!(showAllExercises || (expandedExercise === undefined ? exIdx === 0 : expandedExercise === exercise.exerciseId))}>
+              {/* What earlier sessions left for this one */}
+              {(pinned || lastNote || editingPinned) && (
+                <div className="mb-4 border-l-2 lb-rule-strong pl-3 space-y-2 text-sm">
+                  {editingPinned ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input autoFocus value={pinnedEdit.text} onChange={e => setPinnedEdit({ key, text: e.target.value })}
+                        onKeyDown={e => { if (e.key === 'Enter') savePinned(); if (e.key === 'Escape') setPinnedEdit(null); }}
+                        placeholder="Koltuk 3, 6. delik…" aria-label={`${exercise.exerciseName} sabit notu`}
+                        className="flex-1 min-w-0 px-3 py-2 bg-(--color-bg-input) border lb-rule rounded-lg text-sm focus:outline-none focus:border-(--color-text-primary) placeholder:text-(--color-text-secondary)" />
+                      <button onClick={savePinned} className="lb-press px-3 py-2 text-xs font-semibold rounded-lg bg-(--color-text-primary) text-(--color-bg-primary)">Kaydet</button>
+                      <button onClick={() => setPinnedEdit(null)} className="lb-press px-2 py-2 text-xs text-(--color-text-secondary)">Vazgeç</button>
+                    </div>
+                  ) : pinned && (
+                    <p className="whitespace-pre-line">
+                      <span className="lb-label mr-2">Sabit</span>{pinned}
+                      <button onClick={() => setPinnedEdit({ key, text: pinned })}
+                        className="lb-press ml-2 text-xs text-(--color-text-secondary) underline underline-offset-2">Düzenle</button>
+                    </p>
+                  )}
+                  {lastNote && (
+                    <p className="whitespace-pre-line">
+                      <span className="lb-label mr-2">Geçen sefer · {[programName(lastNote.log.programId), weekLabel(allPhases, lastNote.log.weekNumber)].filter(Boolean).join(' · ')}</span>
+                      {lastNote.exercise.note!.trim()}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Sets */}
               <div className="space-y-2.5 md:space-y-2.5">
                 {exercise.sets.map((set, setIdx) => {
@@ -1042,17 +1117,45 @@ export function WorkoutEntry() {
                 })}
               </div>
 
-              {/* Add set button */}
-              <button
-                onClick={() => addSet(exIdx)}
-                className="lb-press mt-3 text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)"
-              >
-                + Set ekle
-              </button>
-              {exIdx < exerciseLogs.length - 1 && <button onClick={() => { setShowAllExercises(false); setExpandedExercise(exerciseLogs[exIdx + 1].exerciseId); }} className="lb-press mt-3 ml-4 text-xs font-semibold px-3 py-2 border lb-rule rounded-lg">Sonraki egzersiz →</button>}
+              {noteOpen && (
+                <label className="block mt-3">
+                  <span className="lb-label">Not · bir sonraki {exercise.exerciseName} antrenmanında görünür</span>
+                  <textarea
+                    value={exercise.note ?? ''}
+                    onChange={e => updateExerciseNote(exIdx, e.target.value)}
+                    autoFocus={noteOpenIds.has(exercise.exerciseId) && !exercise.note}
+                    rows={2}
+                    placeholder="Haftaya 50 kilo gir…"
+                    className="mt-1 w-full px-3 py-2 bg-(--color-bg-input) border lb-rule rounded-lg text-sm resize-none focus:outline-none focus:border-(--color-text-primary) placeholder:text-(--color-text-secondary)"
+                  />
+                </label>
+              )}
+
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                <button
+                  onClick={() => addSet(exIdx)}
+                  className="lb-press text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)"
+                >
+                  + Set ekle
+                </button>
+                {!noteOpen && (
+                  <button onClick={() => setNoteOpenIds(prev => new Set(prev).add(exercise.exerciseId))}
+                    className="lb-press text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)">
+                    + Not
+                  </button>
+                )}
+                {!pinned && !editingPinned && (
+                  <button onClick={() => setPinnedEdit({ key, text: '' })} title="Her antrenmanda görünür: koltuk ayarı, tutuş…"
+                    className="lb-press text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)">
+                    + Sabit not
+                  </button>
+                )}
+                {exIdx < exerciseLogs.length - 1 && <button onClick={() => { setShowAllExercises(false); setExpandedExercise(exerciseLogs[exIdx + 1].exerciseId); }} className="lb-press text-xs font-semibold px-3 py-2 border lb-rule rounded-lg">Sonraki egzersiz →</button>}
+              </div>
               </div>
             </div>
-          ))}
+            );
+          })}
 
           {orderDiffersFromProgram && (
             <div className="flex flex-wrap items-center gap-3 p-4 rounded-lg bg-(--color-bg-input) border lb-rule">
@@ -1066,9 +1169,10 @@ export function WorkoutEntry() {
 
       {/* Notes */}
       <div className="mt-6">
-        <label className="block text-sm font-semibold mb-2">
+        <label className="block text-sm font-semibold">
           Antrenman notu
         </label>
+        <p className="lb-label mt-0.5 mb-2">Bir hareketle ilgiliyse o hareketin notuna yaz; o hareket bir dahaki sefere hangi günde olursa orada çıkar.</p>
         <textarea
           value={notes}
           onChange={e => { setNotes(e.target.value); setIsDirty(true); }}

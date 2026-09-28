@@ -207,6 +207,18 @@ function reduceData(state: AppState, action: AppAction): AppState {
       return { ...state, muscleGroups: action.payload.group ? { ...rest, [action.payload.key]: action.payload.group } : rest };
     }
 
+    case 'SET_EXERCISE_SETTINGS': {
+      // Merged into what the movement already has; an empty value removes
+      // the field, and a movement with nothing left drops out of the map.
+      const { [action.payload.key]: current, ...rest } = state.exerciseSettings ?? {};
+      const merged: Record<string, unknown> = { ...current, ...action.payload.settings };
+      for (const field of Object.keys(merged)) {
+        const value = merged[field];
+        if (value === undefined || value === null || value === '') delete merged[field];
+      }
+      return { ...state, exerciseSettings: Object.keys(merged).length ? { ...rest, [action.payload.key]: merged } : rest };
+    }
+
     case 'IMPORT_DATA':
       return { ...action.payload };
 

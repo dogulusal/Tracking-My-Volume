@@ -14,6 +14,8 @@ interface WorkoutDetailModalProps {
   previousSets?: SetLog[];
   previousWeek?: number;
   weekNotes?: string;
+  /** The note this session left on the exercise itself. */
+  exerciseNote?: string;
   isEmpty: boolean;
   /** Where this exercise sat in the workout across the phase, when it moved. */
   orderHistory?: string;
@@ -58,6 +60,7 @@ export function WorkoutDetailModal({
   previousSets,
   previousWeek,
   weekNotes,
+  exerciseNote,
   isEmpty,
   orderHistory,
   onSaveSets,
@@ -338,6 +341,13 @@ export function WorkoutDetailModal({
 
         {orderHistory && (
           <p className="lb-label mb-5">Hareket sırası: {orderHistory}</p>
+        )}
+
+        {exerciseNote && (
+          <div className="mb-5 border-l-2 lb-rule-strong pl-3">
+            <p className="lb-label">Hareket notu</p>
+            <p className="text-sm mt-1 whitespace-pre-line">{exerciseNote}</p>
+          </div>
         )}
 
         {/* Week Notes */}

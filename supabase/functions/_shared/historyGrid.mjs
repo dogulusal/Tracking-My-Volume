@@ -180,7 +180,14 @@ export function buildPhaseGrid(state, phaseId) {
       return { exerciseId, name: defined?.name || loggedName.get(exerciseId) || exerciseId,
         defaultSets: defined?.defaultSets ?? null, cells };
     });
-    const notes = weeks.map(week => programLogs.find(log => log.weekNumber === week)?.notes ?? '');
+    // A movement's own note follows the week note, named, so the row still
+    // holds everything written about that workout.
+    const notes = weeks.map(week => {
+      const log = programLogs.find(item => item.weekNumber === week);
+      const exerciseNotes = (log?.exercises ?? []).filter(exercise => exercise.note?.trim())
+        .map(exercise => `${exercise.exerciseName}: ${exercise.note.trim()}`);
+      return [log?.notes ?? '', ...exerciseNotes].filter(Boolean).join('\n');
+    });
     return { ...program, rows, notes };
   });
 

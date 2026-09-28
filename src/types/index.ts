@@ -46,6 +46,17 @@ export interface ExerciseLog {
   exerciseId: string;
   exerciseName: string;
   sets: SetLog[];
+  // What this session of the movement left for the next one ("50 kilo gir").
+  note?: string;
+}
+
+/**
+ * Settings that belong to a movement, not to one program: the same machine
+ * keeps its seat height whichever day it is trained on.
+ */
+export interface ExerciseSettings {
+  // Shown every time the movement is trained, e.g. the seat position.
+  note?: string;
 }
 
 export interface WeekLog {
@@ -99,6 +110,8 @@ export interface AppState {
   // Muscle group picked by hand per exercise name (utils/muscleGroups
   // exerciseKey). Absent means every exercise uses the group its name suggests.
   muscleGroups?: Record<string, string>;
+  // Per movement, keyed like muscleGroups. Absent means nothing was set.
+  exerciseSettings?: Record<string, ExerciseSettings>;
   // Custom status colours and hand-painted History cells from before colours
   // became fixed. Nothing reads them any more; they stay typed so older data
   // and backups keep round-tripping unchanged.
@@ -129,6 +142,7 @@ export type AppAction =
   | { type: 'SET_PHASES'; payload: PhaseDefinition[] }
   | { type: 'SET_EXERCISE_ROW_ORDER'; payload: { programId: string; exerciseIds: string[] } }
   | { type: 'SET_MUSCLE_GROUP'; payload: { key: string; group: string | null } }
+  | { type: 'SET_EXERCISE_SETTINGS'; payload: { key: string; settings: ExerciseSettings } }
   | { type: 'IMPORT_DATA'; payload: AppState }
   | { type: 'RESET_DATA' };
 
@@ -150,6 +164,7 @@ export interface ExportData {
   phases?: PhaseDefinition[];
   exerciseRowOrder?: AppState['exerciseRowOrder'];
   muscleGroups?: AppState['muscleGroups'];
+  exerciseSettings?: AppState['exerciseSettings'];
   statusColors?: AppState['statusColors'];
   cellColorOverrides?: AppState['cellColorOverrides'];
 }
