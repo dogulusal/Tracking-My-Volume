@@ -521,7 +521,7 @@ export function History() {
         onClose={() => setModalData(null)}
         exerciseName={modalData?.exerciseName || ''}
         exerciseId={modalData?.exerciseId || ''}
-        weekNumber={modalData?.weekNumber || 0}
+        weekNumber={modalData ? getDisplayWeek(modalData.weekNumber) : 0}
         currentSets={modalData?.currentSets || []}
         previousSets={modalData?.previousSets}
         previousWeek={modalData?.previousWeek}

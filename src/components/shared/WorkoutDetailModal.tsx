@@ -7,6 +7,7 @@ interface WorkoutDetailModalProps {
   onClose: () => void;
   exerciseName: string;
   exerciseId: string;
+  /** Week within its phase, as the grid labels it (H0 = the phase's first week). */
   weekNumber: number;
   currentSets: SetLog[];
   previousSets?: SetLog[];
