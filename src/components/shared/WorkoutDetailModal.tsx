@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { SetLog, Intensity } from '@/types';
 import { BottomSheet } from './BottomSheet';
+import { formatSet } from '@/utils/formatters';
 
 interface WorkoutDetailModalProps {
   isOpen: boolean;
@@ -326,12 +327,10 @@ export function WorkoutDetailModal({
             <h4 className="text-xs font-semibold mb-2">
               Önceki Hafta (H{previousWeek})
             </h4>
+            {/* One set per line, as the grid writes it. */}
             <div className="lb-figure text-xs text-(--color-text-secondary)">
               {previousSets.map((s, i) => (
-                <span key={i}>
-                  {i > 0 && ' | '}
-                  {s.weight}×{s.reps} {intensityLabels[s.intensity] || ''}
-                </span>
+                <div key={i}>{formatSet(s)}</div>
               ))}
             </div>
           </div>
