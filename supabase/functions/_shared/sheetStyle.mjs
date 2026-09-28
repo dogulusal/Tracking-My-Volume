@@ -37,6 +37,11 @@ export function buildAutoSheetStyleRequests(sheetId, sheet, existingMerges = [])
       paint(requests, range(sheetId, headerRow + 1, notesRow, 0, 2), { backgroundColorStyle: color(palette.label), textFormat: text(palette.ink), verticalAlignment: 'MIDDLE' });
       paint(requests, range(sheetId, headerRow + 1, notesRow, 2, width), { backgroundColorStyle: color(palette.canvas), textFormat: text(palette.ink), horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP' });
     }
+    // A movement taken out of the program keeps its records but its name
+    // goes grey, like on the History page.
+    for (const row of (sheet.removedRows ?? []).filter(row => row > headerRow && row < notesRow)) {
+      paint(requests, range(sheetId, row, row + 1, 0, 2), { backgroundColorStyle: color(palette.label), textFormat: text(palette.muted), verticalAlignment: 'MIDDLE' });
+    }
     // A note wraps inside its own week column, centred, instead of spilling
     // over the next weeks; the row grows to fit the longest one.
     const notes = { backgroundColorStyle: color(palette.note), textFormat: text(palette.noteText, false, 9), verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP' };

@@ -16,7 +16,8 @@ export type GridPalette = {
 // `sets` is present on cells whose record has sets; `compareWeek` is the week
 // their status was measured against, when there was one.
 export type GridCell = { week: number; text: string; status: Status | null; sets?: GridSet[]; compareWeek?: number };
-export type GridRow = { exerciseId: string; name: string; defaultSets: number | null; cells: GridCell[] };
+// `removedAt` is the week a movement left the program, null while it is in it.
+export type GridRow = { exerciseId: string; name: string; defaultSets: number | null; removedAt: number | null; cells: GridCell[] };
 export type GridProgram = { id: string; name: string; order: number; rows: GridRow[]; notes: string[] };
 export type PhaseGrid = { phaseId: string; name: string; startWeek: number; weeks: number[]; programs: GridProgram[] };
 

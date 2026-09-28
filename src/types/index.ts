@@ -118,6 +118,9 @@ export interface AppState {
   muscleGroups?: Record<string, string>;
   // Per movement, keyed like muscleGroups. Absent means nothing was set.
   exerciseSettings?: Record<string, ExerciseSettings>;
+  // History and the automatic Sheet leave out rows of movements taken out of
+  // the program. Absent means they are shown, marked as taken out.
+  hideRemovedExercises?: boolean;
   // Custom status colours and hand-painted History cells from before colours
   // became fixed. Nothing reads them any more; they stay typed so older data
   // and backups keep round-tripping unchanged.
@@ -149,6 +152,7 @@ export type AppAction =
   | { type: 'SET_EXERCISE_ROW_ORDER'; payload: { programId: string; exerciseIds: string[] } }
   | { type: 'SET_MUSCLE_GROUP'; payload: { key: string; group: string | null } }
   | { type: 'SET_EXERCISE_SETTINGS'; payload: { key: string; settings: ExerciseSettings } }
+  | { type: 'SET_HIDE_REMOVED_EXERCISES'; payload: boolean }
   | { type: 'IMPORT_DATA'; payload: AppState }
   | { type: 'RESET_DATA' };
 
@@ -171,6 +175,7 @@ export interface ExportData {
   exerciseRowOrder?: AppState['exerciseRowOrder'];
   muscleGroups?: AppState['muscleGroups'];
   exerciseSettings?: AppState['exerciseSettings'];
+  hideRemovedExercises?: boolean;
   statusColors?: AppState['statusColors'];
   cellColorOverrides?: AppState['cellColorOverrides'];
 }

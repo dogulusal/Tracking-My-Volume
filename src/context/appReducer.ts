@@ -219,6 +219,12 @@ function reduceData(state: AppState, action: AppAction): AppState {
       return { ...state, exerciseSettings: Object.keys(merged).length ? { ...rest, [action.payload.key]: merged } : rest };
     }
 
+    case 'SET_HIDE_REMOVED_EXERCISES': {
+      // Showing them is the default, so it is stored as the field's absence.
+      const { hideRemovedExercises: _previous, ...rest } = state;
+      return action.payload ? { ...rest, hideRemovedExercises: true } : rest;
+    }
+
     case 'IMPORT_DATA':
       return { ...action.payload };
 

@@ -85,3 +85,34 @@ test('a hard day keeps its own colour but the next week is measured against the 
   const onlyHard = { ...state, weekLogs: [log(0, press([set(60, 8)]), { offDay: true }), log(1, press([set(60, 9)]))] };
   assert.deepEqual(buildPhaseGrid(onlyHard, 'p').programs[0].rows[0].cells.slice(0, 2).map(cell => cell.status), ['new', 'improved']);
 });
+
+test('a movement taken out of the program keeps its row and records the week it left', async () => {
+  const { buildPhaseGrid } = await import('../supabase/functions/_shared/historyGrid.mjs');
+  const { projectSheets } = await import('../supabase/functions/_shared/sheetProjection.mjs');
+  const upper = (...exercises) => [{ id: 'upper', name: 'Upper', order: 0, exercises }];
+  const state = {
+    currentWeek: 13,
+    phases: [{ id: 'p', name: 'Faz 3', startWeek: 10, endWeek: null }],
+    // Cable left the program at H2; the H2 workout was already saved with it.
+    programVersions: [
+      { phaseId: 'p', fromWeek: 0, programs: upper(exercise('press', 'Press'), exercise('cable', 'Cable Row')) },
+      { phaseId: 'p', fromWeek: 2, programs: upper(exercise('press', 'Press')) },
+    ],
+    weekLogs: [10, 11, 12, 13].map(week => log(week, [
+      { exerciseId: 'press', exerciseName: 'Press', sets: [set(60, 8)] },
+      ...(week < 13 ? [{ exerciseId: 'cable', exerciseName: 'Cable Row', sets: [set(43, 8)] }] : []),
+    ])),
+  };
+  const rows = buildPhaseGrid(state, 'p').programs[0].rows;
+  assert.deepEqual(rows.map(row => [row.name, row.removedAt]), [['Press', null], ['Cable Row', 12]]);
+  assert.deepEqual(rows[1].cells.map(cell => cell.text), ['43 x 8 F', '43 x 8 F', '43 x 8 F', '']);
+
+  // The Sheet marks it by default and leaves it out when History hides it.
+  const [marked] = projectSheets(state);
+  assert.ok(marked.rows.some(row => row[0] === 'Cable Row (çıkarıldı H2)'));
+  assert.deepEqual(marked.removedRows.map(index => marked.rows[index][0]), ['Cable Row (çıkarıldı H2)']);
+  const [hidden] = projectSheets({ ...state, hideRemovedExercises: true });
+  assert.ok(!hidden.rows.some(row => String(row[0]).startsWith('Cable Row')));
+  assert.deepEqual(hidden.removedRows, []);
+  assert.equal(hidden.rows.length, marked.rows.length - 1);
+});

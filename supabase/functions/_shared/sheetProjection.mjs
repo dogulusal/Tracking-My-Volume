@@ -25,14 +25,20 @@ export function projectSheets(state, selection = null) {
     // sheetStyle paints from this instead of re-reading the cell text.
     const statuses = [];
     const blocks = [];
+    // Rows of movements taken out of the program, which sheetStyle greys.
+    const removedRows = [];
     for (const program of grid.programs.filter(program => !selection?.programId || program.id === selection.programId)) {
       const titleRow = rows.length;
       rows.push([program.name, '', GRID_LEGEND]);
       rows.push(['Egzersiz', 'Set', ...weeks.map(week => `H${week - phase.startWeek}`)]);
       statuses.push([], []);
-      for (const row of program.rows) {
+      // The History page's choice: a movement taken out of the program is
+      // either marked with the week it left or left out.
+      for (const row of program.rows.filter(row => row.removedAt == null || !state.hideRemovedExercises)) {
         const cells = weeks.map((week, index) => shown(week) ? row.cells[index] : undefined);
-        rows.push([row.name, row.defaultSets == null ? '' : String(row.defaultSets), ...cells.map(cell => cell?.text ?? '')]);
+        if (row.removedAt != null) removedRows.push(rows.length);
+        const name = row.removedAt == null ? row.name : `${row.name} (çıkarıldı H${row.removedAt - phase.startWeek})`;
+        rows.push([name, row.defaultSets == null ? '' : String(row.defaultSets), ...cells.map(cell => cell?.text ?? '')]);
         statuses.push([null, null, ...cells.map(cell => cell?.status ?? null)]);
       }
       rows.push(['HAFTALIK NOTLAR', '', ...weeks.map((week, index) => shown(week) ? program.notes[index] ?? '' : '')]);
@@ -44,7 +50,7 @@ export function projectSheets(state, selection = null) {
     // A new account has no workouts yet. Keep its managed phase tab so the
     // worker can clear/write it without trying to delete the file's last tab.
     if (!rows.length) rows.push([phase.name], ['Henüz antrenman programı yok.']);
-    return { phaseId: phase.id, title: cleanTitle(phase.name, phase.startWeek), rows, statuses, blocks,
+    return { phaseId: phase.id, title: cleanTitle(phase.name, phase.startWeek), rows, statuses, blocks, removedRows,
       rowCount: Math.max(100, rows.length + 1), columnCount: Math.max(28, width) };
   });
 }

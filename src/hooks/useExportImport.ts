@@ -34,6 +34,7 @@ export function useExportImport() {
     exerciseRowOrder: state.exerciseRowOrder,
     muscleGroups: state.muscleGroups,
     exerciseSettings: state.exerciseSettings,
+    hideRemovedExercises: state.hideRemovedExercises,
     statusColors: state.statusColors,
     cellColorOverrides: state.cellColorOverrides,
   });

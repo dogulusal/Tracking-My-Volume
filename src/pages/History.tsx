@@ -66,6 +66,11 @@ export function History() {
   const grid = useMemo(() => state && currentPhase ? buildPhaseGrid(state, currentPhase.id) : null, [state, currentPhase]);
   const programs = grid?.programs ?? [];
   const program = programs.find(p => p.id === selectedProgramId);
+  // Movements taken out of the program: marked with the week they left, or
+  // left out. The automatic Sheet follows the same choice.
+  const hideRemoved = state?.hideRemovedExercises ?? false;
+  const removedRows = program?.rows.filter(row => row.removedAt !== null) ?? [];
+  const shownRows = program?.rows.filter(row => row.removedAt === null || !hideRemoved) ?? [];
   useEffect(() => {
     if (programs.length && !programs.some(p => p.id === selectedProgramId)) setSelectedProgramId(programs[0].id);
   }, [programs, selectedProgramId]);
@@ -234,9 +239,13 @@ export function History() {
                 </tr>
               </thead>
               <tbody>
-                {program.rows.map(row => (
+                {shownRows.map(row => (
                   <tr key={row.exerciseId}>
-                    <td className="sticky left-0 z-10 px-3 py-2 text-left align-middle break-words" style={{ background: palette.label, borderBottom: rule }}>{row.name}</td>
+                    <td className="sticky left-0 z-10 px-3 py-2 text-left align-middle break-words"
+                      style={{ background: palette.label, borderBottom: rule, color: row.removedAt === null ? undefined : palette.muted }}>
+                      {row.name}
+                      {row.removedAt !== null && <span className="block text-[11px]">çıkarıldı H{getDisplayWeek(row.removedAt)}</span>}
+                    </td>
                     <td className="sticky z-10 px-1 py-2 text-center align-middle tabular-nums"
                       style={{ left: cols.name, background: palette.label, borderBottom: rule, boxShadow: frozenEdge }}>{row.defaultSets ?? ''}</td>
                     {row.cells.map(cell => (
@@ -262,6 +271,22 @@ export function History() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+      {/* The switch sits beside the text: on phones every button is 44px
+          tall, which would open up the line it sat in. */}
+      {removedRows.length > 0 && (
+        <div className="mt-2 flex items-center gap-3 text-xs text-(--color-text-secondary)">
+          <p className="flex-1">
+            {hideRemoved
+              ? `Programdan çıkarılan ${removedRows.length} hareket gizli: ${removedRows.map(row => row.name).join(', ')}.`
+              : 'Programdan çıkarılan hareketler soluk ve çıkarıldığı haftayla gösteriliyor.'}
+            {' '}Sheet de aynısını yazar.
+          </p>
+          <button onClick={() => ctx?.dispatch({ type: 'SET_HIDE_REMOVED_EXERCISES', payload: !hideRemoved })}
+            className="lb-press shrink-0 px-3 py-1.5 border lb-rule rounded-lg font-semibold text-(--color-text-primary)">
+            {hideRemoved ? 'Göster' : 'Gizle'}
+          </button>
         </div>
       )}
 

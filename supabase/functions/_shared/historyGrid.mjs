@@ -161,6 +161,16 @@ export function buildPhaseGrid(state, phaseId) {
       if (exercise.isActive && !ids.includes(exercise.id)) ids.push(exercise.id);
     }
     const ordered = isLatestPhase ? applySavedOrder(ids, state.exerciseRowOrder?.[program.id]) : ids;
+    // A row whose movement the program no longer has keeps its records; it
+    // carries the week it left (the one after it was last in the program),
+    // so the page can mark it or leave it out.
+    const activeByWeek = weeks.map(week => new Set((versionAt(state, phases, phase, week).programs ?? [])
+      .find(p => p.id === program.id)?.exercises?.filter(exercise => exercise.isActive).map(exercise => exercise.id)));
+    const removedAt = exerciseId => {
+      if (definition?.exercises?.some(exercise => exercise.id === exerciseId && exercise.isActive)) return null;
+      const last = activeByWeek.findLastIndex(ids => ids.has(exerciseId));
+      return weeks[last + 1] ?? phase.startWeek;
+    };
     const logAt = week => programLogs.find(log => log.weekNumber === week);
     const recordAt = (week, exerciseId) => logAt(week)?.exercises?.find(exercise => exercise.exerciseId === exerciseId);
 
@@ -189,7 +199,7 @@ export function buildPhaseGrid(state, phaseId) {
           ...(compareWeek !== null && { compareWeek }) };
       });
       return { exerciseId, name: defined?.name || loggedName.get(exerciseId) || exerciseId,
-        defaultSets: defined?.defaultSets ?? null, cells };
+        defaultSets: defined?.defaultSets ?? null, removedAt: removedAt(exerciseId), cells };
     });
     // A movement's own note follows the week note, named, so the row still
     // holds everything written about that workout.
