@@ -1,33 +1,22 @@
-import { programVersionAt, programsForPhase } from '@/utils/programVersions';
+import { programVersionAt } from '@/utils/programVersions';
 import { useNavigate } from 'react-router-dom';
 import { PhaseSettingsModal } from '@/components/shared/PhaseSettingsModal';
-import { useState, useMemo, useEffect, useLayoutEffect, useContext } from 'react';
-import { usePrograms } from '@/hooks/usePrograms';
+import { useState, useMemo, useEffect, useLayoutEffect, useContext, useRef } from 'react';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
-import { useColorSettings } from '@/hooks/useColorSettings';
+import { useGridPalette } from '@/hooks/useGridPalette';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { WorkoutDetailModal } from '@/components/shared/WorkoutDetailModal';
-import { calculateExerciseStatus } from '@/utils/statusCalculator';
-import { formatSets } from '@/utils/formatters';
-import { applySavedOrder } from '@/utils/reorder';
-import { syncExerciseLogs } from '@/utils/exerciseSync';
 import { AppContext } from '@/context/AppContext';
-import type { ExerciseLog, ExerciseStatus } from '@/types';
+import { GRID_LEGEND, buildPhaseGrid, statusFill, type GridRow } from '../../supabase/functions/_shared/historyGrid.mjs';
+import type { ExerciseLog, SetLog } from '@/types';
 
 type HistoryPhase = {
+  id: string;
   label: string;
   weeks: number[];
   baseWeek: number;
 };
-
-function formatIntensityLabel(intensity: string): string {
-  if (intensity === 'failure' || intensity === 'F') return 'F';
-  if (intensity === 'rir1' || intensity === '+1') return '+1';
-  if (intensity === 'rir2' || intensity === '+2') return '+2';
-  if (intensity === 'rir3' || intensity === '+3') return '+3';
-  return intensity;
-}
 
 function buildPhaseLabel(name: string, weeks: number[], baseWeek: number): string {
   if (weeks.length === 0) return `${name} (H0-H0)`;
@@ -36,39 +25,35 @@ function buildPhaseLabel(name: string, weeks: number[], baseWeek: number): strin
 }
 
 const HISTORY_STATE_KEY = 'history-page-state-v1';
+// The automatic Sheet writes in Arial; the grid reads the same.
+const SHEET_FONT = 'Arial, Helvetica, sans-serif';
 
 export function History() {
   const [showPhaseSettings, setShowPhaseSettings] = useState(false);
   const navigate = useNavigate();
-  const { programs: initialPrograms } = usePrograms();
   const { weekLogs, currentWeek, saveWorkout } = useWeekLogs();
-  const { getStatusBgColor } = useColorSettings();
+  const palette = useGridPalette();
   const isMobile = useIsMobileDevice();
   const ctx = useContext(AppContext);
   const contextPhases = ctx?.state.phases ?? [];
-  const exerciseRowOrder = ctx?.state.exerciseRowOrder;
 
   const [selectedProgramId, setSelectedProgramId] = useState<string>(() => {
     try {
       const saved = localStorage.getItem(HISTORY_STATE_KEY);
-      if (saved) {
-        const { programId } = JSON.parse(saved) as { programId: string; phaseIdx: number; pageStart: number };
-        if (programId && initialPrograms.find(p => p.id === programId)) return programId;
-      }
+      if (saved) return (JSON.parse(saved) as { programId?: string }).programId ?? '';
     } catch { /* ignore */ }
-    return initialPrograms[0]?.id || '';
+    return '';
   });
   const [modalData, setModalData] = useState<{
     exerciseName: string;
     exerciseId: string;
     weekNumber: number;
-    currentSets: import('@/types').SetLog[];
-    previousSets?: import('@/types').SetLog[];
+    currentSets: SetLog[];
+    previousSets?: SetLog[];
     previousWeek?: number;
     weekNotes?: string;
     isEmpty: boolean;
   } | null>(null);
-
 
   const programLogs = useMemo(
     () => weekLogs
@@ -77,76 +62,27 @@ export function History() {
     [weekLogs, selectedProgramId]
   );
 
-  // Get available weeks
-  const availableWeeks = useMemo(() => {
+  // Phases that have reached their H0, each with the weeks it has so far.
+  const phases = useMemo<HistoryPhase[]>(() => contextPhases.map(p => {
     const weeks: number[] = [];
-    for (let i = 0; i <= currentWeek; i++) {
-      weeks.push(i);
-    }
-    return weeks;
-  }, [currentWeek]);
-
-  // Split into phases from context definitions
-  const phases = useMemo<HistoryPhase[]>(() => {
-    return contextPhases.map(p => {
-      const weeks = availableWeeks.filter(w => {
-        if (w < p.startWeek) return false;
-        if (p.endWeek !== null && w > p.endWeek) return false;
-        return true;
-      });
-      return {
-        label: buildPhaseLabel(p.name, weeks, p.startWeek),
-        weeks,
-        baseWeek: p.startWeek,
-      };
-    }).filter(p => p.weeks.length > 0);
-  }, [availableWeeks, contextPhases]);
-
-  // Show 1 week at a time on mobile for easier browsing
-  const PAGE_SIZE = isMobile ? 1 : 4;
+    for (let w = p.startWeek; w <= Math.min(p.endWeek ?? currentWeek, currentWeek); w++) weeks.push(w);
+    return { id: p.id, label: buildPhaseLabel(p.name, weeks, p.startWeek), weeks, baseWeek: p.startWeek };
+  }).filter(p => p.weeks.length > 0), [contextPhases, currentWeek]);
 
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(0);
-  const currentPhase = useMemo(() => phases[selectedPhaseIdx] || phases[0] || { label: 'Tüm haftalar', weeks: availableWeeks, baseWeek: 0 }, [phases, selectedPhaseIdx, availableWeeks]);
-
-  const getDisplayWeek = (weekNum: number): number => weekNum - currentPhase.baseWeek;
-
-  // Pagination default — corrected by the layout effect below
-  const [pageStart, setPageStart] = useState(0);
-
-  // Jump to last workout week whenever the selected program changes (or on mount).
-  // useLayoutEffect runs before paint, so there's no visible flash of wrong position.
+  // Open on the phase that holds the current week.
   useLayoutEffect(() => {
-    if (!phases.length) return;
-    // Smart default: last week that has actual workout data (not holiday)
-    const activePhase = phases.find(p => p.weeks.includes(currentWeek)) ?? phases[phases.length - 1];
-    const workoutLogs = programLogs.filter(l => activePhase.weeks.includes(l.weekNumber) && !l.isHoliday && (l.exercises?.length ?? 0) > 0);
-    const lastDataWeek = workoutLogs.length > 0 ? workoutLogs[workoutLogs.length - 1].weekNumber : null;
-    const focusWeek = lastDataWeek === null || currentWeek > lastDataWeek ? currentWeek : lastDataWeek;
-    if (focusWeek !== null) {
-      const pIdx = phases.findIndex(p => p.weeks.includes(focusWeek));
-      if (pIdx >= 0) {
-        const phase = phases[pIdx];
-        const weekIdx = phase.weeks.indexOf(focusWeek);
-        setSelectedPhaseIdx(pIdx);
-        setPageStart(Math.floor(weekIdx / PAGE_SIZE) * PAGE_SIZE);
-        return;
-      }
-    }
-    // Fallback: last phase, last page
-    const lastPhase = phases[phases.length - 1];
-    setSelectedPhaseIdx(phases.length - 1);
-    setPageStart(Math.max(0, Math.floor((lastPhase.weeks.length - 1) / PAGE_SIZE) * PAGE_SIZE));
+    const index = phases.findIndex(p => p.weeks.includes(currentWeek));
+    setSelectedPhaseIdx(index >= 0 ? index : Math.max(0, phases.length - 1));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Choose the current phase on mount; browsing days must preserve the selected phase.
-  const visibleWeeks = useMemo(() => {
-    return currentPhase.weeks.slice(pageStart, pageStart + PAGE_SIZE);
-  }, [currentPhase, pageStart]);
+  }, []);
+  const currentPhase = phases[selectedPhaseIdx] ?? phases[0];
 
-  const scopedWeek = visibleWeeks[visibleWeeks.length - 1] ?? currentPhase.baseWeek;
-  const { programs: scopedPrograms } = usePrograms(scopedWeek);
-  const programs = useMemo(() => ctx ? programsForPhase(ctx.state, contextPhases.find(p => p.startWeek === currentPhase.baseWeek)?.id ?? '') : scopedPrograms,
-    [ctx, contextPhases, currentPhase.baseWeek, scopedPrograms]);
-  const selectedProgram = scopedPrograms.find(p => p.id === selectedProgramId) ?? programs.find(p => p.id === selectedProgramId);
+  // The same grid the automatic Sheet tab is written from.
+  const state = ctx?.state;
+  const grid = useMemo(() => state && currentPhase ? buildPhaseGrid(state, currentPhase.id) : null, [state, currentPhase]);
+  const programs = grid?.programs ?? [];
+  const program = programs.find(p => p.id === selectedProgramId);
   useEffect(() => {
     if (programs.length && !programs.some(p => p.id === selectedProgramId)) setSelectedProgramId(programs[0].id);
   }, [programs, selectedProgramId]);
@@ -156,38 +92,16 @@ export function History() {
     localStorage.setItem(HISTORY_STATE_KEY, JSON.stringify({ programId: selectedProgramId }));
   }, [selectedProgramId]);
 
-  // The legacy row order is shared by program ID. It reflects the current
-  // program and must not reorder exercises in the archived phases.
-  const savedRowOrder = selectedPhaseIdx === contextPhases.length - 1
-    ? exerciseRowOrder?.[selectedProgramId]
-    : undefined;
+  // Like the Sheet, the grid runs from H0 to the latest week; open it scrolled
+  // to the latest weeks.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [grid?.phaseId, program?.id]);
 
-  // Get all exercise IDs for visible weeks
-  const allExerciseIds = useMemo(() => {
-    const ids = new Set<string>();
-    // Add exercises from logs for visible weeks
-    programLogs
-      .filter(log => visibleWeeks.includes(log.weekNumber))
-      .forEach(log => {
-        log.exercises.forEach(e => ids.add(e.exerciseId));
-      });
-    // A program edit can add an exercise before this week's workout is saved.
-    // Include its definition even when an older log already fills the grid.
-    selectedProgram?.exercises.filter(e => e.isActive).forEach(e => ids.add(e.id));
-    // A manual row order, once the user has set one, wins over the order the
-    // ids happened to appear in. No saved order → untouched, so nothing moves
-    // for anyone who has never reordered.
-    return applySavedOrder(Array.from(ids), savedRowOrder);
-  }, [programLogs, visibleWeeks, selectedProgram, savedRowOrder]);
-
-  const getExerciseName = (exerciseId: string): string => {
-    const def = selectedProgram?.exercises.find(e => e.id === exerciseId);
-    return def?.name || programLogs.filter(l => currentPhase.weeks.includes(l.weekNumber)).flatMap(l => l.exercises).find(e => e.exerciseId === exerciseId)?.exerciseName || exerciseId;
-  };
-
-  const getExerciseSets = (exerciseId: string): number | undefined => {
-    return selectedProgram?.exercises.find(e => e.id === exerciseId)?.defaultSets;
-  };
+  const baseWeek = currentPhase?.baseWeek ?? 0;
+  const getDisplayWeek = (weekNum: number): number => weekNum - baseWeek;
 
   const exercisePositionForWeek = (week: number, exerciseId: string): number | null => {
     const definition = ctx && programVersionAt(ctx.state, week).programs.find(p => p.id === selectedProgramId);
@@ -199,7 +113,7 @@ export function History() {
 
   const orderHistoryForExercise = (exerciseId: string): string | null => {
     const periods: { from: number; to: number; position: number }[] = [];
-    for (const week of currentPhase.weeks) {
+    for (const week of currentPhase?.weeks ?? []) {
       const position = exercisePositionForWeek(week, exerciseId);
       if (position === null) continue;
       const last = periods[periods.length - 1];
@@ -226,22 +140,35 @@ export function History() {
 
   // Find nearest previous week in the current phase that has data for this exercise.
   const getPrevExerciseWithinPhase = (weekNum: number, exerciseId: string): { weekNumber: number; log: ExerciseLog } | null => {
-    for (let w = weekNum - 1; w >= currentPhase.baseWeek; w--) {
+    for (let w = weekNum - 1; w >= baseWeek; w--) {
       const prev = getExerciseLog(w, exerciseId);
       if (prev) return { weekNumber: w, log: prev };
     }
     return null;
   };
 
-  // Collect notes for visible weeks
-  const weekNotes = useMemo(() => {
-    return visibleWeeks
-      .map(weekNum => {
-        const log = getWeekLog(weekNum);
-        return log?.notes ? { week: weekNum, notes: log.notes } : null;
-      })
-      .filter(Boolean) as { week: number; notes: string }[];
-  }, [visibleWeeks, programLogs]);
+  const openCell = (row: GridRow, week: number) => {
+    const record = getExerciseLog(week, row.exerciseId);
+    const previous = getPrevExerciseWithinPhase(week, row.exerciseId);
+    setModalData({
+      exerciseName: row.name,
+      exerciseId: row.exerciseId,
+      weekNumber: week,
+      currentSets: record?.sets ?? [],
+      previousSets: previous?.log.sets,
+      previousWeek: previous ? getDisplayWeek(previous.weekNumber) : undefined,
+      weekNotes: getWeekLog(week)?.notes,
+      isEmpty: !record || record.sets.length === 0,
+    });
+  };
+
+  // Column widths follow the Sheet (190 / 52 / 128 px), narrower on phones so
+  // a week and a half fits beside the frozen columns.
+  const cols = isMobile ? { name: 116, sets: 40, week: 112 } : { name: 190, sets: 52, week: 128 };
+  const rule = `1px solid ${palette.rule}`;
+  // Sheets marks the end of its frozen columns with a darker line.
+  const frozenEdge = `inset -1px 0 0 ${palette.header}`;
+  const weeks = grid?.weeks ?? [];
 
   return (
     <PageContainer>
@@ -258,16 +185,14 @@ export function History() {
         const visible = updated.filter(p => p.startWeek <= currentWeek);
         const index = visible.findIndex(p => currentWeek >= p.startWeek && (p.endWeek === null || currentWeek <= p.endWeek));
         setSelectedPhaseIdx(Math.max(0, index));
-        const start = visible[Math.max(0, index)]?.startWeek ?? 0;
-        setPageStart(Math.floor((currentWeek - start) / PAGE_SIZE) * PAGE_SIZE);
         setShowPhaseSettings(false);
       }} />}
       {/* Program Filter — current program marked by underline, not a fill */}
-      <div className="flex flex-wrap items-center gap-1 mb-4">
-        {programs.sort((a, b) => a.order - b.order).map(p => (
+      <div className="flex flex-wrap items-center gap-1 mb-3">
+        {programs.map(p => (
           <button
             key={p.id}
-            onClick={() => { setSelectedProgramId(p.id); setPageStart(0); }}
+            onClick={() => setSelectedProgramId(p.id)}
             className={`lb-press px-3 py-2 rounded-lg text-sm border-b-2 ${
               selectedProgramId === p.id
                 ? 'font-semibold border-(--color-text-primary)'
@@ -279,21 +204,12 @@ export function History() {
         ))}
       </div>
 
-      {/* Phases on the left, week paging on the right: one row where it fits */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-4">
       {phases.length > 1 && (
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1 mb-4">
           {phases.map((phase, idx) => (
             <button
-              key={idx}
-              onClick={() => {
-                setSelectedPhaseIdx(idx);
-                // Go to last page of selected phase
-                const last = phase.weeks.length > 0
-                  ? Math.floor((phase.weeks.length - 1) / PAGE_SIZE) * PAGE_SIZE
-                  : 0;
-                setPageStart(last);
-              }}
+              key={phase.id}
+              onClick={() => setSelectedPhaseIdx(idx)}
               className={`lb-press px-3 py-1.5 rounded-lg text-xs ${
                 selectedPhaseIdx === idx
                   ? 'font-semibold text-(--color-text-primary)'
@@ -305,212 +221,66 @@ export function History() {
           ))}
         </div>
       )}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setPageStart(s => Math.max(0, s - PAGE_SIZE))}
-          disabled={pageStart === 0}
-          aria-label="Önceki haftalar"
-          className="lb-press px-3 py-1.5 text-sm font-medium border lb-rule rounded-lg disabled:opacity-30"
-        >
-          ←
-        </button>
-        <span className="lb-label lb-figure">
-          {isMobile && visibleWeeks.length === 1
-            ? `H${getDisplayWeek(visibleWeeks[0] ?? currentPhase.baseWeek)}`
-            : `H${getDisplayWeek(visibleWeeks[0] ?? currentPhase.baseWeek)} — H${getDisplayWeek(visibleWeeks[visibleWeeks.length - 1] ?? currentPhase.baseWeek)}`
-          }
-        </span>
-        <button
-          onClick={() => setPageStart(s => s + PAGE_SIZE)}
-          disabled={pageStart + PAGE_SIZE >= currentPhase.weeks.length}
-          aria-label="Sonraki haftalar"
-          className="lb-press px-3 py-1.5 text-sm font-medium border lb-rule rounded-lg disabled:opacity-30"
-        >
-          →
-        </button>
-      </div>
-      </div>
 
-      {/* Table / Accordion */}
-      {programs.length === 0 ? (
+      {/* The phase grid, drawn like the automatic Sheet tab */}
+      {!program ? (
         <p className="text-(--color-text-secondary)">Henüz program yok.</p>
-      ) : isMobile ? (
-        /* ── Mobile: Week-by-week list ── */
-        <div className="space-y-5">
-          {visibleWeeks.map(weekNum => {
-            const weekLog = getWeekLog(weekNum);
-            const weekProgram = ctx && programVersionAt(ctx.state, weekNum).programs.find(p => p.id === selectedProgramId);
-            const weekExercises = weekProgram && (weekLog || weekNum === currentWeek)
-              ? syncExerciseLogs(weekProgram, weekLog?.exercises ?? [], ex => ({ exerciseId: ex.id, exerciseName: ex.name, sets: [] }))
-              : weekLog?.exercises ?? [];
-
-            return (
-              <div key={weekNum}>
-                <div className="flex items-center justify-between pb-2 border-b lb-rule-strong mb-3">
-                  <h3 className="text-sm font-semibold">H{getDisplayWeek(weekNum)}{weekLog?.isHoliday ? ' · Tatil' : ''}</h3>
-                  <button onClick={() => openWeek(weekNum)} disabled={!selectedProgram}
-                    className="lb-press text-sm font-medium underline underline-offset-2">
-                    Doldur / düzenle
-                  </button>
-                </div>
-
-                {weekLog?.isHoliday ? (
-                  <div className="text-sm text-(--color-text-secondary) p-3 rounded-lg bg-(--color-bg-input)">Bu hafta tatil olarak işaretlenmiş.</div>
-                ) : weekExercises.length > 0 ? (
-                  <div className="space-y-1">
-                    {weekExercises.map(exercise => {
-                      const prevWithinPhase = getPrevExerciseWithinPhase(weekNum, exercise.exerciseId);
-                      const prevLog = prevWithinPhase?.log;
-                      const status: ExerciseStatus = prevLog
-                        ? calculateExerciseStatus(exercise.sets, prevLog.sets)
-                        : 'new';
-                      const statusColor = status === 'improved'
-                        ? 'var(--lb-gain)'
-                        : status === 'decreased'
-                          ? 'var(--lb-drop)'
-                          : status === 'new'
-                            ? 'var(--lb-ref)'
-                            : 'var(--color-text-secondary)';
-
-                      return (
-                        <button
-                          key={exercise.exerciseId}
-                          onClick={() => {
-                            setModalData({
-                              exerciseName: exercise.exerciseName,
-                              exerciseId: exercise.exerciseId,
-                              weekNumber: weekNum,
-                              currentSets: exercise.sets,
-                              previousSets: prevLog?.sets,
-                              previousWeek: prevWithinPhase ? getDisplayWeek(prevWithinPhase.weekNumber) : undefined,
-                              weekNotes: weekLog?.notes,
-                              isEmpty: exercise.sets.length === 0,
-                            });
-                          }}
-                          className="lb-press w-full text-left px-2 py-2.5 -mx-2 rounded-lg border-b lb-rule"
-                        >
-                          {/* Exercise name row */}
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-sm font-semibold">{exercise.exerciseName}</span>
-                            <span className="text-[11px] font-semibold" style={{ color: statusColor }}>
-                              {status === 'improved' ? '▲ İlerleme' : status === 'decreased' ? '▼ Düşüş' : status === 'new' ? '★ Referans' : '= Aynı'}
-                            </span>
-                          </div>
-                          {/* Set pills */}
-                          <div className="flex flex-wrap gap-1.5">
-                            {exercise.sets.map((s, si) => (
-                              <span key={si} className="lb-figure text-[11px] font-semibold px-2 py-1 rounded-md bg-(--color-bg-input) text-(--color-text-secondary) border lb-rule">
-                                {s.weight}×{s.reps} {formatIntensityLabel(String(s.intensity))}
-                              </span>
-                            ))}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-sm text-(--color-text-secondary) p-3 rounded-lg bg-(--color-bg-input)">Bu hafta için kayıt yok.</div>
-                )}
-              </div>
-            );
-          })}
-        </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border lb-rule [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-(--color-border)">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-(--color-bg-card)">
-                <th className="sticky left-0 bg-(--color-bg-card) z-10 px-3 py-3 text-left font-semibold border-r lb-rule min-w-[140px]">
-                  Egzersiz
-                </th>
-                <th className="px-3 py-3 text-center font-semibold border-r lb-rule min-w-[60px]">
-                  Set
-                </th>
-                {visibleWeeks.map(w => (
-                  <th key={w} className="px-1 py-1.5 text-center font-semibold min-w-[120px]">
-                    <button onClick={() => openWeek(w)} disabled={!selectedProgram}
-                      title={`H${getDisplayWeek(w)} haftasını doldur / düzenle`}
-                      className="lb-press w-full px-2 py-1.5 rounded-lg">
-                      H{getDisplayWeek(w)} <span aria-hidden="true" className="text-(--color-text-secondary)">✎</span>
-                    </button>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {allExerciseIds.map(exerciseId => (
-                <tr key={exerciseId} className="border-t lb-rule">
-                  <td className="sticky left-0 bg-(--color-bg-primary) z-10 px-3 py-2.5 font-medium text-xs border-r lb-rule">
-                    {getExerciseName(exerciseId)}
-                  </td>
-                  <td className="lb-figure px-3 py-2.5 text-center text-xs border-r lb-rule text-(--color-text-secondary)">
-                    {getExerciseSets(exerciseId) ?? '—'}
-                  </td>
-                  {visibleWeeks.map(weekNum => {
-                    const log = getExerciseLog(weekNum, exerciseId);
-                    const weekLog = getWeekLog(weekNum);
-                    const prevWithinPhase = getPrevExerciseWithinPhase(weekNum, exerciseId);
-                    const prevLog = prevWithinPhase?.log;
-
-                    let status: ExerciseStatus = 'same';
-                    if (weekLog?.isHoliday) {
-                      status = 'holiday';
-                    } else if (log) {
-                      status = prevLog
-                        ? calculateExerciseStatus(log.sets, prevLog.sets)
-                        : 'new';
-                    } else if (prevLog) {
-                      status = 'removed';
-                    }
-
-                    const bgColor = getStatusBgColor(status);
-
-                    return (
-                      <td
-                        key={weekNum}
-                        onClick={() => {
-                          setModalData({
-                            exerciseName: getExerciseName(exerciseId),
-                            exerciseId,
-                            weekNumber: weekNum,
-                            currentSets: log?.sets || [],
-                            previousSets: prevLog?.sets,
-                            previousWeek: prevWithinPhase ? getDisplayWeek(prevWithinPhase.weekNumber) : undefined,
-                            weekNotes: weekLog?.notes,
-                            isEmpty: !log || log.sets.length === 0,
-                          });
-                        }}
-                        style={{ backgroundColor: bgColor }}
-                        className="lb-press lb-figure px-2 py-2.5 text-center text-sm cursor-pointer border-l lb-rule font-semibold whitespace-pre-line leading-5"
-                      >
-                        {weekLog?.isHoliday ? null : log ? (
-                          formatSets(log.sets)
-                        ) : (
-                          <span className="text-(--color-text-secondary)">—</span>
-                        )}
-                      </td>
-                    );
-                  })}
+        <div className="rounded-lg overflow-hidden" style={{ border: rule, background: palette.canvas, color: palette.ink, fontFamily: SHEET_FONT }}>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-2" style={{ background: palette.title }}>
+            <span className="text-[15px] font-bold" style={{ color: palette.titleText }}>{program.name}</span>
+            <span className="text-xs" style={{ color: palette.legend }}>{GRID_LEGEND}</span>
+          </div>
+          <div ref={scrollRef} className="overflow-x-auto [color-scheme:light] dark:[color-scheme:dark]">
+            <table className="border-separate border-spacing-0 text-[13px] leading-[18px]"
+              style={{ tableLayout: 'fixed', width: cols.name + cols.sets + weeks.length * cols.week }}>
+              <colgroup>
+                <col style={{ width: cols.name }} />
+                <col style={{ width: cols.sets }} />
+                {weeks.map(w => <col key={w} style={{ width: cols.week }} />)}
+              </colgroup>
+              <thead>
+                <tr style={{ background: palette.header, color: palette.headerText }}>
+                  <th className="sticky left-0 z-20 px-3 py-2 text-left font-bold" style={{ background: palette.header }}>Egzersiz</th>
+                  <th className="sticky z-20 px-1 py-2 text-center font-bold" style={{ left: cols.name, background: palette.header, boxShadow: frozenEdge }}>Set</th>
+                  {weeks.map(w => (
+                    <th key={w} className="p-0 font-bold">
+                      <button onClick={() => openWeek(w)} title={`H${getDisplayWeek(w)} haftasını doldur / düzenle`}
+                        className="lb-press w-full px-2 py-2 font-bold">
+                        H{getDisplayWeek(w)} <span aria-hidden="true" className="opacity-60">✎</span>
+                      </button>
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Week Notes */}
-      {weekNotes.length > 0 && (
-        <div className="mt-6 pt-5 border-t lb-rule-strong">
-          <h3 className="text-sm font-semibold mb-3">Notlar</h3>
-          <div className="grid gap-2.5">
-            {weekNotes.map(({ week, notes }) => (
-              <div key={week} className="flex gap-3 items-baseline text-sm">
-                <span className="lb-figure shrink-0 text-xs font-semibold text-(--color-text-secondary)">
-                  H{getDisplayWeek(week)}
-                </span>
-                <span className="text-(--color-text-secondary) leading-relaxed">{notes}</span>
-              </div>
-            ))}
+              </thead>
+              <tbody>
+                {program.rows.map(row => (
+                  <tr key={row.exerciseId}>
+                    <td className="sticky left-0 z-10 px-3 py-2 text-left align-middle break-words" style={{ background: palette.label, borderBottom: rule }}>{row.name}</td>
+                    <td className="sticky z-10 px-1 py-2 text-center align-middle tabular-nums"
+                      style={{ left: cols.name, background: palette.label, borderBottom: rule, boxShadow: frozenEdge }}>{row.defaultSets ?? ''}</td>
+                    {row.cells.map(cell => (
+                      <td key={cell.week} onClick={() => openCell(row, cell.week)}
+                        className="cursor-pointer px-2 py-2 text-center align-middle whitespace-pre-line tabular-nums"
+                        style={{ background: statusFill(palette, cell.status), borderBottom: rule, color: cell.status === 'holiday' ? palette.muted : palette.ink }}>
+                        {cell.text}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                <tr>
+                  <td colSpan={2} className="sticky left-0 z-10 px-3 py-2 text-left align-middle text-[12px]"
+                    style={{ background: palette.note, color: palette.noteText, boxShadow: frozenEdge }}>HAFTALIK NOTLAR</td>
+                  {program.notes.map((note, index) => (
+                    <td key={weeks[index]} onClick={() => openWeek(weeks[index])}
+                      className="cursor-pointer px-2 py-2 text-center align-middle text-[12px] whitespace-pre-line break-words"
+                      style={{ background: palette.note, color: palette.noteText }}>
+                      {note}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       )}
