@@ -32,6 +32,7 @@ export function useExportImport() {
     programVersions: state.programVersions,
     phaseRecordTransitions: state.phaseRecordTransitions,
     exerciseRowOrder: state.exerciseRowOrder,
+    muscleGroups: state.muscleGroups,
     statusColors: state.statusColors,
     cellColorOverrides: state.cellColorOverrides,
   });

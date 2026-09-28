@@ -96,6 +96,9 @@ export interface AppState {
   // "no manual order yet" — History keeps deriving order from the week logs,
   // so existing users see no change until they move a row themselves.
   exerciseRowOrder?: Record<string, string[]>;
+  // Muscle group picked by hand per exercise name (utils/muscleGroups
+  // exerciseKey). Absent means every exercise uses the group its name suggests.
+  muscleGroups?: Record<string, string>;
   // Custom status colours and hand-painted History cells from before colours
   // became fixed. Nothing reads them any more; they stay typed so older data
   // and backups keep round-tripping unchanged.
@@ -125,6 +128,7 @@ export type AppAction =
   | { type: 'SET_WEEK'; payload: number }
   | { type: 'SET_PHASES'; payload: PhaseDefinition[] }
   | { type: 'SET_EXERCISE_ROW_ORDER'; payload: { programId: string; exerciseIds: string[] } }
+  | { type: 'SET_MUSCLE_GROUP'; payload: { key: string; group: string | null } }
   | { type: 'IMPORT_DATA'; payload: AppState }
   | { type: 'RESET_DATA' };
 
@@ -145,6 +149,7 @@ export interface ExportData {
   currentWeek: number;
   phases?: PhaseDefinition[];
   exerciseRowOrder?: AppState['exerciseRowOrder'];
+  muscleGroups?: AppState['muscleGroups'];
   statusColors?: AppState['statusColors'];
   cellColorOverrides?: AppState['cellColorOverrides'];
 }

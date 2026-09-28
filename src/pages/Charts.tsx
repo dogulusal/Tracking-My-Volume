@@ -1,11 +1,14 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { STATUS_INK, Sparkline, TrendChart, kg, phaseChange, repsLabel, topSet } from '@/components/shared/ExerciseTrend';
+import { MuscleVolume } from '@/components/shared/MuscleVolume';
 import { AppContext } from '@/context/AppContext';
 import { currentPhaseIndex, startedPhases } from '@/utils/phases';
 import { buildPhaseGrid, type GridRow } from '../../supabase/functions/_shared/historyGrid.mjs';
 
 const CHARTS_STATE_KEY = 'charts-page-state-v1';
+const CHARTS_VIEW_KEY = 'charts-view';
+type View = 'progress' | 'volume';
 const COUNTED = [
   { status: 'improved', label: 'ilerleme' },
   { status: 'same', label: 'aynı' },
@@ -45,6 +48,13 @@ export function Charts() {
   if (!ctx) throw new Error('Charts must be used within AppProvider');
   const { state } = ctx;
   const currentWeek = state.currentWeek;
+  const [view, setViewState] = useState<View>(() => {
+    try { return localStorage.getItem(CHARTS_VIEW_KEY) === 'volume' ? 'volume' : 'progress'; } catch { return 'progress'; }
+  });
+  const setView = (next: View) => {
+    setViewState(next);
+    try { localStorage.setItem(CHARTS_VIEW_KEY, next); } catch { /* ignore */ }
+  };
 
   const phases = useMemo(() => startedPhases(state.phases ?? [], currentWeek), [state.phases, currentWeek]);
   const [phaseIndex, setPhaseIndex] = useState(() => currentPhaseIndex(phases, currentWeek));
@@ -74,11 +84,27 @@ export function Charts() {
 
   return (
     <PageContainer>
-      <div className="mb-6">
+      <div className="mb-5">
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Grafikler</h1>
-        <p className="lb-label mt-1">Her hareketin en ağır seti, hafta hafta. Renkler Geçmiş tablosuyla aynı.</p>
+        <p className="lb-label mt-1">
+          {view === 'progress'
+            ? 'Her hareketin en ağır seti, hafta hafta. Renkler Geçmiş tablosuyla aynı.'
+            : 'Bölge başına çalışılan set; tonaj = kg × tekrar. Tüm günler ve fazlar.'}
+        </p>
       </div>
 
+      <div className="flex gap-1 mb-5 border-b lb-rule" role="tablist">
+        {([['progress', 'İlerleme'], ['volume', 'Bölgesel hacim']] as const).map(([key, label]) => (
+          <button key={key} type="button" role="tab" aria-selected={view === key} onClick={() => setView(key)}
+            className={`lb-press -mb-px px-3 py-2 text-sm border-b-2 ${
+              view === key ? 'font-semibold border-(--color-text-primary)' : 'font-medium border-transparent text-(--color-text-secondary) hover:text-(--color-text-primary)'
+            }`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'volume' ? <MuscleVolume /> : (<>
       <div className="flex flex-wrap items-center gap-1 mb-3">
         {programs.map(p => (
           <button key={p.id} onClick={() => setProgramId(p.id)}
@@ -165,6 +191,7 @@ export function Charts() {
           )}
         </>
       )}
+      </>)}
     </PageContainer>
   );
 }

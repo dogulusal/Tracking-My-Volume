@@ -201,6 +201,12 @@ function reduceData(state: AppState, action: AppAction): AppState {
         },
       };
 
+    case 'SET_MUSCLE_GROUP': {
+      // null goes back to the group the name suggests.
+      const { [action.payload.key]: _previous, ...rest } = state.muscleGroups ?? {};
+      return { ...state, muscleGroups: action.payload.group ? { ...rest, [action.payload.key]: action.payload.group } : rest };
+    }
+
     case 'IMPORT_DATA':
       return { ...action.payload };
 
