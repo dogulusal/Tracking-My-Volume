@@ -35,15 +35,6 @@ function buildPhaseLabel(name: string, weeks: number[], baseWeek: number): strin
   return `${name} (H0-H${endWeek})`;
 }
 
-const STATUS_OPTIONS: { value: ExerciseStatus; label: string }[] = [
-  { value: 'improved', label: 'İlerleme' },
-  { value: 'decreased', label: 'Düşüş' },
-  { value: 'same', label: 'Aynı' },
-  { value: 'new', label: 'Referans' },
-  { value: 'holiday', label: 'Tatil' },
-  { value: 'removed', label: 'Kaldırıldı' },
-];
-
 const HISTORY_STATE_KEY = 'history-page-state-v1';
 
 export function History() {
@@ -52,10 +43,7 @@ export function History() {
   const [deletionMessage, setDeletionMessage] = useState('');
   const { programs: initialPrograms } = usePrograms();
   const { weekLogs, currentWeek, saveWorkout } = useWeekLogs();
-  const {
-    getCellColor, setCellColor, removeCellColor, getCellOverride, resetAllOverrides,
-    isDark, getStatusBgColor, setStatusBgColor, resetStatusColors, hasCustomStatusColors,
-  } = useColorSettings();
+  const { getStatusBgColor } = useColorSettings();
   const isMobile = useIsMobileDevice();
   const ctx = useContext(AppContext);
   const contextPhases = ctx?.state.phases ?? [];
@@ -75,7 +63,6 @@ export function History() {
   const [showProgramEditor, setShowProgramEditor] = useState(false);
   const [programEdits, setProgramEdits] = useState<Array<{ id: string; name: string; defaultSets: number }>>([]);
   const [editorWeek, setEditorWeek] = useState<number | null>(null);
-  const [bulkColorStatus, setBulkColorStatus] = useState<ExerciseStatus>('improved');
   const [bulkRowExerciseId, setBulkRowExerciseId] = useState('');
   const [bulkColumnWeek, setBulkColumnWeek] = useState<number | null>(null);
   const [modalData, setModalData] = useState<{
@@ -87,7 +74,6 @@ export function History() {
     previousWeek?: number;
     weekNotes?: string;
     isEmpty: boolean;
-    autoStatus: ExerciseStatus;
   } | null>(null);
 
 
@@ -284,26 +270,6 @@ export function History() {
     }));
   }, [selectedProgram, editorWeek, allExerciseIds, programLogs, visibleWeeks]);
 
-  const applyRowColor = () => {
-    if (!bulkRowExerciseId) return;
-    visibleWeeks.forEach(week => setCellColor(week, bulkRowExerciseId, bulkColorStatus));
-  };
-
-  const clearRowColor = () => {
-    if (!bulkRowExerciseId) return;
-    visibleWeeks.forEach(week => removeCellColor(week, bulkRowExerciseId));
-  };
-
-  const applyColumnColor = () => {
-    if (bulkColumnWeek === null) return;
-    allExerciseIds.forEach(exerciseId => setCellColor(bulkColumnWeek, exerciseId, bulkColorStatus));
-  };
-
-  const clearColumnColor = () => {
-    if (bulkColumnWeek === null) return;
-    allExerciseIds.forEach(exerciseId => removeCellColor(bulkColumnWeek, exerciseId));
-  };
-
   const deleteRowData = () => {
     if (!bulkRowExerciseId) { setDeletionMessage('Önce silinecek satırı seç.'); return; }
     ctx?.dispatch({ type: 'CLEAR_HISTORY_DATA', payload: { programId: selectedProgramId, weeks: visibleWeeks, exerciseId: bulkRowExerciseId, updatedAt: new Date().toISOString() } });
@@ -313,7 +279,6 @@ export function History() {
       if (log?.exercises.some(e => e.exerciseId === bulkRowExerciseId)) {
         count++;
       }
-      removeCellColor(weekNum, bulkRowExerciseId);
       const key = `draft-${selectedProgramId}-${weekNum}`;
       try {
         const raw = localStorage.getItem(key);
@@ -331,7 +296,6 @@ export function History() {
   const deleteColumnData = () => {
     if (bulkColumnWeek === null) { setDeletionMessage('Önce silinecek sütunu seç.'); return; }
     ctx?.dispatch({ type: 'CLEAR_HISTORY_DATA', payload: { programId: selectedProgramId, weeks: [bulkColumnWeek], updatedAt: new Date().toISOString() } });
-    allExerciseIds.forEach(id => removeCellColor(bulkColumnWeek, id));
     localStorage.removeItem(`draft-${selectedProgramId}-${bulkColumnWeek}`);
     setDeletionMessage(`H${getDisplayWeek(bulkColumnWeek)} ${selectedProgram?.name ?? ''} kaydı, notu ve taslağı temizlendi.`);
   };
@@ -423,7 +387,6 @@ export function History() {
       payload: { phaseId: phase.id, programId: selectedProgram.id, exerciseId },
     });
     currentPhase.weeks.forEach(week => {
-      removeCellColor(week, exerciseId);
       const key = `draft-${selectedProgram.id}-${week}`;
       try {
         const raw = localStorage.getItem(key);
@@ -500,64 +463,9 @@ export function History() {
       {/* Color Settings Panel */}
       {showColorSettings && (
         <div className="mb-5 border lb-rule rounded-lg p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold">Renk ayarları</h3>
-            <button
-              onClick={resetAllOverrides}
-              className="text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary) hover:underline"
-            >
-              Tüm overrideları sıfırla
-            </button>
-          </div>
-          <p className="lb-label mb-3">
-            Hücrelere tıklayarak renkleri tek tek değiştirebilirsin. Otomatik renkler: ağırlık/tekrar artarsa veya aynı kilo/tekrarda RIR iyileşirse <span style={{ color: 'var(--lb-gain)' }} className="font-semibold">yeşil</span>, düşerse <span style={{ color: 'var(--lb-drop)' }} className="font-semibold">kırmızı</span>, aynıysa <span className="font-semibold">gri</span>.
-          </p>
-          <div className="p-3 rounded-lg bg-(--color-bg-input) border lb-rule">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs font-semibold">
-                Durum renkleri ({isDark ? 'koyu tema' : 'açık tema'})
-              </h4>
-              {hasCustomStatusColors && (
-                <button
-                  onClick={resetStatusColors}
-                  className="text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary) hover:underline"
-                >
-                  Varsayılana dön
-                </button>
-              )}
-            </div>
-            <p className="lb-label mb-2.5">
-              Kareye tıklayıp rengi değiştir. Koyu ve açık tema renkleri ayrı tutulur.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              {STATUS_OPTIONS.map(opt => (
-                <label key={opt.value} className="inline-flex items-center gap-1.5 text-xs cursor-pointer">
-                  <input
-                    type="color"
-                    value={getStatusBgColor(opt.value)}
-                    onChange={e => setStatusBgColor(opt.value, e.target.value)}
-                    aria-label={`${opt.label} rengi`}
-                    className="w-6 h-6 rounded cursor-pointer bg-transparent border lb-rule p-0"
-                  />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
           <div className="mt-4 p-3 rounded-lg bg-(--color-bg-input) border lb-rule">
-            <h4 className="text-xs font-semibold mb-3">Toplu düzenleme (görünür {visibleWeeks.length} hafta)</h4>
-            <div className="grid md:grid-cols-[160px_1fr_1fr] gap-2 mb-2">
-              <select
-                value={bulkColorStatus}
-                onChange={(e) => setBulkColorStatus(e.target.value as ExerciseStatus)}
-                className="px-2 py-1.5 text-xs bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
-              >
-                {STATUS_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-
+            <h4 className="text-xs font-semibold mb-3">Toplu silme (görünür {visibleWeeks.length} hafta)</h4>
+            <div className="grid md:grid-cols-2 gap-2 mb-2">
               <div className="flex flex-wrap gap-2 min-w-0">
                 <select
                   value={bulkRowExerciseId}
@@ -569,8 +477,6 @@ export function History() {
                     <option key={id} value={id}>{getExerciseName(id)}</option>
                   ))}
                 </select>
-                <button onClick={applyRowColor} className="lb-press px-2 py-1.5 text-xs font-medium rounded border lb-rule">Renk</button>
-                <button onClick={clearRowColor} className="lb-press px-2 py-1.5 text-xs font-medium rounded border lb-rule">Renk sıfırla</button>
                 <button onClick={deleteRowData} className="lb-press px-2 py-1.5 text-xs font-medium rounded border" style={{ borderColor: 'var(--lb-drop)', color: 'var(--lb-drop)' }}>Veri sil</button>
               </div>
 
@@ -585,8 +491,6 @@ export function History() {
                     <option key={week} value={week}>H{getDisplayWeek(week)}</option>
                   ))}
                 </select>
-                <button onClick={applyColumnColor} className="lb-press px-2 py-1.5 text-xs font-medium rounded border lb-rule">Renk</button>
-                <button onClick={clearColumnColor} className="lb-press px-2 py-1.5 text-xs font-medium rounded border lb-rule">Renk sıfırla</button>
                 <button onClick={deleteColumnData} className="lb-press px-2 py-1.5 text-xs font-medium rounded border" style={{ borderColor: 'var(--lb-drop)', color: 'var(--lb-drop)' }}>Veri sil</button>
               </div>
             </div>
@@ -848,7 +752,6 @@ export function History() {
                               previousWeek: prevWithinPhase ? getDisplayWeek(prevWithinPhase.weekNumber) : undefined,
                               weekNotes: weekLog?.notes,
                               isEmpty: exercise.sets.length === 0,
-                              autoStatus: status,
                             });
                           }}
                           className="lb-press w-full text-left px-2 py-2.5 -mx-2 rounded-lg border-b lb-rule"
@@ -933,8 +836,7 @@ export function History() {
                       status = 'removed';
                     }
 
-                    // Use per-cell override or auto-calculated status color
-                    const bgColor = getCellColor(weekNum, exerciseId, status);
+                    const bgColor = getStatusBgColor(status);
 
                     return (
                       <td
@@ -949,7 +851,6 @@ export function History() {
                             previousWeek: prevWithinPhase ? getDisplayWeek(prevWithinPhase.weekNumber) : undefined,
                             weekNotes: weekLog?.notes,
                             isEmpty: !log || log.sets.length === 0,
-                            autoStatus: status,
                           });
                         }}
                         style={{ backgroundColor: bgColor }}
@@ -999,14 +900,6 @@ export function History() {
         previousWeek={modalData?.previousWeek}
         weekNotes={modalData?.weekNotes}
         isEmpty={modalData?.isEmpty || false}
-        autoStatus={modalData?.autoStatus || 'same'}
-        currentColorOverride={modalData ? getCellOverride(modalData.weekNumber, modalData.exerciseId) : undefined}
-        onSetColor={(status) => {
-          if (modalData) setCellColor(modalData.weekNumber, modalData.exerciseId, status);
-        }}
-        onRemoveColor={() => {
-          if (modalData) removeCellColor(modalData.weekNumber, modalData.exerciseId);
-        }}
         onSaveSets={(sets) => {
           if (!modalData) return;
           const existingLog = weekLogs.find(

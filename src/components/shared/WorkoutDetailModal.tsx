@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { SetLog, ExerciseStatus, Intensity } from '@/types';
+import type { SetLog, Intensity } from '@/types';
 import { BottomSheet } from './BottomSheet';
 
 interface WorkoutDetailModalProps {
@@ -13,12 +13,8 @@ interface WorkoutDetailModalProps {
   previousWeek?: number;
   weekNotes?: string;
   isEmpty: boolean;
-  currentColorOverride?: ExerciseStatus;
-  autoStatus: ExerciseStatus;
   onSaveSets?: (sets: SetLog[]) => void;
   onSaveNotes?: (notes: string) => void;
-  onSetColor?: (status: ExerciseStatus) => void;
-  onRemoveColor?: () => void;
 }
 
 const intensityLabels: Record<string, string> = {
@@ -49,15 +45,6 @@ function getIntensityScoreValue(intensity: string): number {
   return legacyIntensityScore[intensity] ?? 0;
 }
 
-const STATUS_OPTIONS: { value: ExerciseStatus; label: string; emoji: string }[] = [
-  { value: 'improved', label: 'İlerleme', emoji: '🟢' },
-  { value: 'decreased', label: 'Düşüş', emoji: '🔴' },
-  { value: 'same', label: 'Aynı', emoji: '⚪' },
-  { value: 'new', label: 'Referans', emoji: '🔵' },
-  { value: 'holiday', label: 'Tatil', emoji: '🟡' },
-  { value: 'removed', label: 'Kaldırıldı', emoji: '⚫' },
-];
-
 export function WorkoutDetailModal({
   isOpen,
   onClose,
@@ -68,12 +55,8 @@ export function WorkoutDetailModal({
   previousWeek,
   weekNotes,
   isEmpty,
-  currentColorOverride,
-  autoStatus,
   onSaveSets,
   onSaveNotes,
-  onSetColor,
-  onRemoveColor,
 }: WorkoutDetailModalProps) {
   const [editingSets, setEditingSets] = useState<SetLog[]>([]);
   const [editingInputDrafts, setEditingInputDrafts] = useState<Record<string, string>>({});
@@ -217,36 +200,6 @@ export function WorkoutDetailModal({
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title={`${exerciseName} — H${weekNumber}`}>
-        {/* Color Override Section */}
-        <div className="mb-4 p-3 rounded-lg bg-(--color-bg-input) border lb-rule">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-semibold">Renk</h4>
-            {currentColorOverride && (
-              <button
-                onClick={onRemoveColor}
-                className="lb-press text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary) hover:underline"
-              >
-                Otomatik
-              </button>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {STATUS_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => onSetColor?.(opt.value)}
-                className={`lb-press px-2 py-1 rounded-lg text-xs font-semibold ${
-                  (currentColorOverride || autoStatus) === opt.value
-                    ? 'ring-2 ring-(--color-accent) scale-105'
-                    : 'opacity-70 hover:opacity-100'
-                } bg-(--color-btn-bg)`}
-              >
-                {opt.emoji} {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Sets Detail or Edit Form */}
         {isEditing ? (
           <div className="space-y-2 mb-5">

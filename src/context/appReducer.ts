@@ -199,19 +199,6 @@ function reduceData(state: AppState, action: AppAction): AppState {
     case 'SET_PHASES':
       return { ...state, phases: action.payload };
 
-    case 'SET_STATUS_COLORS':
-      return { ...state, statusColors: action.payload };
-
-    case 'UPDATE_CELL_COLORS': {
-      if (!action.payload) return { ...state, cellColorOverrides: {} };
-      const cellColorOverrides = { ...state.cellColorOverrides };
-      for (const [key, status] of Object.entries(action.payload)) {
-        if (status) cellColorOverrides[key] = status;
-        else delete cellColorOverrides[key];
-      }
-      return { ...state, cellColorOverrides };
-    }
-
     case 'SET_EXERCISE_ROW_ORDER':
       return {
         ...state,

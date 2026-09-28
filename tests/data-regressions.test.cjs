@@ -524,13 +524,3 @@ test('cloud preferences preserve custom files but exclude Google credentials', (
   assert.equal(appReducer(initialState, { type: 'IMPORT_DATA', payload: next }).googleSheetsSettings.spreadsheetId, 'replacement');
 });
 
-test('painted History cells live in the synced state, survive other cells being painted and can be cleared', () => {
-  let state = appReducer(initialState, { type: 'UPDATE_CELL_COLORS', payload: { '3_press': 'improved' } });
-  state = appReducer(state, { type: 'UPDATE_CELL_COLORS', payload: { '4_press': 'decreased' } });
-  assert.deepEqual(state.cellColorOverrides, { '3_press': 'improved', '4_press': 'decreased' });
-  state = appReducer(state, { type: 'UPDATE_CELL_COLORS', payload: { '3_press': null } });
-  assert.deepEqual(state.cellColorOverrides, { '4_press': 'decreased' });
-  // Sign-out resets to the initial state, so the next account starts clean.
-  assert.equal(appReducer(state, { type: 'RESET_DATA' }).cellColorOverrides, undefined);
-  assert.deepEqual(appReducer(state, { type: 'UPDATE_CELL_COLORS', payload: null }).cellColorOverrides, {});
-});
