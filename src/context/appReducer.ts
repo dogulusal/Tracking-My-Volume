@@ -1,4 +1,4 @@
-import { configurePhaseTransition, initializeProgramVersions, programVersionAt, removeExerciseFromPhase, saveProgramVersion } from '@/utils/programVersions';
+import { configurePhaseTransition, initializeProgramVersions, programVersionAt, saveProgramVersion } from '@/utils/programVersions';
 import type { AppState, AppAction } from '@/types';
 import { CURRENT_DATA_VERSION } from '@/data/migrations';
 import { normalizeGoogleSettings } from '@/utils/googleSheetsSettings';
@@ -60,9 +60,6 @@ export function appReducer(state: AppState, action: AppAction): AppState {
   if (action.type === 'CONFIGURE_PHASE_TRANSITION') {
     return configurePhaseTransition(state, action.payload.previousPhaseId, action.payload.lastWeek, action.payload.nextId);
   }
-  if (action.type === 'REMOVE_PHASE_EXERCISE') {
-    return removeExerciseFromPhase(state, action.payload.phaseId, action.payload.programId, action.payload.exerciseId);
-  }
   if (action.type === 'COPY_PHASE_PROGRAM') {
     return saveProgramVersion(state, action.payload.week, programVersionAt(state, action.payload.sourceWeek));
   }
@@ -84,12 +81,8 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 function reduceData(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'CLEAR_HISTORY_DATA': {
-      const { programId, weeks, exerciseId, updatedAt } = action.payload;
-      return { ...state, weekLogs: state.weekLogs.flatMap(log => {
-        if (log.programId !== programId || !weeks.includes(log.weekNumber)) return [log];
-        if (exerciseId === undefined) return [];
-        return [{ ...log, updatedAt, exercises: log.exercises.filter(ex => ex.exerciseId !== exerciseId) }];
-      }) };
+      const { programId, weeks } = action.payload;
+      return { ...state, weekLogs: state.weekLogs.filter(log => log.programId !== programId || !weeks.includes(log.weekNumber)) };
     }
     case 'SET_GOOGLE_SHEETS_SETTINGS':
       return { ...state, googleSheetsSettings: normalizeGoogleSettings(action.payload) };

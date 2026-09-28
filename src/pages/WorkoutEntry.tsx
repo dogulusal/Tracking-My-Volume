@@ -432,7 +432,7 @@ export function WorkoutEntry() {
   const handleClearWeek = () => {
     if (!programId) return;
     localStorage.removeItem(draftKey);
-    ctx?.dispatch({ type: 'CLEAR_HISTORY_DATA', payload: { programId, weeks: [weekNumber], updatedAt: new Date().toISOString() } });
+    ctx?.dispatch({ type: 'CLEAR_HISTORY_DATA', payload: { programId, weeks: [weekNumber] } });
     navigate(returnPath);
   };
 

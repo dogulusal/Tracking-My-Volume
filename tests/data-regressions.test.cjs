@@ -408,21 +408,10 @@ test('OAuth returns to the application root without forwarding route, query or f
 test('clearing a history column removes notes and holiday without affecting adjacent weeks or programs', () => {
   const log = { id: 'a', programId: 'lower1', weekNumber: 35, notes: 'note', isHoliday: true, exercises: [{ exerciseId: 'squat', sets: [{ reps: 8 }] }] };
   const state = { ...initialState, currentWeek: 36, weekLogs: [log, { ...log, id: 'duplicate' }, { ...log, id: 'next', weekNumber: 36 }, { ...log, id: 'other', programId: 'upper1' }] };
-  const result = appReducer(state, { type: 'CLEAR_HISTORY_DATA', payload: { programId: 'lower1', weeks: [35], updatedAt: 'now' } });
+  const result = appReducer(state, { type: 'CLEAR_HISTORY_DATA', payload: { programId: 'lower1', weeks: [35] } });
   assert.deepEqual(result.weekLogs.map(l => l.id), ['next', 'other']);
   assert.equal(result.currentWeek, 36);
   assert.equal(state.weekLogs.length, 4);
-});
-
-test('clearing a history row respects visible weeks and retains other exercises and notes', () => {
-  const log = { id: 'a', programId: 'lower1', weekNumber: 35, notes: 'keep note', exercises: [{ exerciseId: 'squat', sets: [{ reps: 8 }] }, { exerciseId: 'curl', sets: [{ reps: 10 }] }] };
-  const state = { ...initialState, weekLogs: [log, { ...log, id: 'earlier', weekNumber: 34 }, { ...log, id: 'other', programId: 'upper1' }] };
-  const result = appReducer(state, { type: 'CLEAR_HISTORY_DATA', payload: { programId: 'lower1', weeks: [35], exerciseId: 'squat', updatedAt: 'now' } });
-  assert.deepEqual(result.weekLogs[0].exercises.map(e => e.exerciseId), ['curl']);
-  assert.equal(result.weekLogs[0].notes, 'keep note');
-  assert.equal(result.weekLogs[0].updatedAt, 'now');
-  assert.deepEqual(result.weekLogs.slice(1), state.weekLogs.slice(1));
-  assert.equal(state.weekLogs[0].exercises.length, 2);
 });
 
 test('first program creates a usable active plan without seeded history', () => {

@@ -10,7 +10,7 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { WorkoutDetailModal } from '@/components/shared/WorkoutDetailModal';
 import { calculateExerciseStatus } from '@/utils/statusCalculator';
 import { formatSets } from '@/utils/formatters';
-import { moveItem, applySavedOrder } from '@/utils/reorder';
+import { applySavedOrder } from '@/utils/reorder';
 import { syncExerciseLogs } from '@/utils/exerciseSync';
 import { AppContext } from '@/context/AppContext';
 import type { ExerciseLog, ExerciseStatus } from '@/types';
@@ -40,7 +40,6 @@ const HISTORY_STATE_KEY = 'history-page-state-v1';
 export function History() {
   const [showPhaseSettings, setShowPhaseSettings] = useState(false);
   const navigate = useNavigate();
-  const [deletionMessage, setDeletionMessage] = useState('');
   const { programs: initialPrograms } = usePrograms();
   const { weekLogs, currentWeek, saveWorkout } = useWeekLogs();
   const { getStatusBgColor } = useColorSettings();
@@ -59,12 +58,7 @@ export function History() {
     } catch { /* ignore */ }
     return initialPrograms[0]?.id || '';
   });
-  const [showColorSettings, setShowColorSettings] = useState(false);
-  const [showProgramEditor, setShowProgramEditor] = useState(false);
-  const [programEdits, setProgramEdits] = useState<Array<{ id: string; name: string; defaultSets: number }>>([]);
   const [editorWeek, setEditorWeek] = useState<number | null>(null);
-  const [bulkRowExerciseId, setBulkRowExerciseId] = useState('');
-  const [bulkColumnWeek, setBulkColumnWeek] = useState<number | null>(null);
   const [modalData, setModalData] = useState<{
     exerciseName: string;
     exerciseId: string;
@@ -150,7 +144,7 @@ export function History() {
   }, [currentPhase, pageStart]);
 
   const scopedWeek = editorWeek !== null && currentPhase.weeks.includes(editorWeek) ? editorWeek : visibleWeeks[visibleWeeks.length - 1] ?? currentPhase.baseWeek;
-  const { programs: scopedPrograms, updateProgram } = usePrograms(scopedWeek);
+  const { programs: scopedPrograms } = usePrograms(scopedWeek);
   const programs = useMemo(() => ctx ? programsForPhase(ctx.state, contextPhases.find(p => p.startWeek === currentPhase.baseWeek)?.id ?? '') : scopedPrograms,
     [ctx, contextPhases, currentPhase.baseWeek, scopedPrograms]);
   const selectedProgram = scopedPrograms.find(p => p.id === selectedProgramId) ?? programs.find(p => p.id === selectedProgramId);
@@ -226,185 +220,10 @@ export function History() {
   ])].map(id => ({ id, name: getExerciseName(id), history: orderHistoryForExercise(id) }))
     .filter((change): change is { id: string; name: string; history: string } => change.history !== null);
 
-  const getExerciseDisplayNameForWeek = (weekNumber: number, exerciseId: string): string => {
-    const weekName = programLogs
-      .find(w => w.weekNumber === weekNumber)
-      ?.exercises.find(e => e.exerciseId === exerciseId)
-      ?.exerciseName;
-    if (weekName) return weekName;
-    return getExerciseName(exerciseId);
-  };
-
   useEffect(() => {
-    if (visibleWeeks.length === 0) {
-      setEditorWeek(null);
-      setBulkColumnWeek(null);
-      return;
-    }
-    const fallbackWeek = visibleWeeks[visibleWeeks.length - 1];
+    const fallbackWeek = visibleWeeks[visibleWeeks.length - 1] ?? null;
     setEditorWeek(prev => (prev !== null && visibleWeeks.includes(prev) ? prev : fallbackWeek));
-    setBulkColumnWeek(prev => (prev !== null && visibleWeeks.includes(prev) ? prev : fallbackWeek));
   }, [visibleWeeks]);
-
-  useEffect(() => {
-    if (!selectedProgram) {
-      setProgramEdits([]);
-      return;
-    }
-
-    const targetWeek = editorWeek ?? visibleWeeks[visibleWeeks.length - 1];
-    const ids = allExerciseIds.length > 0
-      ? allExerciseIds
-      : selectedProgram.exercises.filter(e => e.isActive).map(e => e.id);
-
-    setProgramEdits(ids.map(id => {
-      const exDef = selectedProgram.exercises.find(e => e.id === id);
-      const weekSetCount = targetWeek !== undefined
-        ? programLogs.find(w => w.weekNumber === targetWeek)?.exercises.find(e => e.exerciseId === id)?.sets.length
-        : undefined;
-      return {
-        id,
-        name: targetWeek !== undefined ? getExerciseDisplayNameForWeek(targetWeek, id) : getExerciseName(id),
-        defaultSets: exDef?.defaultSets ?? weekSetCount ?? 1,
-      };
-    }));
-  }, [selectedProgram, editorWeek, allExerciseIds, programLogs, visibleWeeks]);
-
-  const deleteRowData = () => {
-    if (!bulkRowExerciseId) { setDeletionMessage('Önce silinecek satırı seç.'); return; }
-    ctx?.dispatch({ type: 'CLEAR_HISTORY_DATA', payload: { programId: selectedProgramId, weeks: visibleWeeks, exerciseId: bulkRowExerciseId, updatedAt: new Date().toISOString() } });
-    let count = 0;
-    visibleWeeks.forEach(weekNum => {
-      const log = programLogs.find(w => w.weekNumber === weekNum);
-      if (log?.exercises.some(e => e.exerciseId === bulkRowExerciseId)) {
-        count++;
-      }
-      const key = `draft-${selectedProgramId}-${weekNum}`;
-      try {
-        const raw = localStorage.getItem(key);
-        if (raw) {
-          const draft = JSON.parse(raw);
-          draft.exerciseLogs = draft.exerciseLogs?.filter((e: ExerciseLog) => e.exerciseId !== bulkRowExerciseId);
-          draft.completedSets = Object.fromEntries(Object.entries(draft.completedSets ?? {}).filter(([key]) => !key.startsWith(`${bulkRowExerciseId}:`)));
-          localStorage.setItem(key, JSON.stringify(draft));
-        }
-      } catch { localStorage.removeItem(key); }
-    });
-    setDeletionMessage(count ? `${count} haftadaki egzersiz verisi silindi.` : 'Seçili satırda görünür haftalar için kayıt yok.');
-  };
-
-  const deleteColumnData = () => {
-    if (bulkColumnWeek === null) { setDeletionMessage('Önce silinecek sütunu seç.'); return; }
-    ctx?.dispatch({ type: 'CLEAR_HISTORY_DATA', payload: { programId: selectedProgramId, weeks: [bulkColumnWeek], updatedAt: new Date().toISOString() } });
-    localStorage.removeItem(`draft-${selectedProgramId}-${bulkColumnWeek}`);
-    setDeletionMessage(`H${getDisplayWeek(bulkColumnWeek)} ${selectedProgram?.name ?? ''} kaydı, notu ve taslağı temizlendi.`);
-  };
-
-  const saveProgramEdits = () => {
-    if (!selectedProgram) return;
-    const updatedExercises = [...selectedProgram.exercises];
-
-    programEdits.forEach(draft => {
-      const parsedSets = Number.parseInt(String(draft.defaultSets), 10);
-      const safeSets = Number.isFinite(parsedSets) && parsedSets > 0 ? parsedSets : 1;
-      const existingIndex = updatedExercises.findIndex(ex => ex.id === draft.id);
-
-      if (existingIndex >= 0) {
-        const existing = updatedExercises[existingIndex];
-        updatedExercises[existingIndex] = {
-          ...existing,
-          name: draft.name.trim() || existing.name,
-          defaultSets: safeSets,
-        };
-        return;
-      }
-
-      const targetWeek = editorWeek ?? visibleWeeks[visibleWeeks.length - 1];
-      const weekExercise = targetWeek !== undefined
-        ? programLogs.find(w => w.weekNumber === targetWeek)?.exercises.find(e => e.exerciseId === draft.id)
-        : undefined;
-      updatedExercises.push({
-        id: draft.id,
-        name: draft.name.trim() || draft.id,
-        defaultSets: safeSets,
-        defaultWeight: weekExercise?.sets[0]?.weight ?? 0,
-        defaultReps: weekExercise?.sets[0]?.reps ?? 0,
-        isActive: true,
-      });
-    });
-
-    const orderedIds = programEdits.map(draft => draft.id);
-    const positions = new Map(orderedIds.map((id, index) => [id, index]));
-    const originalPositions = new Map(updatedExercises.map((exercise, index) => [exercise.id, index]));
-    updatedExercises.sort((a, b) =>
-      (positions.get(a.id) ?? orderedIds.length + originalPositions.get(a.id)!)
-      - (positions.get(b.id) ?? orderedIds.length + originalPositions.get(b.id)!));
-
-    updateProgram({
-      ...selectedProgram,
-      exercises: updatedExercises,
-      updatedAt: new Date().toISOString(),
-    });
-
-    // Persist the row order the user arranged with the ▲/▼ buttons. This is
-    // stored per program and is what allExerciseIds applies on the next render.
-    ctx?.dispatch({
-      type: 'SET_EXERCISE_ROW_ORDER',
-      payload: { programId: selectedProgram.id, exerciseIds: programEdits.map(p => p.id) },
-    });
-
-    const targetWeek = editorWeek ?? visibleWeeks[visibleWeeks.length - 1];
-    if (targetWeek !== undefined) {
-      const weekLog = programLogs.find(w => w.weekNumber === targetWeek);
-      if (weekLog) {
-        const updatedWeekLog = {
-          ...weekLog,
-          exercises: weekLog.exercises.map(ex => {
-            const draft = programEdits.find(p => p.id === ex.exerciseId);
-            if (!draft) return ex;
-            return { ...ex, exerciseName: draft.name.trim() || ex.exerciseName };
-          }),
-          updatedAt: new Date().toISOString(),
-        };
-        saveWorkout(updatedWeekLog);
-      }
-    }
-
-    setShowProgramEditor(false);
-  };
-
-  const removeExerciseFromCurrentPhase = (exerciseId: string, exerciseName: string) => {
-    if (!ctx || !selectedProgram) return;
-    const phase = contextPhases.find(p => p.startWeek === currentPhase.baseWeek);
-    if (!phase) return;
-    const confirmed = window.confirm(
-      `${exerciseName}, ${currentPhase.label} içindeki ${selectedProgram.name} programından ve bu fazdaki geçmiş kayıtlarından silinsin mi?`,
-    );
-    if (!confirmed) return;
-
-    ctx.dispatch({
-      type: 'REMOVE_PHASE_EXERCISE',
-      payload: { phaseId: phase.id, programId: selectedProgram.id, exerciseId },
-    });
-    currentPhase.weeks.forEach(week => {
-      const key = `draft-${selectedProgram.id}-${week}`;
-      try {
-        const raw = localStorage.getItem(key);
-        if (!raw) return;
-        const draft = JSON.parse(raw);
-        draft.exerciseLogs = draft.exerciseLogs?.filter((e: ExerciseLog) => e.exerciseId !== exerciseId);
-        draft.completedSets = Object.fromEntries(
-          Object.entries(draft.completedSets ?? {}).filter(([entryKey]) => !entryKey.startsWith(`${exerciseId}:`)),
-        );
-        localStorage.setItem(key, JSON.stringify(draft));
-      } catch {
-        localStorage.removeItem(key);
-      }
-    });
-    setProgramEdits(prev => prev.filter(row => row.id !== exerciseId));
-    setBulkRowExerciseId(prev => prev === exerciseId ? '' : prev);
-    setDeletionMessage(`${exerciseName}, ${currentPhase.label} içinden tamamen silindi.`);
-  };
 
   const getExerciseLog = (weekNumber: number, exerciseId: string): ExerciseLog | undefined => {
     const log = programLogs.find(w => w.weekNumber === weekNumber);
@@ -434,20 +253,11 @@ export function History() {
 
   return (
     <PageContainer>
-      {/* Title + Settings Toggle */}
+      {/* Title + phase settings */}
       <div className="mb-6 flex flex-wrap gap-3 items-center justify-between">
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Antrenman Geçmişi</h1>
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={() => setShowPhaseSettings(true)} className="lb-press px-3 py-1.5 border lb-rule text-xs font-semibold rounded-lg">Fazlar</button>
-          <button
-            onClick={() => setShowColorSettings(s => !s)}
-            className={`lb-press p-2 rounded-lg text-lg border ${
-              showColorSettings ? 'lb-rule-strong' : 'lb-rule text-(--color-text-secondary)'
-            }`}
-            title="Renk Ayarları"
-          >
-            ⚙️
-          </button>
         </div>
       </div>
 
@@ -460,160 +270,6 @@ export function History() {
         setPageStart(Math.floor((currentWeek - start) / PAGE_SIZE) * PAGE_SIZE);
         setShowPhaseSettings(false);
       }} />}
-      {/* Color Settings Panel */}
-      {showColorSettings && (
-        <div className="mb-5 border lb-rule rounded-lg p-5">
-          <div className="mt-4 p-3 rounded-lg bg-(--color-bg-input) border lb-rule">
-            <h4 className="text-xs font-semibold mb-3">Toplu silme (görünür {visibleWeeks.length} hafta)</h4>
-            <div className="grid md:grid-cols-2 gap-2 mb-2">
-              <div className="flex flex-wrap gap-2 min-w-0">
-                <select
-                  value={bulkRowExerciseId}
-                  onChange={(e) => setBulkRowExerciseId(e.target.value)}
-                  className="flex-1 min-w-0 basis-full sm:basis-auto px-2 py-1.5 text-xs bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
-                >
-                  <option value="">Satır seç</option>
-                  {allExerciseIds.map(id => (
-                    <option key={id} value={id}>{getExerciseName(id)}</option>
-                  ))}
-                </select>
-                <button onClick={deleteRowData} className="lb-press px-2 py-1.5 text-xs font-medium rounded border" style={{ borderColor: 'var(--lb-drop)', color: 'var(--lb-drop)' }}>Veri sil</button>
-              </div>
-
-              <div className="flex flex-wrap gap-2 min-w-0">
-                <select
-                  value={bulkColumnWeek ?? ''}
-                  onChange={(e) => setBulkColumnWeek(e.target.value === '' ? null : Number(e.target.value))}
-                  className="flex-1 min-w-0 basis-full sm:basis-auto px-2 py-1.5 text-xs bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
-                >
-                  <option value="">Sütun seç</option>
-                  {visibleWeeks.map(week => (
-                    <option key={week} value={week}>H{getDisplayWeek(week)}</option>
-                  ))}
-                </select>
-                <button onClick={deleteColumnData} className="lb-press px-2 py-1.5 text-xs font-medium rounded border" style={{ borderColor: 'var(--lb-drop)', color: 'var(--lb-drop)' }}>Veri sil</button>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 pt-4 border-t lb-rule">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-semibold">Egzersiz / set düzenle</h4>
-              <button
-                onClick={() => setShowProgramEditor(v => !v)}
-                className="lb-press px-3 py-1.5 rounded-lg text-xs font-medium border lb-rule"
-              >
-                {showProgramEditor ? 'Kapat' : 'Aç'}
-              </button>
-            </div>
-
-            {showProgramEditor && selectedProgram && (
-              <div className="p-3 bg-(--color-bg-input) border lb-rule rounded-lg">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    saveProgramEdits();
-                  }}
-                >
-                  <div className="flex flex-wrap items-center gap-2 mb-3">
-                    <label className="text-xs font-medium">Hafta</label>
-                    <select
-                      value={editorWeek ?? ''}
-                      onChange={(e) => setEditorWeek(e.target.value === '' ? null : Number(e.target.value))}
-                      className="px-2 py-1.5 text-xs bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
-                    >
-                      {visibleWeeks.map(week => (
-                        <option key={week} value={week}>H{getDisplayWeek(week)}</option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!selectedProgram) return;
-                        const targetWeek = editorWeek ?? visibleWeeks[visibleWeeks.length - 1];
-                        const ids = allExerciseIds.length > 0
-                          ? allExerciseIds
-                          : selectedProgram.exercises.filter(ex => ex.isActive).map(ex => ex.id);
-                        setProgramEdits(ids.map(id => ({
-                          id,
-                          name: targetWeek !== undefined ? getExerciseDisplayNameForWeek(targetWeek, id) : getExerciseName(id),
-                          defaultSets: getExerciseSets(id) ?? 1,
-                        })));
-                      }}
-                      className="lb-press px-3 py-1.5 rounded-lg text-xs font-medium border lb-rule"
-                    >
-                      Yenile
-                    </button>
-                    <button
-                      type="submit"
-                      className="lb-press ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold border lb-rule-strong"
-                    >
-                      Kaydet
-                    </button>
-                  </div>
-
-                  <p className="lb-label mb-2">Liste, aktif program + görünür haftadaki satırlarla eşleşir. Ok tuşlarıyla satır sırasını değiştir, sonra Kaydet.</p>
-
-                  <div className="grid gap-2 max-h-64 overflow-auto pr-1">
-                    {programEdits.map((row, rowIdx) => (
-                      <div key={row.id} className="grid grid-cols-[auto_minmax(0,1fr)_72px_auto] gap-2">
-                        <div className="flex flex-col justify-center gap-0.5">
-                          <button
-                            type="button"
-                            onClick={() => setProgramEdits(prev => moveItem(prev, rowIdx, -1))}
-                            disabled={rowIdx === 0}
-                            aria-label={`${row.name} satırını yukarı taşı`}
-                            className="lb-press px-1.5 leading-none text-xs rounded border lb-rule text-(--color-text-secondary) disabled:opacity-30 disabled:cursor-not-allowed"
-                          >
-                            ▲
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setProgramEdits(prev => moveItem(prev, rowIdx, 1))}
-                            disabled={rowIdx === programEdits.length - 1}
-                            aria-label={`${row.name} satırını aşağı taşı`}
-                            className="lb-press px-1.5 leading-none text-xs rounded border lb-rule text-(--color-text-secondary) disabled:opacity-30 disabled:cursor-not-allowed"
-                          >
-                            ▼
-                          </button>
-                        </div>
-                        <input
-                          value={row.name}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setProgramEdits(prev => prev.map(p => p.id === row.id ? { ...p, name: val } : p));
-                          }}
-                          className="px-3 py-2 text-sm bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
-                        />
-                        <input
-                          type="number"
-                          min={1}
-                          value={row.defaultSets}
-                          onChange={(e) => {
-                            const val = Number.parseInt(e.target.value, 10);
-                            setProgramEdits(prev => prev.map(p => p.id === row.id ? { ...p, defaultSets: Number.isFinite(val) ? val : p.defaultSets } : p));
-                          }}
-                          className="px-2 py-2 text-sm text-center bg-(--color-bg-primary) border lb-rule rounded-lg focus:outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeExerciseFromCurrentPhase(row.id, row.name)}
-                          className="lb-press px-2 py-2 text-xs font-semibold rounded-lg border"
-                          style={{ borderColor: 'var(--lb-drop)', color: 'var(--lb-drop)' }}
-                          title="Bu egzersizi yalnızca seçili fazdan ve o fazın geçmişinden sil"
-                        >
-                          Fazdan sil
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </form>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Program Filter — current program marked by underline, not a fill */}
       <div className="flex flex-wrap items-center gap-1 mb-4">
         {programs.sort((a, b) => a.order - b.order).map(p => (
@@ -664,7 +320,6 @@ export function History() {
         </select>
         <button disabled={!selectedProgram || editorWeek === null} onClick={() => navigate(`/workout/${selectedProgramId}/week/${editorWeek}?from=history`)} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm font-semibold">Doldur / Düzenle</button>
       </div>
-      {deletionMessage && <p role="status" className="text-sm mb-4">{deletionMessage}</p>}
       {/* Week Range Navigation */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <button
