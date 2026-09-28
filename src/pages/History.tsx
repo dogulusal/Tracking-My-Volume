@@ -144,8 +144,10 @@ export function History() {
     });
   };
 
-  // Column widths follow the Sheet (190 / 52 / 128 px), narrower on phones so
-  // a week and a half fits beside the frozen columns.
+  // The name and set columns keep the Sheet's widths (190 / 52 px). Week
+  // columns share the rest of the page, so a phase with a few weeks fills the
+  // width instead of leaving it empty; they never get narrower than the
+  // Sheet's 128 px (112 on phones), past that the grid scrolls.
   const cols = isMobile ? { name: 116, sets: 40, week: 112 } : { name: 190, sets: 52, week: 128 };
   const rule = `1px solid ${palette.rule}`;
   // Sheets marks the end of its frozen columns with a darker line.
@@ -208,20 +210,18 @@ export function History() {
       {!program ? (
         <p className="text-(--color-text-secondary)">Henüz program yok.</p>
       ) : (
-        // The frame hugs the table: the columns keep the Sheet's fixed widths,
-        // so a young phase would otherwise leave an empty slab to the right.
-        <div className="w-fit max-w-full rounded-lg overflow-hidden" style={{ border: rule, background: palette.canvas, color: palette.ink, fontFamily: SHEET_FONT }}>
+        <div className="rounded-lg overflow-hidden" style={{ border: rule, background: palette.canvas, color: palette.ink, fontFamily: SHEET_FONT }}>
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-2" style={{ background: palette.title }}>
             <span className="text-[15px] font-bold" style={{ color: palette.titleText }}>{program.name}</span>
             <span className="text-xs" style={{ color: palette.legend }}>{GRID_LEGEND}</span>
           </div>
           <div ref={scrollRef} className="lb-scroll overflow-x-auto">
             <table className="border-separate border-spacing-0 text-[13px] leading-[18px]"
-              style={{ tableLayout: 'fixed', width: cols.name + cols.sets + weeks.length * cols.week }}>
+              style={{ tableLayout: 'fixed', width: '100%', minWidth: cols.name + cols.sets + weeks.length * cols.week }}>
               <colgroup>
                 <col style={{ width: cols.name }} />
                 <col style={{ width: cols.sets }} />
-                {weeks.map(w => <col key={w} style={{ width: cols.week }} />)}
+                {weeks.map(w => <col key={w} />)}
               </colgroup>
               <thead>
                 <tr style={{ background: palette.header, color: palette.headerText }}>
