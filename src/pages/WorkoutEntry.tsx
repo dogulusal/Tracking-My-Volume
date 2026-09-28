@@ -980,16 +980,21 @@ export function WorkoutEntry() {
                         <input inputMode="decimal" value={ruleEdit.step} onChange={e => setRuleEdit({ ...ruleEdit, step: e.target.value })}
                           className="lb-figure block mt-1 w-20 px-2 py-1.5 bg-(--color-bg-input) border lb-rule rounded-lg text-sm text-(--color-text-primary) focus:outline-none focus:border-(--color-text-primary)" />
                       </label>
-                      <button onClick={() => saveRule()} className="lb-press px-3 py-2 text-xs font-semibold rounded-lg bg-(--color-text-primary) text-(--color-bg-primary)">Kaydet</button>
-                      {rule.source === 'manual' && <button onClick={() => saveRule(true)} className="lb-press px-2 py-2 text-xs text-(--color-text-secondary)">Geçmişten öğren</button>}
-                      <button onClick={() => setRuleEdit(null)} className="lb-press px-2 py-2 text-xs text-(--color-text-secondary)">Vazgeç</button>
+                      {/* The actions wrap as one group on a narrow phone. */}
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => saveRule()} className="lb-press px-3 py-2 text-xs font-semibold rounded-lg bg-(--color-text-primary) text-(--color-bg-primary)">Kaydet</button>
+                        {rule.source === 'manual' && <button onClick={() => saveRule(true)} className="lb-press px-2 py-2 text-xs text-(--color-text-secondary)">Geçmişten öğren</button>}
+                        <button onClick={() => setRuleEdit(null)} className="lb-press px-2 py-2 text-xs text-(--color-text-secondary)">Vazgeç</button>
+                      </div>
                     </div>
                   ) : (
-                    <p className="lb-label mt-1">
-                      {rule.repTop} tekrarda +{rule.step} kg · {rule.source === 'manual' ? 'senin ayarın' : rule.source === 'log' ? 'geçmişinden' : 'varsayılan'}
+                    // Links sit beside the text, not in it: on phones every
+                    // button is 44px tall and would open up the line.
+                    <div className="lb-label mt-1 flex items-center gap-2">
+                      <p>{rule.repTop} tekrarda +{rule.step} kg · {rule.source === 'manual' ? 'senin ayarın' : rule.source === 'log' ? 'geçmişinden' : 'varsayılan'}</p>
                       <button onClick={() => setRuleEdit({ key, repTop: String(rule.repTop), step: String(rule.step) })}
-                        className="lb-press ml-2 underline underline-offset-2 hover:text-(--color-text-primary)">değiştir</button>
-                    </p>
+                        className="lb-press shrink-0 px-1 underline underline-offset-2 hover:text-(--color-text-primary)">değiştir</button>
+                    </div>
                   )}
                   {stall && stall.weeks >= STALL_WEEKS && (
                     <p className="text-xs mt-1">
@@ -1012,11 +1017,13 @@ export function WorkoutEntry() {
                       <button onClick={() => setPinnedEdit(null)} className="lb-press px-2 py-2 text-xs text-(--color-text-secondary)">Vazgeç</button>
                     </div>
                   ) : pinned && (
-                    <p className="whitespace-pre-line">
-                      <span className="lb-label mr-2">Sabit</span>{pinned}
+                    <div className="flex items-center gap-2">
+                      <p className="flex-1 min-w-0 whitespace-pre-line">
+                        <span className="lb-label mr-2">Sabit</span>{pinned}
+                      </p>
                       <button onClick={() => setPinnedEdit({ key, text: pinned })}
-                        className="lb-press ml-2 text-xs text-(--color-text-secondary) underline underline-offset-2">Düzenle</button>
-                    </p>
+                        className="lb-press shrink-0 px-1 text-xs text-(--color-text-secondary) underline underline-offset-2">Düzenle</button>
+                    </div>
                   )}
                   {lastNote && (
                     <p className="whitespace-pre-line">

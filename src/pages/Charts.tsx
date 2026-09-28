@@ -23,10 +23,13 @@ function ExerciseLine({ row, startWeek, open, onToggle }: { row: GridRow; startW
   const top = last?.sets ? topSet(last.sets) : null;
   return (
     <li className="border-b lb-rule">
+      {/* On a phone the name takes its own line: beside the sparkline and
+          the last set it had about 90px, which cut "Biceps Long Head" and
+          "Biceps Short Head" to the same "Biceps …". */}
       <button type="button" onClick={onToggle} aria-expanded={open}
-        className="lb-press w-full flex items-center gap-3 md:gap-6 -mx-2 px-2 py-3 rounded text-left">
-        <span className="flex-1 min-w-0 text-sm font-medium truncate">{row.name}</span>
-        <Sparkline cells={row.cells} className="w-20 sm:w-40 lg:w-72 shrink-0" />
+        className="lb-press w-full flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-1 md:gap-x-6 -mx-2 px-2 py-3 rounded text-left">
+        <span className="basis-full sm:basis-auto sm:flex-1 min-w-0 text-sm font-medium sm:truncate">{row.name}</span>
+        <Sparkline cells={row.cells} className="flex-1 sm:flex-none sm:w-40 lg:w-72 shrink-0" />
         <span className="w-28 md:w-32 shrink-0 flex items-center justify-end gap-2 lb-figure text-sm whitespace-nowrap">
           <span aria-hidden="true" className="w-2 h-2 rounded-full shrink-0" style={{ background: last?.status ? STATUS_INK[last.status] : undefined }} />
           {top && <span>{kg(top.weight)}<span className="text-(--color-text-secondary)"> × {repsLabel(top)}</span></span>}

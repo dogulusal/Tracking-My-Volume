@@ -131,10 +131,12 @@ export function MuscleVolume() {
           ))}
         </ul>
         {unassigned.length > 0 && (
-          <p className="lb-label mt-5">
-            Bir bölgeye atanmamış: {unassigned.map(item => item.name).join(', ')} ·{' '}
-            <button type="button" onClick={() => setEditing(true)} className="underline hover:text-(--color-text-primary)">Bölge seç</button>
-          </p>
+          // Beside the names, not among them: a phone's 44px button would
+          // open up the lines once the list wraps.
+          <div className="lb-label mt-5 flex items-center gap-3">
+            <p className="flex-1 min-w-0">Bir bölgeye atanmamış: {unassigned.map(item => item.name).join(', ')}</p>
+            <button type="button" onClick={() => setEditing(true)} className="lb-press shrink-0 px-1 underline hover:text-(--color-text-primary)">Bölge seç</button>
+          </div>
         )}
       </section>
 
