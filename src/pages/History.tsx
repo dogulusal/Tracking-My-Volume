@@ -58,7 +58,6 @@ export function History() {
     } catch { /* ignore */ }
     return initialPrograms[0]?.id || '';
   });
-  const [editorWeek, setEditorWeek] = useState<number | null>(null);
   const [modalData, setModalData] = useState<{
     exerciseName: string;
     exerciseId: string;
@@ -143,7 +142,7 @@ export function History() {
     return currentPhase.weeks.slice(pageStart, pageStart + PAGE_SIZE);
   }, [currentPhase, pageStart]);
 
-  const scopedWeek = editorWeek !== null && currentPhase.weeks.includes(editorWeek) ? editorWeek : visibleWeeks[visibleWeeks.length - 1] ?? currentPhase.baseWeek;
+  const scopedWeek = visibleWeeks[visibleWeeks.length - 1] ?? currentPhase.baseWeek;
   const { programs: scopedPrograms } = usePrograms(scopedWeek);
   const programs = useMemo(() => ctx ? programsForPhase(ctx.state, contextPhases.find(p => p.startWeek === currentPhase.baseWeek)?.id ?? '') : scopedPrograms,
     [ctx, contextPhases, currentPhase.baseWeek, scopedPrograms]);
@@ -220,10 +219,8 @@ export function History() {
   ])].map(id => ({ id, name: getExerciseName(id), history: orderHistoryForExercise(id) }))
     .filter((change): change is { id: string; name: string; history: string } => change.history !== null);
 
-  useEffect(() => {
-    const fallbackWeek = visibleWeeks[visibleWeeks.length - 1] ?? null;
-    setEditorWeek(prev => (prev !== null && visibleWeeks.includes(prev) ? prev : fallbackWeek));
-  }, [visibleWeeks]);
+  // A week's heading opens that week's fill/edit page.
+  const openWeek = (week: number) => navigate(`/workout/${selectedProgramId}/week/${week}?from=history`);
 
   const getExerciseLog = (weekNumber: number, exerciseId: string): ExerciseLog | undefined => {
     const log = programLogs.find(w => w.weekNumber === weekNumber);
@@ -313,13 +310,6 @@ export function History() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3 mb-4 p-3 border lb-rule rounded-lg">
-        <label htmlFor="history-entry-week" className="text-sm">Doldurulacak hafta</label>
-        <select id="history-entry-week" value={editorWeek ?? ''} onChange={e => setEditorWeek(Number(e.target.value))} className="px-3 py-2 border lb-rule rounded-lg bg-(--color-bg-input)">
-          {currentPhase.weeks.map(w => <option key={w} value={w}>H{getDisplayWeek(w)}</option>)}
-        </select>
-        <button disabled={!selectedProgram || editorWeek === null} onClick={() => navigate(`/workout/${selectedProgramId}/week/${editorWeek}?from=history`)} className="lb-press px-4 py-2 border lb-rule rounded-lg text-sm font-semibold">Doldur / Düzenle</button>
-      </div>
       {/* Week Range Navigation */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <button
@@ -368,12 +358,11 @@ export function History() {
             return (
               <div key={weekNum}>
                 <div className="flex items-center justify-between pb-2 border-b lb-rule-strong mb-3">
-                  <h3 className="text-sm font-semibold">H{getDisplayWeek(weekNum)}</h3>
-                  {weekLog?.isHoliday ? (
-                    <span className="lb-label font-semibold">Tatil</span>
-                  ) : (
-                    <span className="lb-label">{weekExercises.length} egzersiz</span>
-                  )}
+                  <h3 className="text-sm font-semibold">H{getDisplayWeek(weekNum)}{weekLog?.isHoliday ? ' · Tatil' : ''}</h3>
+                  <button onClick={() => openWeek(weekNum)} disabled={!selectedProgram}
+                    className="lb-press text-sm font-medium underline underline-offset-2">
+                    Doldur / düzenle
+                  </button>
                 </div>
 
                 {weekLog?.isHoliday ? (
@@ -459,8 +448,12 @@ export function History() {
                   Set
                 </th>
                 {visibleWeeks.map(w => (
-                  <th key={w} className="px-3 py-3 text-center font-semibold min-w-[120px]">
-                    H{getDisplayWeek(w)}
+                  <th key={w} className="px-1 py-1.5 text-center font-semibold min-w-[120px]">
+                    <button onClick={() => openWeek(w)} disabled={!selectedProgram}
+                      title={`H${getDisplayWeek(w)} haftasını doldur / düzenle`}
+                      className="lb-press w-full px-2 py-1.5 rounded-lg">
+                      H{getDisplayWeek(w)} <span aria-hidden="true" className="text-(--color-text-secondary)">✎</span>
+                    </button>
                   </th>
                 ))}
               </tr>
