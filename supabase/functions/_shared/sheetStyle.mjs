@@ -1,14 +1,12 @@
+import { GRID_PALETTE, statusFill } from './historyGrid.mjs';
+
+const palette = GRID_PALETTE.light;
 const rgb = hex => ({ red: parseInt(hex.slice(1, 3), 16) / 255, green: parseInt(hex.slice(3, 5), 16) / 255, blue: parseInt(hex.slice(5, 7), 16) / 255 });
 const color = hex => ({ rgbColor: rgb(hex) });
 const text = (hex, bold = false, size = 10) => ({ fontFamily: 'Arial', fontSize: size, bold, foregroundColorStyle: color(hex) });
 const range = (sheetId, row, endRow, col, endCol) => ({ sheetId, startRowIndex: row, endRowIndex: endRow, startColumnIndex: col, endColumnIndex: endCol });
 const paint = (requests, area, format) => requests.push({ repeatCell: { range: area, cell: { userEnteredFormat: format }, fields: 'userEnteredFormat' } });
 const size = (requests, sheetId, dimension, from, to, pixels) => requests.push({ updateDimensionProperties: { range: { sheetId, dimension, startIndex: from, endIndex: to }, properties: { pixelSize: pixels }, fields: 'pixelSize' } });
-
-function score(value) {
-  const match = String(value ?? '').match(/(-?\d+(?:[.,]\d+)?)\s*x\s*(\d+)/i);
-  return match ? [Number(match[1].replace(',', '.')), Number(match[2])] : null;
-}
 
 // About 19 characters of 9pt Arial fit on a line of a 128px week column; same
 // estimate as the manual send (sheetLayout.ts).
@@ -32,16 +30,16 @@ export function buildAutoSheetStyleRequests(sheetId, sheet, existingMerges = [])
       && merge.startColumnIndex === 2 && merge.endColumnIndex === 8)) {
       requests.push({ mergeCells: { range: range(sheetId, titleRow, titleRow + 1, 2, 8), mergeType: 'MERGE_ALL' } });
     }
-    paint(requests, range(sheetId, titleRow, titleRow + 1, 0, width), { backgroundColorStyle: color('#29323a'), textFormat: text('#ffffff', true, 11), verticalAlignment: 'MIDDLE' });
-    paint(requests, range(sheetId, titleRow, titleRow + 1, 2, 8), { backgroundColorStyle: color('#29323a'), textFormat: text('#d8dde1', false, 9), horizontalAlignment: 'RIGHT', verticalAlignment: 'MIDDLE' });
-    paint(requests, range(sheetId, headerRow, headerRow + 1, 0, width), { backgroundColorStyle: color('#424d57'), textFormat: text('#ffffff', true), horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE' });
+    paint(requests, range(sheetId, titleRow, titleRow + 1, 0, width), { backgroundColorStyle: color(palette.title), textFormat: text(palette.titleText, true, 11), verticalAlignment: 'MIDDLE' });
+    paint(requests, range(sheetId, titleRow, titleRow + 1, 2, 8), { backgroundColorStyle: color(palette.title), textFormat: text(palette.legend, false, 9), horizontalAlignment: 'RIGHT', verticalAlignment: 'MIDDLE' });
+    paint(requests, range(sheetId, headerRow, headerRow + 1, 0, width), { backgroundColorStyle: color(palette.header), textFormat: text(palette.headerText, true), horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE' });
     if (notesRow > headerRow + 1) {
-      paint(requests, range(sheetId, headerRow + 1, notesRow, 0, 2), { backgroundColorStyle: color('#f6f7f8'), textFormat: text('#24312b'), verticalAlignment: 'MIDDLE' });
-      paint(requests, range(sheetId, headerRow + 1, notesRow, 2, width), { backgroundColorStyle: color('#ffffff'), textFormat: text('#24312b'), horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP' });
+      paint(requests, range(sheetId, headerRow + 1, notesRow, 0, 2), { backgroundColorStyle: color(palette.label), textFormat: text(palette.ink), verticalAlignment: 'MIDDLE' });
+      paint(requests, range(sheetId, headerRow + 1, notesRow, 2, width), { backgroundColorStyle: color(palette.canvas), textFormat: text(palette.ink), horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP' });
     }
     // A note wraps inside its own week column, centred, instead of spilling
     // over the next weeks; the row grows to fit the longest one.
-    const notes = { backgroundColorStyle: color('#fff4d6'), textFormat: text('#5f5130', false, 9), verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP' };
+    const notes = { backgroundColorStyle: color(palette.note), textFormat: text(palette.noteText, false, 9), verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP' };
     paint(requests, range(sheetId, notesRow, notesRow + 1, 0, 2), { ...notes, horizontalAlignment: 'LEFT' });
     paint(requests, range(sheetId, notesRow, notesRow + 1, 2, width), { ...notes, horizontalAlignment: 'CENTER' });
     size(requests, sheetId, 'ROWS', titleRow, titleRow + 1, 34);
@@ -54,21 +52,18 @@ export function buildAutoSheetStyleRequests(sheetId, sheet, existingMerges = [])
     }
     size(requests, sheetId, 'ROWS', notesRow, notesRow + 1, noteRowHeight(sheet.rows[notesRow]));
     if (notesRow + 2 <= sheet.rows.length) size(requests, sheetId, 'ROWS', notesRow + 1, Math.min(notesRow + 3, sheet.rows.length), 10);
+    // Each cell carries the status History shows for it (blue reference,
+    // green/grey/red against the nearest earlier record); holidays and empty
+    // cells keep the plain canvas.
     for (let row = headerRow + 1; row < notesRow; row++) {
-      const values = sheet.rows[row];
-      if (String(values[2] ?? '').trim()) {
-        paint(requests, range(sheetId, row, row + 1, 2, 3), { backgroundColorStyle: color('#cfe2f3'), textFormat: text('#24312b'), horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP' });
-      }
-      for (let col = 3; col < values.length; col++) {
-        const previous = score(values[col - 1]);
-        const current = score(values[col]);
-        if (!previous || !current) continue;
-        const comparison = current[0] === previous[0] ? current[1] - previous[1] : current[0] - previous[0];
-        const shade = comparison > 0 ? '#dcebd7' : comparison < 0 ? '#f6d3d4' : '#e8edf0';
-        paint(requests, range(sheetId, row, row + 1, col, col + 1), { backgroundColorStyle: color(shade), textFormat: text('#24312b'), horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP' });
+      const statuses = sheet.statuses?.[row] ?? [];
+      for (let col = 2; col < statuses.length; col++) {
+        const fill = statusFill(palette, statuses[col]);
+        if (fill === palette.canvas) continue;
+        paint(requests, range(sheetId, row, row + 1, col, col + 1), { backgroundColorStyle: color(fill), textFormat: text(palette.ink), horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP' });
       }
     }
-    requests.push({ updateBorders: { range: range(sheetId, headerRow + 1, notesRow + 1, 0, width), innerHorizontal: { style: 'SOLID', colorStyle: color('#e1e4e8') } } });
+    requests.push({ updateBorders: { range: range(sheetId, headerRow + 1, notesRow + 1, 0, width), innerHorizontal: { style: 'SOLID', colorStyle: color(palette.rule) } } });
   }
   return requests;
 }

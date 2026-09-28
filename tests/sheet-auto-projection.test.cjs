@@ -149,3 +149,29 @@ test('automatic selection limits phase, workout and week while retaining the vis
   assert.deepEqual([baseRgb.red, baseRgb.green, baseRgb.blue].map(value => Math.round(value * 255)), [207, 226, 243]);
   assert.match(one.rows[0][2], /Mavi: referans/);
 });
+
+test('automatic tabs colour each cell with the app comparison, not the first set alone', async () => {
+  const { projectSheets } = await import('../supabase/functions/_shared/sheetProjection.mjs');
+  const { buildAutoSheetStyleRequests } = await import('../supabase/functions/_shared/sheetStyle.mjs');
+  const set = (weight, reps) => ({ weight, reps, intensity: 'failure' });
+  const state = { currentWeek: 2, phases: [{ id: 'p', name: 'Faz 1', startWeek: 0, endWeek: null }],
+    programVersions: [{ phaseId: 'p', fromWeek: 0, programs: [{ id: 'upper', name: 'Upper', order: 0,
+      exercises: [{ id: 'fly', name: 'Pec Fly', isActive: true, defaultSets: 2 }, { id: 'curl', name: 'Curl', isActive: true, defaultSets: 1 }] }] }],
+    weekLogs: [
+      { programId: 'upper', weekNumber: 0, exercises: [{ exerciseId: 'fly', sets: [set(81, 8), set(81, 8)] }] },
+      { programId: 'upper', weekNumber: 1, exercises: [{ exerciseId: 'fly', sets: [set(81, 8), set(81, 11)] }, { exerciseId: 'curl', sets: [set(15, 10)] }] },
+    ] };
+  const [sheet] = projectSheets(state);
+  const fill = (row, col) => {
+    const request = buildAutoSheetStyleRequests(1, sheet).find(item => item.repeatCell?.range.startRowIndex === row
+      && item.repeatCell.range.startColumnIndex === col && item.repeatCell.range.endColumnIndex === col + 1);
+    const rgb = request?.repeatCell.cell.userEnteredFormat.backgroundColorStyle.rgbColor;
+    return rgb && [rgb.red, rgb.green, rgb.blue].map(value => Math.round(value * 255));
+  };
+  // Same first set, better second set: progress (the old rule painted it grey).
+  assert.deepEqual(fill(2, 3), [220, 235, 215]);
+  // Curl's first record comes at H1: it is the reference there.
+  assert.deepEqual(fill(3, 3), [207, 226, 243]);
+  // Nothing recorded: no fill.
+  assert.equal(fill(3, 2), undefined);
+});
