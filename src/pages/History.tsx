@@ -226,7 +226,9 @@ export function History() {
       {!program ? (
         <p className="text-(--color-text-secondary)">Henüz program yok.</p>
       ) : (
-        <div className="rounded-lg overflow-hidden" style={{ border: rule, background: palette.canvas, color: palette.ink, fontFamily: SHEET_FONT }}>
+        // The frame hugs the table: the columns keep the Sheet's fixed widths,
+        // so a young phase would otherwise leave an empty slab to the right.
+        <div className="w-fit max-w-full rounded-lg overflow-hidden" style={{ border: rule, background: palette.canvas, color: palette.ink, fontFamily: SHEET_FONT }}>
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-2" style={{ background: palette.title }}>
             <span className="text-[15px] font-bold" style={{ color: palette.titleText }}>{program.name}</span>
             <span className="text-xs" style={{ color: palette.legend }}>{GRID_LEGEND}</span>
