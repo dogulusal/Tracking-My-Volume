@@ -33,7 +33,7 @@ export function Export() {
   const spreadsheetId = connection?.spreadsheet_id || sheets.settings.spreadsheetId;
   const failure = queue?.last_error ?? connection?.last_error;
   const sheetStatus = !auto.ready ? 'Durum kontrol ediliyor…'
-    : !connection ? 'Sheet bağlı değil.'
+    : !connection ? 'Sheet bağlı değil. Bağlarsan her kayıttan sonra kendi Google Sheet dosyana aktarılır.'
     : connection.status === 'reauthorize' ? 'Google izni sona erdi. İzni yenileyene kadar Sheet güncellenmez.'
     : queue?.status === 'pending' || queue?.status === 'processing' ? 'Son kayıt aktarılıyor…'
     : failure ? `Son aktarım başarısız: ${failure} Kendiliğinden yeniden denenecek.`
@@ -73,6 +73,18 @@ export function Export() {
                   className="lb-press px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg">
                   Sheet’i aç ↗
                 </a>
+              )}
+              {auto.ready && !connection && (
+                <button disabled={auto.busy} onClick={() => auto.connect(true)}
+                  className="lb-press px-5 py-2.5 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg disabled:opacity-50">
+                  {auto.busy ? 'Bağlanıyor…' : 'Sheet oluştur'}
+                </button>
+              )}
+              {auto.ready && !connection && sheets.settings.spreadsheetId && (
+                <button disabled={auto.busy} onClick={() => auto.connect()}
+                  className="lb-press px-5 py-2.5 border lb-rule text-sm font-medium rounded-lg disabled:opacity-50">
+                  Mevcut Sheet dosyamı bağla
+                </button>
               )}
               {connection?.status === 'reauthorize' && (
                 <button disabled={auto.busy} onClick={() => auto.connect()}

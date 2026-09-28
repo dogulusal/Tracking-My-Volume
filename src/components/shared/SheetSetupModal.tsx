@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useAutoSheetSync } from '@/hooks/useAutoSheetSync';
 import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { useCloudSync } from '@/hooks/useCloudSync';
@@ -6,9 +6,20 @@ import { useCloudSync } from '@/hooks/useCloudSync';
 interface SheetRenewal { renew: () => void; busy: boolean; error: string | null }
 const SheetRenewalContext = createContext<SheetRenewal | null>(null);
 
+// Someone trying the app may not want a Sheet (or Google may not let them
+// connect yet). Skipping is remembered per account on this device; the
+// Export page can still connect one later.
+const skipKey = (userId: string) => `sheet-setup-skipped:${userId}`;
+function readSkipped(userId: string | null): boolean {
+  if (!userId) return false;
+  try { return localStorage.getItem(skipKey(userId)) === '1'; } catch { return false; }
+}
+
 /** One-time Google consent; subsequent writes are handled by the server queue. */
 export function SheetSetupModal({ children }: { children: ReactNode }) {
-  const { signOut, userEmail } = useCloudSync();
+  const { signOut, userEmail, userId } = useCloudSync();
+  const [skippedFor, setSkippedFor] = useState<string | null>(() => readSkipped(userId) ? userId : null);
+  const skipped = Boolean(userId) && (skippedFor === userId || readSkipped(userId));
   const sheets = useGoogleSheets();
   const auto = useAutoSheetSync(sheets.settings.clientId, sheets.settings.spreadsheetId,
     true, spreadsheetId => sheets.setSettings({ spreadsheetId }));
@@ -35,6 +46,8 @@ export function SheetSetupModal({ children }: { children: ReactNode }) {
     );
   }
 
+  if (skipped) return <>{children}</>;
+
   if (!auto.ready) return <div className="logbook flex min-h-screen items-center justify-center bg-(--color-bg-primary) text-sm text-(--color-text-primary)">
     Sheet bağlantısı kontrol ediliyor…
   </div>;
@@ -47,6 +60,7 @@ export function SheetSetupModal({ children }: { children: ReactNode }) {
         <h2 id="sheet-setup-title" className="mb-3 text-lg font-bold">Google Sheet dosyanı oluştur</h2>
         <p className="mb-5 text-sm text-(--color-text-secondary)">
           Antrenmanların kendi Google Sheet dosyana otomatik aktarılır. Google iznini bir kez verdiğinde dosyan oluşturulur ve sonraki kayıtlar kendiliğinden güncellenir.
+          İstersen Sheet’siz devam edip sonra Dışa Aktar sayfasından bağlayabilirsin.
         </p>
         {userEmail && <p className="mb-4 text-xs text-(--color-text-secondary)">
           Sheet, giriş yaptığın <strong className="text-(--color-text-primary)">{userEmail}</strong> hesabıyla bağlanacak.
@@ -67,6 +81,13 @@ export function SheetSetupModal({ children }: { children: ReactNode }) {
             </button>}
           </div>
         )}
+        <button onClick={() => {
+          if (!userId) return;
+          try { localStorage.setItem(skipKey(userId), '1'); } catch { /* still skip for this visit */ }
+          setSkippedFor(userId);
+        }} className="lb-press mt-2 w-full rounded-lg px-4 py-2 text-sm text-(--color-text-secondary) underline underline-offset-2">
+          Şimdilik Sheet’siz devam et
+        </button>
         {(auto.error || auto.statusError) &&
           <p role="alert" className="mt-3 text-sm text-amber-300">{auto.error ?? auto.statusError}</p>}
         <p className="mt-4 text-xs text-(--color-text-secondary)">
