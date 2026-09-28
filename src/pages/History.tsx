@@ -279,9 +279,10 @@ export function History() {
         ))}
       </div>
 
-      {/* Phase selector (if multiple phases exist) */}
+      {/* Phases on the left, week paging on the right: one row where it fits */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-4">
       {phases.length > 1 && (
-        <div className="flex items-center gap-1 mb-3">
+        <div className="flex flex-wrap items-center gap-1">
           {phases.map((phase, idx) => (
             <button
               key={idx}
@@ -304,17 +305,16 @@ export function History() {
           ))}
         </div>
       )}
-
-      {/* Week Range Navigation */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="flex items-center gap-2">
         <button
           onClick={() => setPageStart(s => Math.max(0, s - PAGE_SIZE))}
           disabled={pageStart === 0}
+          aria-label="Önceki haftalar"
           className="lb-press px-3 py-1.5 text-sm font-medium border lb-rule rounded-lg disabled:opacity-30"
         >
-          ← Önceki
+          ←
         </button>
-        <span className="lb-label">
+        <span className="lb-label lb-figure">
           {isMobile && visibleWeeks.length === 1
             ? `H${getDisplayWeek(visibleWeeks[0] ?? currentPhase.baseWeek)}`
             : `H${getDisplayWeek(visibleWeeks[0] ?? currentPhase.baseWeek)} — H${getDisplayWeek(visibleWeeks[visibleWeeks.length - 1] ?? currentPhase.baseWeek)}`
@@ -323,10 +323,12 @@ export function History() {
         <button
           onClick={() => setPageStart(s => s + PAGE_SIZE)}
           disabled={pageStart + PAGE_SIZE >= currentPhase.weeks.length}
+          aria-label="Sonraki haftalar"
           className="lb-press px-3 py-1.5 text-sm font-medium border lb-rule rounded-lg disabled:opacity-30"
         >
-          Sonraki →
+          →
         </button>
+      </div>
       </div>
 
       {/* Table / Accordion */}
@@ -402,16 +404,6 @@ export function History() {
                               </span>
                             ))}
                           </div>
-                          {/* Comparison with previous week */}
-                          {prevLog && (
-                            <div className="flex flex-wrap gap-1.5 mt-1.5 opacity-60">
-                              {prevLog.sets.map((s, si) => (
-                                <span key={si} className="lb-figure text-[10px] px-2 py-0.5 rounded-md text-(--color-text-secondary) border lb-rule">
-                                  {s.weight}×{s.reps} {formatIntensityLabel(String(s.intensity))}
-                                </span>
-                              ))}
-                            </div>
-                          )}
                         </button>
                       );
                     })}
