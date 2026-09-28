@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { projectSheets } from '../_shared/sheetProjection.mjs';
 import { buildAutoSheetStyleRequests } from '../_shared/sheetStyle.mjs';
 import { matchesVerifiedGoogleEmail, requiresAccountMatch } from '../_shared/googleAccount.mjs';
-import { dropStaleManagedTabs, followingSelection, followsCurrentPhase, resolveAutoSelection } from '../_shared/autoSelection.mjs';
+import { dropStaleManagedTabs, followingSelection, followsCurrentPhase, phaseSelections, resolveAutoSelection } from '../_shared/autoSelection.mjs';
 
 const url = Deno.env.get('SUPABASE_URL')!;
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -83,7 +83,7 @@ async function syncUser(userId: string) {
   if (connectionError || stateError || !connection || !stateRow) throw new Error('Bağlantı veya bulut verisi bulunamadı.');
   const token = await accessToken(connection.refresh_token_ciphertext);
   const spreadsheetId = connection.spreadsheet_id as string;
-  const metadata = await googleRequest(token, `${encodeURIComponent(spreadsheetId)}?fields=sheets(properties(sheetId,title,gridProperties),merges)`);
+  const metadata = await googleRequest(token, `${encodeURIComponent(spreadsheetId)}?fields=sheets(properties(sheetId,title,index,gridProperties),merges)`);
   const existing = metadata.sheets?.map((sheet: { properties: Record<string, unknown>; merges?: unknown[] }) =>
     ({ ...sheet.properties, merges: sheet.merges ?? [] })) ?? [];
   let managedTabs: Record<string, number> = { ...(connection.managed_tabs ?? {}) };
@@ -91,37 +91,40 @@ async function syncUser(userId: string) {
   const currentPhase = [...(state.phases ?? [])].reverse().find((phase: { startWeek: number; endWeek: number | null }) =>
     state.currentWeek >= phase.startWeek && (phase.endWeek == null || state.currentWeek <= phase.endWeek));
   if (!currentPhase) throw new Error('Etkin faz bulunamadı.');
-  const resolved = resolveAutoSelection(connection.selection, currentPhase, managedTabs);
-  const { selection, finished } = resolved;
-  managedTabs = resolved.managedTabs;
+  const selection = resolveAutoSelection(connection.selection, currentPhase);
   if (selection !== connection.selection) {
-    const { error } = await admin.from('sheet_auto_connections').update({ selection, managed_tabs: managedTabs }).eq('user_id', userId);
+    const { error } = await admin.from('sheet_auto_connections').update({ selection }).eq('user_id', userId);
     if (error) throw error;
   }
-  const current = projectSheets(state, selection);
-  // The finished phase's tab gets one last write, so a workout logged just
-  // before the new phase started is in it.
-  const targets = [
-    ...current.map((sheet: typeof current[number]) => ({ sheet, sheetId: undefined as number | undefined })),
-    ...(finished && existing.some((item: { sheetId: number }) => item.sheetId === finished.sheetId)
-      ? projectSheets(state, finished.selection).map((sheet: typeof current[number]) => ({ sheet, sheetId: finished.sheetId as number | undefined }))
-      : []),
-  ];
-  for (const target of targets) {
-    const { sheet } = target;
-    let sheetId = target.sheetId ?? managedTabs[sheet.phaseId];
+  // One tab per phase that has started. Finished phases are written too, so
+  // an edit to one of their weeks reaches the Sheet like any other.
+  const sheets = phaseSelections(state, selection)
+    .flatMap((item: { phaseId: string }) => projectSheets(state, item));
+  const phaseOrder = sheets.map((sheet: { phaseId: string }) => sheet.phaseId);
+  for (const sheet of sheets) {
+    let sheetId = managedTabs[sheet.phaseId];
     let tab = existing.find((item: { sheetId: number }) => item.sheetId === sheetId);
     if (!tab) {
       const titleExists = existing.some((item: { title: string }) => item.title === sheet.title);
       const title = titleExists ? `${sheet.title.slice(0, 92)} · yeni` : sheet.title;
+      // Keep the automatic tabs in phase order: a new tab for an earlier
+      // phase goes in front of the first tab of a later one.
+      const laterIndexes = phaseOrder.slice(phaseOrder.indexOf(sheet.phaseId) + 1)
+        .map((phaseId: string) => existing.find((item: { sheetId: number }) => item.sheetId === managedTabs[phaseId])?.index)
+        .filter((index: unknown): index is number => typeof index === 'number');
+      const index = laterIndexes.length ? Math.min(...laterIndexes) : undefined;
       const created = await googleRequest(token, `${encodeURIComponent(spreadsheetId)}:batchUpdate`, {
         method: 'POST', body: JSON.stringify({ requests: [{ addSheet: { properties: {
-          title, gridProperties: { rowCount: sheet.rowCount, columnCount: sheet.columnCount, frozenColumnCount: 2 },
+          title, ...(index === undefined ? {} : { index }),
+          gridProperties: { rowCount: sheet.rowCount, columnCount: sheet.columnCount, frozenColumnCount: 2 },
         } } }] }),
       });
       sheetId = created.replies[0].addSheet.properties.sheetId;
       managedTabs[sheet.phaseId] = sheetId;
-      tab = { sheetId, title, gridProperties: { rowCount: sheet.rowCount, columnCount: sheet.columnCount }, merges: [] };
+      if (index !== undefined) {
+        for (const item of existing) if (typeof item.index === 'number' && item.index >= index) item.index += 1;
+      }
+      tab = { sheetId, title, index: index ?? existing.length, gridProperties: { rowCount: sheet.rowCount, columnCount: sheet.columnCount }, merges: [] };
       existing.push(tab);
       // Persist ownership before writing, so a retry reuses the same tab.
       const { error } = await admin.from('sheet_auto_connections').update({ managed_tabs: managedTabs }).eq('user_id', userId);
@@ -154,7 +157,7 @@ async function syncUser(userId: string) {
       method: 'POST', body: JSON.stringify({ requests }),
     });
   }
-  const stale = dropStaleManagedTabs(managedTabs, new Set(current.map((sheet: { phaseId: string }) => sheet.phaseId)));
+  const stale = dropStaleManagedTabs(managedTabs, new Set(phaseOrder));
   for (const sheetId of stale.remove) {
     if (existing.some((item: { sheetId: number }) => item.sheetId === sheetId)) {
       await googleRequest(token, `${encodeURIComponent(spreadsheetId)}:batchUpdate`, {

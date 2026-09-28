@@ -62,8 +62,8 @@ export function Export() {
           <section className="py-5 border-b lb-rule">
             <h2 className="text-base font-semibold">Google Sheet</h2>
             <p className="mt-1 text-sm text-(--color-text-secondary)">
-              Her kayıttan sonra Sheet’in kendiliğinden güncellenir. Yeni faza geçince o fazın sekmesi açılır;
-              biten fazın sekmesi son haliyle kalır.
+              Her kayıttan sonra Sheet’in kendiliğinden güncellenir. Her fazın kendi sekmesi var; eski bir haftayı
+              düzeltirsen o fazın sekmesi de güncellenir.
             </p>
             <p role="status" className="mt-3 text-sm">{sheetStatus}</p>
             <div className="mt-3 flex flex-wrap gap-2">

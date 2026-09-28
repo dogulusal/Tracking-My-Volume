@@ -5,6 +5,10 @@ import { GRID_LEGEND, buildPhaseGrid } from './historyGrid.mjs';
 
 const cleanTitle = (name, startWeek) => `Oto · ${String(name || `Faz ${startWeek}`).replace(/[\[\]:*?/\\]/g, ' ').trim()} · ${startWeek}`.slice(0, 100);
 
+/**
+ * @param {any} state
+ * @param {{ phaseId: string, programId?: string | null, weekMode?: string, weekNumber?: number } | null} [selection]
+ */
 export function projectSheets(state, selection = null) {
   const phases = [...(state.phases ?? [])].sort((a, b) => a.startWeek - b.startWeek);
   return phases.filter(phase => !selection || phase.id === selection.phaseId).map(phase => {

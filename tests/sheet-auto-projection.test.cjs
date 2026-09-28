@@ -1,32 +1,42 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-test('starting a new phase keeps the finished phase tab in the file, also when the sync is retried', async () => {
-  const { resolveAutoSelection, dropStaleManagedTabs } = await import('../supabase/functions/_shared/autoSelection.mjs');
+test('starting a new phase keeps the finished phase tab managed and complete, also when the sync is retried', async () => {
+  const { resolveAutoSelection, phaseSelections, dropStaleManagedTabs } = await import('../supabase/functions/_shared/autoSelection.mjs');
   const following = { phaseId: 'faz3', programId: null, weekMode: 'latest', weekNumber: 36, followCurrentPhase: true };
-  const first = resolveAutoSelection(following, { id: 'faz4', startWeek: 50 }, { faz3: 11 });
+  const selection = resolveAutoSelection(following, { id: 'faz4', startWeek: 50 });
   // The new phase starts from its H0, not from whichever week the sync ran in.
-  assert.deepEqual(first.selection, { phaseId: 'faz4', programId: null, weekMode: 'all', weekNumber: 50, followCurrentPhase: true });
-  assert.deepEqual(first.finished, { selection: following, sheetId: 11 });
-  assert.deepEqual(first.managedTabs, {});
-  // The worker creates the Faz 4 tab (22), then fails. The retry starts from
-  // what was saved with the selection and must not delete tab 11.
-  const retry = resolveAutoSelection(first.selection, { id: 'faz4', startWeek: 50 }, { ...first.managedTabs, faz4: 22 });
-  assert.equal(retry.finished, null);
-  assert.deepEqual(dropStaleManagedTabs(retry.managedTabs, new Set(['faz4'])), { managedTabs: { faz4: 22 }, remove: [] });
+  assert.deepEqual(selection, { phaseId: 'faz4', programId: null, weekMode: 'all', weekNumber: 50, followCurrentPhase: true });
+  const state = { currentWeek: 50, phases: [{ id: 'faz3', startWeek: 36, endWeek: 49 }, { id: 'faz4', startWeek: 50, endWeek: null }] };
+  const targets = phaseSelections(state, selection);
+  // The finished phase is still written, now as the whole phase.
+  assert.deepEqual(targets.map(target => [target.phaseId, target.weekMode]), [['faz3', 'all'], ['faz4', 'all']]);
+  // A retry starts from the saved selection; neither tab is dropped.
+  assert.equal(resolveAutoSelection(selection, { id: 'faz4', startWeek: 50 }), selection);
+  assert.deepEqual(dropStaleManagedTabs({ faz3: 11, faz4: 22 }, new Set(targets.map(target => target.phaseId))),
+    { managedTabs: { faz3: 11, faz4: 22 }, remove: [] });
 });
 
-test('a scope the user chose is kept, and changing it still replaces the old automatic tab', async () => {
-  const { resolveAutoSelection, dropStaleManagedTabs } = await import('../supabase/functions/_shared/autoSelection.mjs');
+test('every started phase gets a tab, a chosen scope keeps its phase, and removed phases lose theirs', async () => {
+  const { resolveAutoSelection, phaseSelections, dropStaleManagedTabs } = await import('../supabase/functions/_shared/autoSelection.mjs');
   const chosen = { phaseId: 'faz2', programId: 'upper', weekMode: 'all', weekNumber: 15, followCurrentPhase: false };
-  assert.deepEqual(resolveAutoSelection(chosen, { id: 'faz3', startWeek: 36 }, { faz2: 22 }), { selection: chosen, managedTabs: { faz2: 22 }, finished: null });
+  assert.equal(resolveAutoSelection(chosen, { id: 'faz3', startWeek: 36 }), chosen);
+  const state = { currentWeek: 36, phases: [
+    { id: 'faz3', startWeek: 36, endWeek: 59 }, { id: 'faz1', startWeek: 0, endWeek: 14 },
+    { id: 'faz2', startWeek: 15, endWeek: 35 }, { id: 'later', startWeek: 60, endWeek: null },
+  ] };
+  const targets = phaseSelections(state, chosen);
+  // Phase order, and a phase that has not reached its H0 has no tab yet.
+  assert.deepEqual(targets.map(target => target.phaseId), ['faz1', 'faz2', 'faz3']);
+  assert.equal(targets[1], chosen);
+  assert.deepEqual(targets[0], { phaseId: 'faz1', programId: null, weekMode: 'all', weekNumber: 0, followCurrentPhase: false });
   // A Sheet connected mid-phase still shows the phase from H0.
-  assert.deepEqual(resolveAutoSelection(null, { id: 'faz3', startWeek: 36 }, {}).selection,
+  assert.deepEqual(resolveAutoSelection(null, { id: 'faz3', startWeek: 36 }),
     { phaseId: 'faz3', programId: null, weekMode: 'all', weekNumber: 36, followCurrentPhase: true });
-  assert.deepEqual(dropStaleManagedTabs({ faz3: 11, faz2: 22 }, new Set(['faz2'])), { managedTabs: { faz2: 22 }, remove: [11] });
+  assert.deepEqual(dropStaleManagedTabs({ faz3: 11, gone: 22 }, new Set(['faz3'])), { managedTabs: { faz3: 11 }, remove: [22] });
 });
 
-test('"all weeks" of the current phase moves on to the next phase and leaves the old tab complete', async () => {
+test('"all weeks" of the current phase moves on to the next phase', async () => {
   const { followsCurrentPhase, resolveAutoSelection } = await import('../supabase/functions/_shared/autoSelection.mjs');
   assert.equal(followsCurrentPhase('faz3', 'faz3', 'all', null), true);
   assert.equal(followsCurrentPhase('faz3', 'faz3', 'latest', null), true);
@@ -34,9 +44,7 @@ test('"all weeks" of the current phase moves on to the next phase and leaves the
   assert.equal(followsCurrentPhase('faz3', 'faz3', 'all', 'upper1'), false);
   assert.equal(followsCurrentPhase('faz2', 'faz3', 'all', null), false);
   const whole = { phaseId: 'faz3', programId: null, weekMode: 'all', weekNumber: 36, followCurrentPhase: true };
-  const next = resolveAutoSelection(whole, { id: 'faz4', startWeek: 50 }, { faz3: 11 });
-  assert.equal(next.selection.phaseId, 'faz4');
-  assert.deepEqual(next.finished, { selection: whole, sheetId: 11 });
+  assert.equal(resolveAutoSelection(whole, { id: 'faz4', startWeek: 50 }).phaseId, 'faz4');
 });
 
 test('automatic tabs write every set on its own line and make the row tall enough for it', async () => {

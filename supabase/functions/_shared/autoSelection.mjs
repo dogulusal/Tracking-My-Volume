@@ -13,19 +13,27 @@ export function followingSelection(currentPhase) {
 }
 
 /**
- * The selection a sync writes. One that follows the current phase moves on
- * when a new phase starts. The finished phase's tab leaves `managedTabs` in the
- * same step, so it stays in the file as that phase's record even when this
- * sync fails and a retry no longer sees the phase change. `finished` carries
- * what is needed for one last write to it.
+ * The saved selection a sync uses. One that follows the current phase moves
+ * on when a new phase starts. The finished phase keeps its tab as one of the
+ * phase tabs (phaseSelections), so nothing leaves the managed tabs here and a
+ * retried sync cannot lose it.
  */
-export function resolveAutoSelection(previous, currentPhase, managedTabs) {
-  const following = followingSelection(currentPhase);
+export function resolveAutoSelection(previous, currentPhase) {
   const phaseChanged = previous?.followCurrentPhase && previous.phaseId !== currentPhase.id;
-  if (previous && !phaseChanged) return { selection: previous, managedTabs, finished: null };
-  if (!previous || !(previous.phaseId in managedTabs)) return { selection: following, managedTabs, finished: null };
-  const { [previous.phaseId]: sheetId, ...rest } = managedTabs;
-  return { selection: following, managedTabs: rest, finished: { selection: previous, sheetId } };
+  return previous && !phaseChanged ? previous : followingSelection(currentPhase);
+}
+
+/**
+ * The tabs a sync writes: one per phase that has reached its H0, each with
+ * the whole phase, so finished phases stay complete and take later edits to
+ * their weeks. The saved selection still decides the tab of the phase it names.
+ */
+export function phaseSelections(state, selection) {
+  return [...(state.phases ?? [])]
+    .filter(phase => phase.startWeek <= (state.currentWeek ?? 0))
+    .sort((a, b) => a.startWeek - b.startWeek)
+    .map(phase => phase.id === selection?.phaseId ? selection
+      : { phaseId: phase.id, programId: null, weekMode: 'all', weekNumber: phase.startWeek, followCurrentPhase: false });
 }
 
 /**
@@ -38,8 +46,8 @@ export function followsCurrentPhase(phaseId, currentPhaseId, weekMode, programId
 }
 
 /**
- * Managed tabs outside the current selection are deleted: the user changed
- * the scope and the Export screen says the new selection replaces them.
+ * Managed tabs of phases that are no longer written are deleted: the phase
+ * was removed or merged in the phase settings.
  */
 export function dropStaleManagedTabs(managedTabs, keptPhaseIds) {
   /** @type {Record<string, number>} */
