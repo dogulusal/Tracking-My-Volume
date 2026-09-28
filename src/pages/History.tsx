@@ -213,11 +213,6 @@ export function History() {
       return `${from}${to}: ${period.position}`;
     }).join(' → ');
   };
-  const orderChanges = [...new Set([
-    ...(selectedProgram?.exercises.map(exercise => exercise.id) ?? []),
-    ...programLogs.filter(log => currentPhase.weeks.includes(log.weekNumber)).flatMap(log => log.exercises.map(exercise => exercise.exerciseId)),
-  ])].map(id => ({ id, name: getExerciseName(id), history: orderHistoryForExercise(id) }))
-    .filter((change): change is { id: string; name: string; history: string } => change.history !== null);
 
   // A week's heading opens that week's fill/edit page.
   const openWeek = (week: number) => navigate(`/workout/${selectedProgramId}/week/${week}?from=history`);
@@ -335,14 +330,6 @@ export function History() {
       </div>
 
       {/* Table / Accordion */}
-      {orderChanges.length > 0 && (
-        <details className="mb-4 rounded-lg border lb-rule p-3 text-sm">
-          <summary className="cursor-pointer font-medium">Hareket sırası değişimleri ({orderChanges.length})</summary>
-          <ul className="mt-3 space-y-1 text-(--color-text-secondary)">
-            {orderChanges.map(change => <li key={change.id}>{change.name}: {change.history}</li>)}
-          </ul>
-        </details>
-      )}
       {programs.length === 0 ? (
         <p className="text-(--color-text-secondary)">Henüz program yok.</p>
       ) : isMobile ? (
@@ -548,6 +535,7 @@ export function History() {
         previousWeek={modalData?.previousWeek}
         weekNotes={modalData?.weekNotes}
         isEmpty={modalData?.isEmpty || false}
+        orderHistory={modalData ? orderHistoryForExercise(modalData.exerciseId) ?? undefined : undefined}
         onSaveSets={(sets) => {
           if (!modalData) return;
           const existingLog = weekLogs.find(
