@@ -40,8 +40,10 @@ test('the rule is read from the reps reached before each weight increase, day by
   // Day b's lighter weight never reads as an increase on day a.
   assert.deepEqual(rule, { repTop: 10, step: 1.25, source: 'log' });
   assert.deepEqual(progressionRule(movementSessions(weekLogs, 'pec fly'), { repTop: 12 }), { repTop: 12, step: 1.25, source: 'manual' });
-  // A single increase shows the step, not yet the top of the range.
-  assert.deepEqual(progressionRule(movementSessions(weekLogs.slice(0, 5), 'pec fly')), { repTop: 10, step: 1.25, source: 'default' });
+  // A single increase shows the step, not yet the top of the range, and the
+  // label says so instead of calling the whole rule a default.
+  assert.deepEqual(progressionRule(movementSessions(weekLogs.slice(0, 5), 'pec fly')), { repTop: 10, step: 1.25, source: 'step' });
+  assert.deepEqual(progressionRule(movementSessions(weekLogs.slice(0, 2), 'pec fly')), { repTop: 10, step: 2.5, source: 'default' });
 });
 
 test('the target is one more rep, or the next weight once the top of the range was reached', () => {

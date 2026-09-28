@@ -22,7 +22,9 @@ const round = (weight: number) => Math.round(weight * 100) / 100;
 
 // Where the rule came from: set by hand, read from the log, or the default
 // for a movement that never went up in weight.
-export type ProgressionRule = { repTop: number; step: number; source: 'manual' | 'log' | 'default' };
+// 'step': one increase so far, so the step is read from the log but the
+// rep top is still the default.
+export type ProgressionRule = { repTop: number; step: number; source: 'manual' | 'log' | 'step' | 'default' };
 
 /**
  * When and by how much weight goes up on this movement, read from the log:
@@ -50,7 +52,8 @@ export function progressionRule(sessions: MovementSession[], settings?: Exercise
   return {
     repTop: settings?.repTop ?? (learned ? lowerMedian(recent.map(jump => jump.reps)) : 10),
     step: settings?.step ?? (recent.length ? lowerMedian(recent.map(jump => jump.step)) : 2.5),
-    source: settings?.repTop !== undefined || settings?.step !== undefined ? 'manual' : learned ? 'log' : 'default',
+    source: settings?.repTop !== undefined || settings?.step !== undefined ? 'manual'
+      : learned ? 'log' : recent.length ? 'step' : 'default',
   };
 }
 

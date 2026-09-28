@@ -991,7 +991,7 @@ export function WorkoutEntry() {
                     // Links sit beside the text, not in it: on phones every
                     // button is 44px tall and would open up the line.
                     <div className="lb-label mt-1 flex items-center gap-2">
-                      <p>{rule.repTop} tekrarda +{rule.step} kg · {rule.source === 'manual' ? 'senin ayarın' : rule.source === 'log' ? 'geçmişinden' : 'varsayılan'}</p>
+                      <p>{rule.repTop} tekrarda +{rule.step} kg · {{ manual: 'senin ayarın', log: 'geçmişinden', step: 'tekrar varsayılan, artış geçmişinden', default: 'varsayılan' }[rule.source]}</p>
                       <button onClick={() => setRuleEdit({ key, repTop: String(rule.repTop), step: String(rule.step) })}
                         className="lb-press shrink-0 px-1 underline underline-offset-2 hover:text-(--color-text-primary)">değiştir</button>
                     </div>
