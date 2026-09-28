@@ -57,6 +57,9 @@ export interface ExerciseLog {
 export interface ExerciseSettings {
   // Shown every time the movement is trained, e.g. the seat position.
   note?: string;
+  // Hand-set progression rule; absent fields are learned from the log.
+  repTop?: number;
+  step?: number;
 }
 
 export interface WeekLog {

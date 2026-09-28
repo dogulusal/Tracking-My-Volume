@@ -10,7 +10,8 @@ import { formatSet } from '@/utils/formatters';
 import { moveItem } from '@/utils/reorder';
 import { syncExerciseLogs, syncProgramFromWorkout } from '@/utils/exerciseSync';
 import { exerciseKey } from '@/utils/muscleGroups';
-import { movementSessions, sessionsBefore } from '@/utils/movements';
+import { movementSessions, sessionsBefore, type MovementSession } from '@/utils/movements';
+import { STALL_WEEKS, nextTarget, previousRecord, progressionRule, stallOf, type ProgressionRule, type Stall, type Target } from '@/utils/progression';
 import { weekLabel } from '@/utils/phases';
 import type { SetLog, Intensity, ExerciseLog } from '@/types';
 
@@ -136,12 +137,42 @@ export function WorkoutEntry() {
   const previousNoteLog = useMemo(() => (allLogs ?? [])
     .filter(log => log.programId === programId && log.weekNumber < weekNumber && !log.isHoliday)
     .sort((a, b) => b.weekNumber - a.weekNumber)[0], [allLogs, programId, weekNumber]);
-  /** The movement's previous session, on any day, when it left a note. */
-  const lastNoteFor = useCallback((name: string) => {
-    const before = sessionsBefore(movementSessions(allLogs ?? [], exerciseKey(name)), { programId: programId ?? '', weekNumber, date });
-    const last = before[before.length - 1];
-    return last?.exercise.note?.trim() ? last : null;
-  }, [allLogs, programId, weekNumber, date]);
+  // Per exercise, from its sessions before this workout: the note the last
+  // one left, the progression rule, the next target and how long it has been
+  // stuck. Keyed on names only, so typing a set does not recompute it (the
+  // rest timer alone re-renders twice a second).
+  const exerciseNames = exerciseLogs.map(exercise => `${exercise.exerciseId}\u0000${exercise.exerciseName}`).join('\n');
+  const movementInfo = useMemo(() => {
+    const info = new Map<string, {
+      lastNote: MovementSession | null; rule: ProgressionRule; target: Target | null; stall: Stall | null;
+    }>();
+    for (const line of exerciseNames ? exerciseNames.split('\n') : []) {
+      const [exerciseId, name] = line.split('\u0000');
+      const key = exerciseKey(name);
+      const before = sessionsBefore(movementSessions(allLogs ?? [], key), { programId: programId ?? '', weekNumber, date });
+      const last = before[before.length - 1];
+      const rule = progressionRule(before, exerciseSettings?.[key]);
+      const previousSets = previousRecord(allLogs ?? [], programId ?? '', exerciseId, weekNumber);
+      info.set(exerciseId, {
+        lastNote: last?.exercise.note?.trim() ? last : null,
+        rule,
+        target: previousSets ? nextTarget(previousSets, rule) : null,
+        stall: stallOf(before),
+      });
+    }
+    return info;
+  }, [exerciseNames, allLogs, programId, weekNumber, date, exerciseSettings]);
+  const [ruleEdit, setRuleEdit] = useState<{ key: string; repTop: string; step: string } | null>(null);
+  const saveRule = (reset = false) => {
+    if (!ruleEdit) return;
+    const repTop = Number(ruleEdit.repTop.replace(',', '.'));
+    const step = Number(ruleEdit.step.replace(',', '.'));
+    ctx?.dispatch({ type: 'SET_EXERCISE_SETTINGS', payload: { key: ruleEdit.key, settings: reset ? { repTop: undefined, step: undefined } : {
+      repTop: Number.isInteger(repTop) && repTop > 0 ? repTop : undefined,
+      step: step > 0 && step <= 50 ? step : undefined,
+    } } });
+    setRuleEdit(null);
+  };
   const programName = (id: string) => ctx?.state.programs.find(item => item.id === id)?.name ?? '';
 
   const updateExerciseNote = (exerciseIdx: number, note: string) => {
@@ -860,7 +891,8 @@ export function WorkoutEntry() {
           {exerciseLogs.map((exercise, exIdx) => {
             const key = exerciseKey(exercise.exerciseName);
             const pinned = exerciseSettings?.[key]?.note;
-            const lastNote = lastNoteFor(exercise.exerciseName);
+            const { lastNote = null, rule, target = null, stall = null } = movementInfo.get(exercise.exerciseId) ?? {};
+            const editingRule = ruleEdit?.key === key;
             const editingPinned = pinnedEdit?.key === key;
             const noteOpen = noteOpenIds.has(exercise.exerciseId) || exercise.note !== undefined;
             return (
@@ -900,6 +932,47 @@ export function WorkoutEntry() {
               </div>
 
               <div id={`exercise-${exercise.exerciseId}`} hidden={!(showAllExercises || (expandedExercise === undefined ? exIdx === 0 : expandedExercise === exercise.exerciseId))}>
+              {/* The next step: beat the set this workout is compared with */}
+              {target && rule && (
+                <div className="mb-4">
+                  <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <span className="lb-label">Hedef</span>
+                    <span className="lb-figure text-base font-semibold">
+                      {target.reps !== null ? `${target.weight} × ${target.reps}` : `${target.weight} kg`}
+                    </span>
+                    <span className="lb-label">
+                      {target.reps !== null ? `geçen ${formatSet(target.from)}` : `${target.from.reps} tekrara ulaştın, kiloyu artır`}
+                    </span>
+                  </p>
+                  {editingRule ? (
+                    <div className="mt-2 flex flex-wrap items-end gap-2">
+                      <label className="lb-label">Kilo artışı kaç tekrarda
+                        <input inputMode="numeric" value={ruleEdit.repTop} onChange={e => setRuleEdit({ ...ruleEdit, repTop: e.target.value })}
+                          className="lb-figure block mt-1 w-20 px-2 py-1.5 bg-(--color-bg-input) border lb-rule rounded-lg text-sm text-(--color-text-primary) focus:outline-none focus:border-(--color-text-primary)" />
+                      </label>
+                      <label className="lb-label">Kaç kg
+                        <input inputMode="decimal" value={ruleEdit.step} onChange={e => setRuleEdit({ ...ruleEdit, step: e.target.value })}
+                          className="lb-figure block mt-1 w-20 px-2 py-1.5 bg-(--color-bg-input) border lb-rule rounded-lg text-sm text-(--color-text-primary) focus:outline-none focus:border-(--color-text-primary)" />
+                      </label>
+                      <button onClick={() => saveRule()} className="lb-press px-3 py-2 text-xs font-semibold rounded-lg bg-(--color-text-primary) text-(--color-bg-primary)">Kaydet</button>
+                      {rule.source === 'manual' && <button onClick={() => saveRule(true)} className="lb-press px-2 py-2 text-xs text-(--color-text-secondary)">Geçmişten öğren</button>}
+                      <button onClick={() => setRuleEdit(null)} className="lb-press px-2 py-2 text-xs text-(--color-text-secondary)">Vazgeç</button>
+                    </div>
+                  ) : (
+                    <p className="lb-label mt-1">
+                      {rule.repTop} tekrarda +{rule.step} kg · {rule.source === 'manual' ? 'senin ayarın' : rule.source === 'log' ? 'geçmişinden' : 'varsayılan'}
+                      <button onClick={() => setRuleEdit({ key, repTop: String(rule.repTop), step: String(rule.step) })}
+                        className="lb-press ml-2 underline underline-offset-2 hover:text-(--color-text-primary)">değiştir</button>
+                    </p>
+                  )}
+                  {stall && stall.weeks >= STALL_WEEKS && (
+                    <p className="text-xs mt-1">
+                      {stall.weeks} haftadır yerinde <span className="text-(--color-text-secondary)">· en iyi {formatSet(stall.best)}, {weekLabel(allPhases, stall.since)}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* What earlier sessions left for this one */}
               {(pinned || lastNote || editingPinned) && (
                 <div className="mb-4 border-l-2 lb-rule-strong pl-3 space-y-2 text-sm">

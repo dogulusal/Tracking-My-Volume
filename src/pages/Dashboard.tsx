@@ -8,12 +8,17 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { Modal } from '@/components/shared/Modal';
 import { calculateWeeklyVolume } from '@/utils/volumeCalculator';
 import { samplePrograms } from '@/data/sampleProgram';
+import { formatSet } from '@/utils/formatters';
+import { exerciseKey } from '@/utils/muscleGroups';
+import { movementSessions } from '@/utils/movements';
+import { STALL_WEEKS, stallOf } from '@/utils/progression';
 
 const nf = new Intl.NumberFormat('tr-TR');
 
 export function Dashboard() {
   const [showWorkoutPicker, setShowWorkoutPicker] = useState(false);
   const [confirmNewWeek, setConfirmNewWeek] = useState(false);
+  const [showAllStalled, setShowAllStalled] = useState(false);
   const { activePlan, activePlanPrograms } = usePlans();
   const { weekLogs, currentWeek, incrementWeek } = useWeekLogs();
   const ctx = useContext(AppContext);
@@ -79,6 +84,24 @@ export function Dashboard() {
       return { program, status, hasDraft, volume: log ? calculateWeeklyVolume(log) : 0 };
     });
   }, [activePlanPrograms, weekLogs, currentWeek]);
+
+  // Movements of the plan whose best set has not been beaten for a while,
+  // counted across every day that trains them and across phases: the
+  // week-to-week colours cannot show this, each compares one week only.
+  const stalled = useMemo(() => {
+    const seen = new Set<string>();
+    const items: { key: string; name: string; stall: NonNullable<ReturnType<typeof stallOf>> }[] = [];
+    for (const program of activePlanPrograms) {
+      for (const exercise of program.exercises) {
+        const key = exerciseKey(exercise.name);
+        if (!exercise.isActive || seen.has(key)) continue;
+        seen.add(key);
+        const stall = stallOf(movementSessions(weekLogs, key));
+        if (stall && stall.weeks >= STALL_WEEKS) items.push({ key, name: exercise.name, stall });
+      }
+    }
+    return items.sort((a, b) => b.stall.weeks - a.stall.weeks);
+  }, [activePlanPrograms, weekLogs]);
 
   if (programs.length === 0) {
     return (
@@ -228,6 +251,29 @@ export function Dashboard() {
             </li>
           ))}
         </ul>
+        {stalled.length > 0 && (
+          <section className="pt-8">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 pb-2 border-b lb-rule">
+              <h2 className="text-sm font-semibold">Yerinde sayanlar</h2>
+              <span className="lb-label">en iyi set {STALL_WEEKS}+ haftadır aşılmadı</span>
+            </div>
+            <ul>
+              {(showAllStalled ? stalled : stalled.slice(0, 5)).map(({ key, name, stall }) => (
+                <li key={key} className="flex items-baseline gap-3 py-3 border-b lb-rule">
+                  <span className="flex-1 min-w-0 text-sm font-medium truncate">{name}</span>
+                  <span className="lb-figure text-xs text-(--color-text-secondary) whitespace-nowrap">{formatSet(stall.best)}</span>
+                  <span className="lb-figure text-sm w-14 text-right whitespace-nowrap">{stall.weeks} hf</span>
+                </li>
+              ))}
+            </ul>
+            {stalled.length > 5 && (
+              <button onClick={() => setShowAllStalled(value => !value)}
+                className="lb-press mt-3 text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)">
+                {showAllStalled ? 'Daha az göster' : `Tümünü göster (${stalled.length})`}
+              </button>
+            )}
+          </section>
+        )}
         <p className="mt-8 text-xs text-(--color-text-secondary)">
           <a href={`${import.meta.env.BASE_URL}privacy.html`} className="underline hover:text-(--color-text-primary)">
             Gizlilik Politikası
