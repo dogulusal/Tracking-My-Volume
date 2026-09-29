@@ -35,7 +35,6 @@ export interface AppContextValue {
     syncStatus: CloudSyncStatus;
     lastSyncedAt: string | null;
     authError: string | null;
-    signInWithGithub: () => Promise<{ ok: boolean; message: string }>;
     signInWithGoogle: () => Promise<{ ok: boolean; message: string }>;
     signOut: () => Promise<void>;
     refreshFromCloud: () => Promise<{ ok: boolean; message: string }>;
@@ -405,28 +404,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(timer);
   }, [authLoading, user, runSync]);
 
-  const signInWithGithub = async (): Promise<{ ok: boolean; message: string }> => {
-    const client = supabase;
-    if (!isSupabaseConfigured || !client) {
-      return { ok: false, message: 'Supabase baglantisi henuz ayarlanmadi.' };
-    }
-
-    const { error } = await client.auth.signInWithOAuth({
-      provider: 'github',
-      options: {
-        redirectTo: authRedirectUrl(window.location.origin, import.meta.env.BASE_URL),
-      },
-    });
-
-    if (error) {
-      setAuthError(error.message);
-      return { ok: false, message: `GitHub girisi baslatilamadi: ${error.message}` };
-    }
-
-    setAuthError(null);
-    return { ok: true, message: 'GitHub girisi icin yonlendiriliyorsun.' };
-  };
-
   const signInWithGoogle = async (): Promise<{ ok: boolean; message: string }> => {
     const client = supabase;
     if (!isSupabaseConfigured || !client) return { ok: false, message: 'Supabase bağlantısı ayarlı değil.' };
@@ -479,7 +456,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           syncStatus,
           lastSyncedAt,
           authError,
-          signInWithGithub,
           signInWithGoogle,
           signOut,
           refreshFromCloud: runSync,

@@ -7,16 +7,15 @@ interface CloudSyncModalProps {
 }
 
 export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
-  const { configured, userId, userEmail, syncStatus, lastSyncedAt, authError, signInWithGithub, signInWithGoogle, signOut, refreshFromCloud } = useCloudSync();
+  const { configured, userId, userEmail, syncStatus, lastSyncedAt, authError, signInWithGoogle, signOut, refreshFromCloud } = useCloudSync();
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [isGithubLoading, setIsGithubLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const statusLabel = useMemo(() => {
     if (!configured) return 'Supabase ayarlanmadi';
     if (syncStatus === 'auth_loading') return 'Oturum kontrol ediliyor...';
-    if (syncStatus === 'signed_out') return 'Google veya GitHub ile giriş yap';
+    if (syncStatus === 'signed_out') return 'Google ile giriş yap';
     if (syncStatus === 'syncing') return 'Senkronize ediliyor...';
     if (syncStatus === 'synced') return 'Senkron aktif';
     if (syncStatus === 'error') return 'Senkron hatasi';
@@ -24,16 +23,6 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
   }, [configured, syncStatus]);
 
   if (!isOpen) return null;
-
-  const handleGithubSignIn = async () => {
-    setFeedback(null);
-    setIsGithubLoading(true);
-    const result = await signInWithGithub();
-    setFeedback(result.message);
-    if (!result.ok) {
-      setIsGithubLoading(false);
-    }
-  };
 
   const handleGoogleSignIn = async () => {
     setFeedback(null);
@@ -68,18 +57,10 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
 
         {configured && !userId && (
           <div className="space-y-3 mb-4">
-            <button onClick={handleGoogleSignIn} disabled={isGoogleLoading || isGithubLoading}
+            <button onClick={handleGoogleSignIn} disabled={isGoogleLoading}
               className="lb-press w-full px-4 py-2 rounded-md bg-(--color-text-primary) text-(--color-bg-primary) disabled:opacity-50 text-sm font-semibold">
               {isGoogleLoading ? 'Yönlendiriliyor...' : 'Google ile giriş yap'}
             </button>
-            <button
-              onClick={handleGithubSignIn}
-              disabled={isGithubLoading || isGoogleLoading}
-              className="lb-press w-full px-4 py-2 rounded-md border lb-rule disabled:opacity-50 text-sm font-semibold"
-            >
-              {isGithubLoading ? 'Yonlendiriliyor...' : 'GitHub ile giris yap'}
-            </button>
-            <p className="text-xs text-(--color-text-secondary) text-center">Mevcut verilerin için GitHub hesabınla giriş yapmaya devam et.</p>
           </div>
         )}
 

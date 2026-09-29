@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useCloudSync } from '@/hooks/useCloudSync';
 
 export function LoginPromptModal() {
-  const { signInWithGithub, signInWithGoogle, authError } = useCloudSync();
+  const { signInWithGoogle, authError } = useCloudSync();
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSignIn = async (provider: 'github' | 'google') => {
+  const handleSignIn = async () => {
     setIsLoading(true);
-    await (provider === 'google' ? signInWithGoogle() : signInWithGithub());
+    await signInWithGoogle();
     setIsLoading(false);
   };
 
@@ -23,15 +23,11 @@ export function LoginPromptModal() {
         </p>
         <div className="flex flex-col gap-2">
           <button
-            onClick={() => void handleSignIn('google')}
+            onClick={() => void handleSignIn()}
             disabled={isLoading}
             className="lb-press w-full px-4 py-3 rounded-lg bg-(--color-text-primary) text-(--color-bg-primary) disabled:opacity-50 text-sm font-semibold"
           >
             {isLoading ? 'Yönlendiriliyor...' : 'Google ile Giriş Yap'}
-          </button>
-          <button onClick={() => void handleSignIn('github')} disabled={isLoading}
-            className="lb-press w-full px-4 py-3 rounded-lg border lb-rule disabled:opacity-50 text-sm font-semibold">
-            GitHub ile Giriş Yap
           </button>
         </div>
         {authError && <p role="alert" className="mt-3 text-sm text-amber-300">{authError}</p>}
