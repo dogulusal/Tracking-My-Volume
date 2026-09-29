@@ -2,6 +2,7 @@ const paths = {
   home: 'M3 10 12 3l9 7v11h-6v-7H9v7H3Z',
   programs: 'M8 5H5v16h14V5h-3M8 3h8v4H8ZM8 12h8M8 16h5',
   history: 'M3 12a9 9 0 1 0 3-6M3 3v5h5M12 7v5l3 2',
+  sheet: 'M4 4h16v16H4ZM4 10h16M4 15h16M10 4v16',
   chart: 'M4 3v17h17M8 15l4-5 4 2 5-7',
   settings: 'M4 7h16M4 17h16M8 4v6M16 14v6',
   palette: 'M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1-4 2 2 0 0 1 1-4h3a3 3 0 0 0 3-3c0-4-4-7-9-7ZM7 9h.01M10 6h.01M15 6h.01M18 9h.01',

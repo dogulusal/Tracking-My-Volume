@@ -5,6 +5,7 @@ import { useCloudSync } from '@/hooks/useCloudSync';
 import { CloudSyncModal } from '@/components/shared/CloudSyncModal';
 import { ColorThemePicker } from '@/components/shared/ColorThemePicker';
 import { Icon } from '@/components/shared/Icon';
+import { SheetLink } from '@/components/shared/SheetLink';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 
 export function Header() {
@@ -73,6 +74,9 @@ export function Header() {
                 </Link>
               );
             })}
+            <SheetLink className="lb-press px-3 py-2 rounded-md text-sm border-b-2 border-transparent font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)">
+              Sheet ↗
+            </SheetLink>
           </nav>
 
           <div className="min-w-0 flex items-center gap-2">

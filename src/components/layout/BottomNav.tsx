@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { Icon } from '@/components/shared/Icon';
+import { SheetLink } from '@/components/shared/SheetLink';
 
 const tabs = [
   { to: '/', icon: 'home', label: 'Ana Sayfa' },
@@ -17,6 +18,7 @@ export function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-(--color-bg-card) border-t lb-rule z-50 pb-[env(safe-area-inset-bottom)]">
+      {/* Five tabs on a 360px phone: tighter padding, and labels that never wrap. */}
       <div className="flex justify-around items-center h-16">
         {tabs.map(tab => {
           const isActive = location.pathname === tab.to ||
@@ -26,7 +28,7 @@ export function BottomNav() {
               key={tab.to}
               to={tab.to}
               aria-current={isActive ? 'page' : undefined}
-              className={`lb-press flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg ${
+              className={`lb-press flex flex-col items-center justify-center gap-0.5 px-1.5 py-1 rounded-lg whitespace-nowrap ${
                 isActive ? 'text-(--color-text-primary)' : 'text-(--color-text-secondary)'
               }`}
             >
@@ -42,6 +44,12 @@ export function BottomNav() {
             </Link>
           );
         })}
+        {/* Leaves the app, so it never shows as the current tab. */}
+        <SheetLink className="lb-press flex flex-col items-center justify-center gap-0.5 px-1.5 py-1 rounded-lg whitespace-nowrap text-(--color-text-secondary)">
+          <Icon name="sheet" />
+          <span className="text-xs font-medium">Sheet</span>
+          <span aria-hidden="true" className="h-0.5 w-4 mt-0.5" />
+        </SheetLink>
       </div>
     </nav>
   );
