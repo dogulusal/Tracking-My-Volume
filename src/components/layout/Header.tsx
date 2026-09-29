@@ -6,6 +6,7 @@ import { CloudSyncModal } from '@/components/shared/CloudSyncModal';
 import { ColorThemePicker } from '@/components/shared/ColorThemePicker';
 import { Icon } from '@/components/shared/Icon';
 import { SheetLink } from '@/components/shared/SheetLink';
+import { InstallAppButton } from '@/components/shared/InstallAppButton';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 
 export function Header() {
@@ -110,6 +111,7 @@ export function Header() {
               <Icon name={dark ? 'sun' : 'moon'} /> Tema değiştir
             </button>
             <Link to="/export" onClick={() => setSettingsOpen(false)} className="lb-press p-3 rounded-md text-sm">Dışa Aktar →</Link>
+            <InstallAppButton className="lb-press p-3 rounded-md text-sm text-left" />
             </div></>}
             </div>
           </div>

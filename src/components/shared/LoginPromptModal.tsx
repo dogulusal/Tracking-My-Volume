@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCloudSync } from '@/hooks/useCloudSync';
+import { InstallAppButton } from '@/components/shared/InstallAppButton';
 
 export function LoginPromptModal() {
   const { signInWithGoogle, authError } = useCloudSync();
@@ -29,6 +30,7 @@ export function LoginPromptModal() {
           >
             {isLoading ? 'Yönlendiriliyor...' : 'Google ile Giriş Yap'}
           </button>
+          <InstallAppButton className="lb-press w-full px-4 py-3 rounded-lg border lb-rule text-sm font-semibold" />
         </div>
         {authError && <p role="alert" className="mt-3 text-sm text-amber-300">{authError}</p>}
         <p className="mt-4 text-center text-xs text-(--color-text-secondary)">
