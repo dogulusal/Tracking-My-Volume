@@ -191,33 +191,16 @@ export function setStoredColorTheme(theme: ThemeColor): void {
   localStorage.setItem(COLOR_THEME_KEY, theme);
 }
 
-export function applyColorTheme(theme: ThemeColor): void {
-  const palette = COLOR_PALETTES[theme];
+// The design's surfaces live in index.css alone. The accent palettes only
+// ever tinted the wordmark, so a stored palette must not paint over them.
+const INLINE_TOKENS = [
+  '--color-accent', '--color-accent-hover', '--color-accent-glow', '--color-text-muted',
+  '--color-bg-primary', '--color-bg-card', '--color-bg-input', '--color-border', '--color-btn-bg', '--color-btn-hover',
+];
+
+export function applyColorTheme(_theme: ThemeColor): void {
   const root = document.documentElement;
-  const isDark = root.classList.contains('dark');
-
-  root.style.setProperty('--color-accent', palette.accent);
-  root.style.setProperty('--color-accent-hover', palette.accentHover);
-  root.style.setProperty('--color-accent-glow', palette.accentGlow);
-
-  if (isDark) {
-    root.style.setProperty('--color-text-muted', palette.textMuted);
-    root.style.setProperty('--color-bg-primary', palette.bgPrimary);
-    root.style.setProperty('--color-bg-card', palette.bgCard);
-    root.style.setProperty('--color-bg-input', palette.bgInput);
-    root.style.setProperty('--color-border', palette.border);
-    root.style.setProperty('--color-btn-bg', palette.btnBg);
-    root.style.setProperty('--color-btn-hover', palette.btnHover);
-  } else {
-    root.style.setProperty('--color-text-muted', palette.light.textMuted);
-    root.style.setProperty('--color-bg-primary', palette.light.bgPrimary);
-    root.style.setProperty('--color-bg-card', palette.light.bgCard);
-    root.style.setProperty('--color-bg-input', palette.light.bgInput);
-    root.style.setProperty('--color-border', palette.light.border);
-    root.style.setProperty('--color-btn-bg', palette.light.btnBg);
-    root.style.setProperty('--color-btn-hover', palette.light.btnHover);
-    root.style.setProperty('--color-accent-glow', palette.light.accentGlow);
-  }
+  for (const token of INLINE_TOKENS) root.style.removeProperty(token);
 }
 
 export function initColorTheme(): void {

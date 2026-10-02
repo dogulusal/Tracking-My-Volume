@@ -1,14 +1,14 @@
 {
-  "name": "Tracking My Volume",
-  "short_name": "Volume",
+  "name": "Volume A (önizleme)",
+  "short_name": "Volume A",
   "description": "Antrenman hacmi ve haftalık ilerleme takibi.",
   "lang": "tr",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0b0d0f",
-  "theme_color": "#0b0d0f",
+  "background_color": "#0b0b0c",
+  "theme_color": "#0b0b0c",
   "icons": [
     { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

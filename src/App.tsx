@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AppProvider } from '@/context/AppContext';
 import { Header } from '@/components/layout/Header';
 import { BottomNav } from '@/components/layout/BottomNav';
@@ -19,6 +19,8 @@ import { PreviewBar } from '@/preview/PreviewBar';
 function AppContent() {
   const isMobileDevice = useIsMobileDevice();
   const { configured, syncStatus, userId, hydrated, authError, refreshFromCloud, signOut } = useCloudSync();
+  // The workout page is full screen: its own bar, no tabs.
+  const inWorkout = useLocation().pathname.startsWith('/workout/');
 
   if (configured && !userId) {
     return syncStatus === 'auth_loading'
@@ -45,7 +47,7 @@ function AppContent() {
         isMobileDevice ? 'mobile-device-ui' : ''
       }`}
     >
-      <Header />
+      {!inWorkout && <Header />}
       <PreviewBar />
       <main>
         {configured && <SheetRenewalNotice />}
@@ -60,7 +62,7 @@ function AppContent() {
           <Route path="/export" element={<Export />} />
         </Routes>
       </main>
-      <BottomNav />
+      {!inWorkout && <BottomNav />}
     </div>
   );
   return configured ? <SheetSetupModal>{app}</SheetSetupModal> : app;

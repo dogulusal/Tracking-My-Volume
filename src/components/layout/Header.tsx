@@ -1,26 +1,24 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { toggleTheme, isDarkMode } from '@/utils/theme';
 import { useCloudSync } from '@/hooks/useCloudSync';
 import { CloudSyncModal } from '@/components/shared/CloudSyncModal';
-import { ColorThemePicker } from '@/components/shared/ColorThemePicker';
 import { Icon } from '@/components/shared/Icon';
 import { SheetLink } from '@/components/shared/SheetLink';
 import { InstallAppButton } from '@/components/shared/InstallAppButton';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 
+/**
+ * Out of the way: on the phone only the account and settings button, each
+ * page leads with its own big title. The desktop keeps its links.
+ */
 export function Header() {
   const isMobile = useIsMobileDevice();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const location = useLocation();
   const [dark, setDark] = useState(isDarkMode());
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
-  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
-  const { configured, userId, userEmail, githubLogin, syncStatus, authError } = useCloudSync();
-
-  useEffect(() => {
-    setDark(isDarkMode());
-  }, []);
+  const { configured, userEmail, syncStatus } = useCloudSync();
 
   const handleToggle = () => {
     toggleTheme();
@@ -28,97 +26,59 @@ export function Header() {
   };
 
   const navLinks = [
-    { to: '/', label: 'Ana Sayfa' },
+    { to: '/', label: 'Bugün' },
     { to: '/programs', label: 'Programlar' },
     { to: '/history', label: 'Geçmiş' },
     { to: '/charts', label: 'Grafikler' },
-    { to: '/export', label: 'Dışa Aktar' },
+    { to: '/export', label: 'Yedek' },
   ];
 
-  const cloudLabel = !configured
-    ? 'Bulut kapalı'
-    : userEmail
-      ? (syncStatus === 'syncing' || syncStatus === 'auth_loading' ? 'Senkron...' : (githubLogin ?? userEmail))
-      : userId ? 'Çevrimdışı' : 'Giriş yap';
-  const mobileCloudLabel = cloudLabel.length > 12 ? `${cloudLabel.slice(0, 12)}...` : cloudLabel;
+  const account = !configured ? 'Bulut kapalı' : userEmail ?? 'Giriş yap';
 
   return (
     <>
-      {/* Neutral chrome — no accent tint, no glow. The header is navigation,
-          not a place the app has anything to say about your progress. */}
-      <header className="bg-(--color-bg-card) border-b lb-rule sticky top-0 z-50 pt-[env(safe-area-inset-top)]">
-        {/* On a narrow phone the account button gives way (it truncates),
-            never the name, and the gap keeps them from touching. */}
-        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
-          <Link to="/" className="shrink-0 text-lg font-semibold tracking-tight">
-            <span>Tracking</span>
-            <span className="text-(--color-accent)">My</span>
-            <span>Volume</span>
-          </Link>
-
-          {/* Desktop nav — current page marked by an underline, not a fill.
-              Accent stays reserved for gain/drop; "where am I" is chrome. */}
-          <nav className={`${isMobile ? 'hidden' : 'flex'} items-center gap-1`}>
-            {navLinks.map(link => {
-              const isActive = location.pathname === link.to;
-              return (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  className={`lb-press px-3 py-2 rounded-md text-sm border-b-2 transition-colors ${
-                    isActive
-                      ? 'font-semibold border-(--color-text-primary)'
-                      : 'font-medium border-transparent text-(--color-text-secondary) hover:text-(--color-text-primary)'
-                  }`}
-                >
+      <header className="sticky top-0 z-50 pt-[env(safe-area-inset-top)] bg-(--color-bg-primary)">
+        <div className="max-w-5xl mx-auto px-2 h-12 flex items-center justify-between gap-3">
+          {isMobile ? <span /> : (
+            <nav className="flex items-center gap-1 pl-2">
+              <Link to="/" className="a-display mr-4 text-[22px]">Volume</Link>
+              {navLinks.map(link => (
+                <Link key={link.to} to={link.to}
+                  className={`px-3 py-2 rounded-lg text-[15px] ${location.pathname === link.to ? 'font-semibold' : 'text-(--color-text-secondary)'}`}>
                   {link.label}
                 </Link>
-              );
-            })}
-            <SheetLink className="lb-press px-3 py-2 rounded-md text-sm border-b-2 border-transparent font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)">
-              Sheet ↗
-            </SheetLink>
-          </nav>
-
-          <div className="min-w-0 flex items-center gap-2">
-            <button
-              onClick={() => setIsCloudModalOpen(true)}
-              title={authError ?? undefined}
-              style={syncStatus === 'error' ? { color: 'var(--lb-drop)', borderColor: 'var(--lb-drop)' } : undefined}
-              className="lb-press min-w-0 px-3 py-2 rounded-md text-xs md:text-sm font-medium border lb-rule max-w-[120px] md:max-w-none truncate"
-            >
-              {syncStatus === 'error' && <span aria-hidden="true" className="mr-1">!</span>}
-              <span className="md:hidden">{mobileCloudLabel}</span>
-              <span className="hidden md:inline">{cloudLabel}</span>
+              ))}
+              <SheetLink className="px-3 py-2 rounded-lg text-[15px] text-(--color-text-secondary)">Sheet</SheetLink>
+            </nav>
+          )}
+          <div className="relative">
+            <button aria-label="Hesap ve ayarlar" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}
+              className="relative w-11 h-11 flex items-center justify-center">
+              <span className="w-9 h-9 rounded-full bg-(--color-bg-input) flex items-center justify-center">
+                <Icon name="settings" className="w-[18px] h-[18px]" />
+              </span>
+              {syncStatus === 'error' && <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-(--lb-drop)" />}
             </button>
-            <div className="relative shrink-0">
-            <button className="lb-press p-2.5 rounded-lg border lb-rule" aria-label="Ayarlar" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}><Icon name="settings" /></button>
             {settingsOpen && <>
-            <button className="fixed inset-0 z-40 cursor-default" aria-label="Ayarları kapat" onClick={() => setSettingsOpen(false)} />
-            <div className="absolute right-0 top-full mt-2 w-52 bg-(--color-bg-card) border lb-rule rounded-xl shadow-xl p-2 z-50 flex flex-col gap-1">
-            <button
-              onClick={() => { setIsColorPickerOpen(true); setSettingsOpen(false); }}
-              className="lb-press p-3 rounded-md flex items-center gap-3 text-sm"
-              aria-label="Renk teması"
-            >
-              <Icon name="palette" /> Renk teması
-            </button>
-            <button
-              onClick={handleToggle}
-              className="lb-press p-3 rounded-md flex items-center gap-3 text-sm"
-              aria-label="Tema değiştir"
-            >
-              <Icon name={dark ? 'sun' : 'moon'} /> Tema değiştir
-            </button>
-            <Link to="/export" onClick={() => setSettingsOpen(false)} className="lb-press p-3 rounded-md text-sm">Dışa Aktar →</Link>
-            <InstallAppButton className="lb-press p-3 rounded-md text-sm text-left" />
-            </div></>}
-            </div>
+              <button className="fixed inset-0 z-40 cursor-default" aria-label="Menüyü kapat" onClick={() => setSettingsOpen(false)} />
+              <div className="absolute right-2 top-full mt-1 w-60 a-card p-1.5 shadow-2xl z-50 flex flex-col">
+                <button onClick={() => { setIsCloudModalOpen(true); setSettingsOpen(false); }}
+                  className="px-3 min-h-12 rounded-xl text-left text-[16px] flex flex-col justify-center">
+                  <span>Hesap</span>
+                  <span className="text-[13px] text-(--color-text-secondary) truncate">{account}</span>
+                </button>
+                <button onClick={handleToggle} className="px-3 min-h-12 rounded-xl text-left text-[16px] flex items-center justify-between">
+                  {dark ? 'Açık temaya geç' : 'Koyu temaya geç'}
+                  <Icon name={dark ? 'sun' : 'moon'} className="w-5 h-5 text-(--color-text-secondary)" />
+                </button>
+                <Link to="/export" onClick={() => setSettingsOpen(false)} className="px-3 min-h-12 rounded-xl text-[16px] flex items-center">Yedek ve dışa aktarma</Link>
+                <InstallAppButton className="px-3 min-h-12 rounded-xl text-left text-[16px]" />
+              </div>
+            </>}
           </div>
         </div>
       </header>
       <CloudSyncModal isOpen={isCloudModalOpen} onClose={() => setIsCloudModalOpen(false)} />
-      {isColorPickerOpen && <ColorThemePicker onClose={() => setIsColorPickerOpen(false)} />}
     </>
   );
 }

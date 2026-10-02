@@ -4,12 +4,13 @@ import { Icon } from '@/components/shared/Icon';
 import { SheetLink } from '@/components/shared/SheetLink';
 
 const tabs = [
-  { to: '/', icon: 'home', label: 'Ana Sayfa' },
+  { to: '/', icon: 'home', label: 'Bugün' },
   { to: '/programs', icon: 'programs', label: 'Programlar' },
   { to: '/history', icon: 'history', label: 'Geçmiş' },
   { to: '/charts', icon: 'chart', label: 'Grafikler' },
 ] as const;
 
+/** Tabs on the page's own ground; the current one is the bright one. */
 export function BottomNav() {
   const location = useLocation();
   const isMobileDevice = useIsMobileDevice();
@@ -17,38 +18,22 @@ export function BottomNav() {
   if (!isMobileDevice) return null;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-(--color-bg-card) border-t lb-rule z-50 pb-[env(safe-area-inset-bottom)]">
-      {/* Five tabs on a 360px phone: tighter padding, and labels that never wrap. */}
-      <div className="flex justify-around items-center h-16">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom)] bg-(--color-bg-primary) border-t border-(--color-border)">
+      <div className="grid grid-cols-5 h-16">
         {tabs.map(tab => {
-          const isActive = location.pathname === tab.to ||
-            (tab.to !== '/' && location.pathname.startsWith(tab.to));
+          const isActive = location.pathname === tab.to || (tab.to !== '/' && location.pathname.startsWith(tab.to));
           return (
-            <Link
-              key={tab.to}
-              to={tab.to}
-              aria-current={isActive ? 'page' : undefined}
-              className={`lb-press flex flex-col items-center justify-center gap-0.5 px-1.5 py-1 rounded-lg whitespace-nowrap ${
-                isActive ? 'text-(--color-text-primary)' : 'text-(--color-text-secondary)'
-              }`}
-            >
-              <Icon name={tab.icon} />
-              <span className={`text-xs ${isActive ? 'font-semibold' : 'font-medium'}`}>{tab.label}</span>
-              {/* Small rule instead of an accent fill — "where am I" is
-                  navigation state, not a gain/drop signal. */}
-              <span
-                aria-hidden="true"
-                className="h-0.5 w-4 rounded-full mt-0.5"
-                style={{ backgroundColor: isActive ? 'currentColor' : 'transparent' }}
-              />
+            <Link key={tab.to} to={tab.to} aria-current={isActive ? 'page' : undefined}
+              className={`flex flex-col items-center justify-center gap-1 whitespace-nowrap ${isActive ? 'text-(--color-text-primary)' : 'text-(--color-text-secondary)'}`}>
+              <Icon name={tab.icon} className="w-[22px] h-[22px]" />
+              <span className={`text-[12px] leading-none ${isActive ? 'font-semibold' : ''}`}>{tab.label}</span>
             </Link>
           );
         })}
         {/* Leaves the app, so it never shows as the current tab. */}
-        <SheetLink className="lb-press flex flex-col items-center justify-center gap-0.5 px-1.5 py-1 rounded-lg whitespace-nowrap text-(--color-text-secondary)">
-          <Icon name="sheet" />
-          <span className="text-xs font-medium">Sheet</span>
-          <span aria-hidden="true" className="h-0.5 w-4 mt-0.5" />
+        <SheetLink className="flex flex-col items-center justify-center gap-1 whitespace-nowrap text-(--color-text-secondary)">
+          <Icon name="sheet" className="w-[22px] h-[22px]" />
+          <span className="text-[12px] leading-none">Sheet</span>
         </SheetLink>
       </div>
     </nav>

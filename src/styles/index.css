@@ -2,17 +2,20 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Design A — focus mode: one set at a time, figures big enough to read at
+   arm's length between sets. Near-black, no accent; colour only for gain,
+   drop and reference. */
 @theme {
-  --color-bg-primary: #0b0d0f;
-  --color-bg-card: #16191d;
-  --color-bg-input: #1c2025;
-  --color-accent: #10b981;
-  --color-accent-hover: #059669;
-  --color-accent-glow: #10b98133;
-  --color-text-primary: #e9edf0;
-  --color-text-secondary: #8a929a;
-  --color-text-muted: #858d95;
-  --color-border: #232830;
+  --color-bg-primary: #0b0b0c;
+  --color-bg-card: #18191b;
+  --color-bg-input: #222326;
+  --color-accent: #f4f4f5;
+  --color-accent-hover: #d2d4d8;
+  --color-accent-glow: #f4f4f51a;
+  --color-text-primary: #f4f4f5;
+  --color-text-secondary: #9a9da3;
+  --color-text-muted: #9a9da3;
+  --color-border: #2a2b2e;
   --color-btn-bg: #ffffff0f;
   --color-btn-hover: #ffffff1a;
   --color-status-improved: #10b981;
@@ -35,13 +38,13 @@
    for those tokens the values below only cover the instant before JS runs.
    colorThemes.ts is the real source of truth for them — keep the two in sync. */
 :root:not(.dark) {
-  --color-bg-primary: #eef0f2;
+  --color-bg-primary: #f3f4f5;
   --color-bg-card: #ffffff;
-  --color-bg-input: #f4f6f7;
-  --color-text-primary: #16191c;
-  --color-text-secondary: #5f666d;
-  --color-text-muted: #5f666d;
-  --color-border: #dfe4e8;
+  --color-bg-input: #e4e6e9;
+  --color-text-primary: #0e0f10;
+  --color-text-secondary: #5c6067;
+  --color-text-muted: #5c6067;
+  --color-border: #dadde1;
   --color-btn-bg: #00000008;
   --color-btn-hover: #00000012;
   --color-accent-glow: #10b98119;
@@ -65,7 +68,7 @@
 :root.dark { color-scheme: dark; }
 
 body {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'Barlow', system-ui, -apple-system, sans-serif;
   color: var(--color-text-primary);
   background-color: var(--color-bg-primary);
 }
@@ -167,29 +170,35 @@ input[type="number"]::-webkit-outer-spin-button {
    ───────────────────────────────────────────────────────────── */
 
 .logbook {
-  --lb-rule: color-mix(in srgb, var(--color-text-secondary) 24%, transparent);
+  --lb-rule: var(--color-border);
   --lb-rule-strong: color-mix(in srgb, var(--color-text-secondary) 45%, transparent);
-  --lb-gain: #34d399;
-  --lb-drop: #fb7185;
-  --lb-ref: #60a5fa;
-  --lb-press: color-mix(in srgb, var(--color-text-primary) 7%, transparent);
+  --lb-gain: #5bd68c;
+  --lb-drop: #ff7b6e;
+  --lb-ref: #7db0ff;
+  --lb-gain-fill: rgb(91 214 140 / 0.14);
+  --lb-drop-fill: rgb(255 123 110 / 0.14);
+  --lb-ref-fill: rgb(125 176 255 / 0.14);
+  --lb-press: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
   color: var(--color-text-primary);
 }
 
 :root:not(.dark) .logbook {
-  --lb-gain: #047857;
-  --lb-drop: #be123c;
-  --lb-ref: #1d4ed8;
+  --lb-gain: #17733b;
+  --lb-drop: #c8372d;
+  --lb-ref: #2b5fd9;
+  --lb-gain-fill: #dcefe2;
+  --lb-drop-fill: #f8dedb;
+  --lb-ref-fill: #dfe8fb;
 }
 
-/* Figures are the subject matter — tabular so columns of numbers align
-   and digits don't jitter as values change. */
-.lb-figure {
-  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+/* Figures and titles: condensed, so a number can be big without wrapping;
+   tabular so digits don't jitter as values change. */
+.lb-figure, .a-display {
+  font-family: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.03em;
-  line-height: 0.95;
 }
+.a-display { font-weight: 700; line-height: 1; }
+.a-card { background: var(--color-bg-card); border-radius: 18px; }
 
 .lb-rule { border-color: var(--lb-rule); }
 .lb-rule-strong { border-color: var(--lb-rule-strong); }
