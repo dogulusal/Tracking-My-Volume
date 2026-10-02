@@ -5,16 +5,13 @@ import { useState, useMemo, useEffect, useLayoutEffect, useContext, useRef } fro
 import { useWeekLogs } from '@/hooks/useWeekLogs';
 import { useGridPalette } from '@/hooks/useGridPalette';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
-import { PageContainer } from '@/components/layout/PageContainer';
 import { WorkoutDetailModal } from '@/components/shared/WorkoutDetailModal';
 import { AppContext } from '@/context/AppContext';
-import { GRID_LEGEND, buildPhaseGrid, statusFill, type GridRow } from '../../supabase/functions/_shared/historyGrid.mjs';
+import { buildPhaseGrid, statusFill, type GridRow } from '../../supabase/functions/_shared/historyGrid.mjs';
 import { currentPhaseIndex, startedPhases } from '@/utils/phases';
 import type { ExerciseLog, SetLog } from '@/types';
 
 const HISTORY_STATE_KEY = 'history-page-state-v1';
-// The automatic Sheet writes in Arial; the grid reads the same.
-const SHEET_FONT = 'Arial, Helvetica, sans-serif';
 
 export function History() {
   const [showPhaseSettings, setShowPhaseSettings] = useState(false);
@@ -155,14 +152,21 @@ export function History() {
   const frozenEdge = `inset -1px 0 0 ${palette.header}`;
   const weeks = grid?.weeks ?? [];
 
+  const legend = [
+    { label: 'İlerleme', fill: palette.improved, edge: 'var(--lb-gain)' },
+    { label: 'Aynı', fill: palette.same, edge: 'var(--color-text-secondary)' },
+    { label: 'Düşüş', fill: palette.decreased, edge: 'var(--lb-drop)' },
+    { label: 'Referans', fill: palette.new, edge: 'var(--lb-ref)' },
+  ];
+
   return (
-    <PageContainer>
-      {/* Title + phase settings */}
-      <div className="mb-6 flex flex-wrap gap-3 items-center justify-between">
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Antrenman Geçmişi</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => setShowPhaseSettings(true)} className="lb-press px-3 py-1.5 border lb-rule text-xs font-semibold rounded-lg">Fazlar</button>
+    <div className="max-w-5xl mx-auto px-4 pt-2 pb-8">
+      <div className="flex items-end justify-between gap-3 px-1">
+        <div className="min-w-0">
+          <h1 className="a-display text-[48px]">Geçmiş</h1>
+          <p className="mt-1 text-[14px] text-(--color-text-secondary)">{currentPhase?.label ?? ''} · Sheet ile aynı tablo</p>
         </div>
+        <button onClick={() => setShowPhaseSettings(true)} className="shrink-0 h-11 px-4 rounded-full bg-(--color-bg-card) text-[15px] font-medium">Fazlar</button>
       </div>
 
       {showPhaseSettings && <PhaseSettingsModal phases={contextPhases} currentWeek={currentWeek} onClose={() => setShowPhaseSettings(false)} onSave={updated => {
@@ -172,52 +176,43 @@ export function History() {
         setSelectedPhaseIdx(Math.max(0, index));
         setShowPhaseSettings(false);
       }} />}
-      {/* Program Filter — current program marked by underline, not a fill */}
-      <div className="flex flex-wrap items-center gap-1 mb-3">
+
+      {/* The day, as pills on one line; they scroll sideways when they do not fit. */}
+      <div className="mt-4 -mx-4 px-4 flex gap-1.5 overflow-x-auto scrollbar-hide">
         {programs.map(p => (
-          <button
-            key={p.id}
-            onClick={() => setSelectedProgramId(p.id)}
-            className={`lb-press px-3 py-2 rounded-lg text-sm border-b-2 ${
-              selectedProgramId === p.id
-                ? 'font-semibold border-(--color-text-primary)'
-                : 'font-medium border-transparent text-(--color-text-secondary) hover:text-(--color-text-primary)'
-            }`}
-          >
+          <button key={p.id} onClick={() => setSelectedProgramId(p.id)} aria-pressed={selectedProgramId === p.id}
+            className={`shrink-0 h-11 px-4 rounded-full text-[15px] whitespace-nowrap ${selectedProgramId === p.id ? 'bg-(--color-text-primary) text-(--color-bg-primary) font-semibold' : 'bg-(--color-bg-card) text-(--color-text-secondary)'}`}>
             {p.name}
           </button>
         ))}
       </div>
 
       {phases.length > 1 && (
-        <div className="flex flex-wrap items-center gap-1 mb-4">
+        <div className="mt-2 flex flex-wrap gap-1">
           {phases.map((phase, idx) => (
-            <button
-              key={phase.id}
-              onClick={() => setSelectedPhaseIdx(idx)}
-              className={`lb-press px-3 py-1.5 rounded-lg text-xs ${
-                selectedPhaseIdx === idx
-                  ? 'font-semibold text-(--color-text-primary)'
-                  : 'font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)'
-              }`}
-            >
+            <button key={phase.id} onClick={() => setSelectedPhaseIdx(idx)} aria-pressed={selectedPhaseIdx === idx}
+              className={`h-11 px-3 text-[14px] ${selectedPhaseIdx === idx ? 'font-semibold underline underline-offset-4' : 'text-(--color-text-secondary)'}`}>
               {phase.label}
             </button>
           ))}
         </div>
       )}
 
-      {/* The phase grid, drawn like the automatic Sheet tab */}
+      <div className="mt-3 mb-2.5 px-1 flex flex-wrap gap-x-3.5 gap-y-1 text-[12px] text-(--color-text-secondary)">
+        {legend.map(item => (
+          <span key={item.label} className="flex items-center gap-1.5">
+            <span className="w-[11px] h-[11px] rounded-[3px]" style={{ background: item.fill, boxShadow: `inset 0 0 0 1px ${item.edge}` }} />
+            {item.label}
+          </span>
+        ))}
+      </div>
+
       {!program ? (
         <p className="text-(--color-text-secondary)">Henüz program yok.</p>
       ) : (
-        <div className="rounded-lg overflow-hidden" style={{ border: rule, background: palette.canvas, color: palette.ink, fontFamily: SHEET_FONT }}>
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-2" style={{ background: palette.title }}>
-            <span className="text-[15px] font-bold" style={{ color: palette.titleText }}>{program.name}</span>
-            <span className="text-xs" style={{ color: palette.legend }}>{GRID_LEGEND}</span>
-          </div>
+        <div className="rounded-[14px] overflow-hidden" style={{ background: palette.canvas, color: palette.ink }}>
           <div ref={scrollRef} className="lb-scroll overflow-x-auto">
-            <table className="border-separate border-spacing-0 text-[13px] leading-[18px]"
+            <table className="border-separate border-spacing-0 text-[14px] leading-[19px]"
               style={{ tableLayout: 'fixed', width: '100%', minWidth: cols.name + cols.sets + weeks.length * cols.week }}>
               <colgroup>
                 <col style={{ width: cols.name }} />
@@ -225,14 +220,13 @@ export function History() {
                 {weeks.map(w => <col key={w} />)}
               </colgroup>
               <thead>
-                <tr style={{ background: palette.header, color: palette.headerText }}>
-                  <th className="sticky left-0 z-20 px-3 py-2 text-left font-bold" style={{ background: palette.header }}>Egzersiz</th>
-                  <th className="sticky z-20 px-1 py-2 text-center font-bold" style={{ left: cols.name, background: palette.header, boxShadow: frozenEdge }}>Set</th>
+                <tr style={{ background: palette.label, color: palette.muted }}>
+                  <th className="sticky left-0 z-20 px-3 py-2 text-left text-[12px] font-medium" style={{ background: palette.label }}>Egzersiz</th>
+                  <th className="sticky z-20 px-1 py-2 text-center text-[12px] font-medium" style={{ left: cols.name, background: palette.label, boxShadow: frozenEdge }}>Set</th>
                   {weeks.map(w => (
-                    <th key={w} className="p-0 font-bold">
-                      <button onClick={() => openWeek(w)} title={`H${getDisplayWeek(w)} haftasını doldur / düzenle`}
-                        className="lb-press w-full px-2 py-2 font-bold">
-                        H{getDisplayWeek(w)} <span aria-hidden="true" className="opacity-60">✎</span>
+                    <th key={w} className="p-0" style={{ color: w === currentWeek ? palette.ink : palette.muted }}>
+                      <button onClick={() => openWeek(w)} title={`H${getDisplayWeek(w)} haftasını doldur / düzenle`} className="lb-figure w-full px-2 py-2 text-[16px] font-semibold text-left">
+                        H{getDisplayWeek(w)}
                       </button>
                     </th>
                   ))}
@@ -242,16 +236,16 @@ export function History() {
                 {shownRows.map(row => (
                   <tr key={row.exerciseId}>
                     <td className="sticky left-0 z-10 px-3 py-2 text-left align-middle break-words"
-                      style={{ background: palette.label, borderBottom: rule, color: row.removedAt === null ? undefined : palette.muted }}>
+                      style={{ background: palette.canvas, borderTop: rule, color: row.removedAt === null ? undefined : palette.muted }}>
                       {row.name}
-                      {row.removedAt !== null && <span className="block text-[11px]">çıkarıldı H{getDisplayWeek(row.removedAt)}</span>}
+                      {row.removedAt !== null && <span className="block text-[12px]">çıkarıldı H{getDisplayWeek(row.removedAt)}</span>}
                     </td>
-                    <td className="sticky z-10 px-1 py-2 text-center align-middle tabular-nums"
-                      style={{ left: cols.name, background: palette.label, borderBottom: rule, boxShadow: frozenEdge }}>{row.defaultSets ?? ''}</td>
+                    <td className="lb-figure sticky z-10 px-1 py-2 text-center align-middle text-[16px]"
+                      style={{ left: cols.name, background: palette.canvas, borderTop: rule, boxShadow: frozenEdge, color: palette.muted }}>{row.defaultSets ?? ''}</td>
                     {row.cells.map(cell => (
                       <td key={cell.week} onClick={() => openCell(row, cell.week)}
-                        className="cursor-pointer px-2 py-2 text-center align-middle whitespace-pre-line tabular-nums"
-                        style={{ background: statusFill(palette, cell.status), borderBottom: rule, color: cell.status === 'holiday' ? palette.muted : palette.ink }}>
+                        className="lb-figure cursor-pointer px-2 py-2 text-left align-middle whitespace-pre-line text-[17px] leading-[21px] font-semibold"
+                        style={{ background: statusFill(palette, cell.status), borderTop: rule, borderLeft: rule, color: cell.status === 'holiday' ? palette.muted : palette.ink }}>
                         {cell.text}
                       </td>
                     ))}
@@ -259,10 +253,10 @@ export function History() {
                 ))}
                 <tr>
                   <td colSpan={2} className="sticky left-0 z-10 px-3 py-2 text-left align-middle text-[12px]"
-                    style={{ background: palette.note, color: palette.noteText, boxShadow: frozenEdge }}>HAFTALIK NOTLAR</td>
+                    style={{ background: palette.note, color: palette.noteText, boxShadow: frozenEdge }}>Haftalık notlar</td>
                   {program.notes.map((note, index) => (
                     <td key={weeks[index]} onClick={() => openWeek(weeks[index])}
-                      className="cursor-pointer px-2 py-2 text-center align-middle text-[12px] whitespace-pre-line break-words"
+                      className="cursor-pointer px-2 py-2 text-left align-middle text-[12px] whitespace-pre-line break-words"
                       style={{ background: palette.note, color: palette.noteText }}>
                       {note}
                     </td>
@@ -273,20 +267,24 @@ export function History() {
           </div>
         </div>
       )}
-      {/* The switch sits beside the text: on phones every button is 44px
-          tall, which would open up the line it sat in. */}
+      <p className="mt-2 px-1 text-[13px] text-(--color-text-secondary)">Hücreye dokun: setleri gör ve düzelt. Hafta başlığına dokun: o haftanın antrenmanını aç.</p>
+
       {removedRows.length > 0 && (
-        <div className="mt-2 flex items-center gap-3 text-xs text-(--color-text-secondary)">
-          <p className="flex-1">
+        <div className="mt-6 a-card px-4 py-3">
+          <div className="flex items-center justify-between gap-3 min-h-11">
+            <span className="text-[16px]">Programdan çıkanları gizle</span>
+            <button role="switch" aria-checked={hideRemoved} aria-label="Programdan çıkanları gizle"
+              onClick={() => ctx?.dispatch({ type: 'SET_HIDE_REMOVED_EXERCISES', payload: !hideRemoved })}
+              className="relative w-[52px] h-8 rounded-full" style={{ background: hideRemoved ? 'var(--color-text-primary)' : 'var(--color-bg-input)' }}>
+              <span className="absolute top-[3px] w-[26px] h-[26px] rounded-full transition-all"
+                style={{ left: hideRemoved ? 23 : 3, background: hideRemoved ? 'var(--color-bg-card)' : 'var(--color-text-secondary)' }} />
+            </button>
+          </div>
+          <p className="text-[13px] text-(--color-text-secondary)">
             {hideRemoved
-              ? `Programdan çıkarılan ${removedRows.length} hareket gizli: ${removedRows.map(row => row.name).join(', ')}.`
-              : 'Programdan çıkarılan hareketler soluk ve çıkarıldığı haftayla gösteriliyor.'}
-            {' '}Sheet de aynısını yazar.
+              ? `Gizli: ${removedRows.map(row => row.name).join(', ')}.`
+              : 'Çıkarılan hareketler soluk ve çıkarıldığı haftayla gösteriliyor.'} Sheet de aynısını yazar.
           </p>
-          <button onClick={() => ctx?.dispatch({ type: 'SET_HIDE_REMOVED_EXERCISES', payload: !hideRemoved })}
-            className="lb-press shrink-0 px-3 py-1.5 border lb-rule rounded-lg font-semibold text-(--color-text-primary)">
-            {hideRemoved ? 'Göster' : 'Gizle'}
-          </button>
         </div>
       )}
 
@@ -345,6 +343,6 @@ export function History() {
           });
         }}
       />
-    </PageContainer>
+    </div>
   );
 }
