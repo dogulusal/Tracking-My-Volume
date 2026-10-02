@@ -1,17 +1,11 @@
 import { Link } from 'react-router-dom';
-import { useContext, useMemo, useState } from 'react';
-import { AppContext } from '@/context/AppContext';
-import { usePrograms } from '@/hooks/usePrograms';
-import { usePlans } from '@/hooks/usePlans';
-import { useWeekLogs } from '@/hooks/useWeekLogs';
+import { useState } from 'react';
+import { useWeekOverview } from '@/hooks/useWeekOverview';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Modal } from '@/components/shared/Modal';
-import { calculateWeeklyVolume } from '@/utils/volumeCalculator';
 import { samplePrograms } from '@/data/sampleProgram';
 import { formatSet } from '@/utils/formatters';
-import { exerciseKey } from '@/utils/muscleGroups';
-import { movementSessions } from '@/utils/movements';
-import { STALL_WEEKS, stallOf } from '@/utils/progression';
+import { STALL_WEEKS } from '@/utils/progression';
 
 const nf = new Intl.NumberFormat('tr-TR');
 
@@ -19,89 +13,10 @@ export function Dashboard() {
   const [showWorkoutPicker, setShowWorkoutPicker] = useState(false);
   const [confirmNewWeek, setConfirmNewWeek] = useState(false);
   const [showAllStalled, setShowAllStalled] = useState(false);
-  const { activePlan, activePlanPrograms } = usePlans();
-  const { weekLogs, currentWeek, incrementWeek } = useWeekLogs();
-  const ctx = useContext(AppContext);
-  const phase = ctx?.state.phases.find(p => currentWeek >= p.startWeek && (p.endWeek === null || currentWeek <= p.endWeek));
-  const weekLabel = `${phase?.name ?? ''} · H${currentWeek - (phase?.startWeek ?? 0)}`;
-  const { programs, addProgram } = usePrograms();
-
-  const activeProgramIds = useMemo(
-    () => activePlanPrograms.map(p => p.id),
-    [activePlanPrograms]
-  );
-
-  const volumeForWeek = useMemo(() => {
-    return (week: number) =>
-      weekLogs
-        .filter(w => w.weekNumber === week && activeProgramIds.includes(w.programId))
-        .reduce((sum, log) => sum + calculateWeeklyVolume(log), 0);
-  }, [weekLogs, activeProgramIds]);
-
-  const weekStats = useMemo(() => {
-    const thisWeekLogs = weekLogs.filter(
-      w => w.weekNumber === currentWeek && activeProgramIds.includes(w.programId)
-    );
-    const completed = thisWeekLogs.filter(w => !w.isHoliday && w.exercises.length > 0).length;
-    const volume = volumeForWeek(currentWeek);
-    const lastVolume = currentWeek > 0 ? volumeForWeek(currentWeek - 1) : 0;
-    return {
-      completed,
-      total: activePlanPrograms.length,
-      volume,
-      // Only a real comparison counts — no delta against a week with no data.
-      delta: lastVolume > 0 ? volume - lastVolume : null,
-    };
-  }, [weekLogs, currentWeek, activeProgramIds, activePlanPrograms.length, volumeForWeek]);
-
-  // Consecutive weeks before this one with at least one logged workout
-  const streak = useMemo(() => {
-    let count = 0;
-    for (let w = currentWeek - 1; w >= 0; w--) {
-      const hasWorkout = weekLogs.some(
-        log => log.weekNumber === w && !log.isHoliday && log.exercises.length > 0
-      );
-      if (hasWorkout) count++;
-      else break;
-    }
-    return count;
-  }, [weekLogs, currentWeek]);
-
-  const programStatuses = useMemo(() => {
-    return activePlanPrograms.map(program => {
-      const log = weekLogs.find(w => w.programId === program.id && w.weekNumber === currentWeek);
-      const status: 'done' | 'holiday' | 'pending' = log?.isHoliday
-        ? 'holiday'
-        : log && log.exercises.length > 0
-          ? 'done'
-          : 'pending';
-      let hasDraft = false;
-      try {
-        const raw = localStorage.getItem(`draft-${program.id}-${currentWeek}`);
-        const draft = raw ? JSON.parse(raw) : null;
-        hasDraft = Array.isArray(draft?.exerciseLogs) && (!log?.updatedAt || !draft.savedAt || draft.savedAt >= log.updatedAt);
-      } catch { /* Ignore an unreadable draft. */ }
-      return { program, status, hasDraft, volume: log ? calculateWeeklyVolume(log) : 0 };
-    });
-  }, [activePlanPrograms, weekLogs, currentWeek]);
-
-  // Movements of the plan whose best set has not been beaten for a while,
-  // counted across every day that trains them and across phases: the
-  // week-to-week colours cannot show this, each compares one week only.
-  const stalled = useMemo(() => {
-    const seen = new Set<string>();
-    const items: { key: string; name: string; stall: NonNullable<ReturnType<typeof stallOf>> }[] = [];
-    for (const program of activePlanPrograms) {
-      for (const exercise of program.exercises) {
-        const key = exerciseKey(exercise.name);
-        if (!exercise.isActive || seen.has(key)) continue;
-        seen.add(key);
-        const stall = stallOf(movementSessions(weekLogs, key));
-        if (stall && stall.weeks >= STALL_WEEKS) items.push({ key, name: exercise.name, stall });
-      }
-    }
-    return items.sort((a, b) => b.stall.weeks - a.stall.weeks);
-  }, [activePlanPrograms, weekLogs]);
+  const {
+    activePlan, activePlanPrograms, programs, addProgram, currentWeek, incrementWeek,
+    weekLabel, weekStats, streak, programStatuses, stalled, nextWorkout,
+  } = useWeekOverview();
 
   if (programs.length === 0) {
     return (
@@ -130,7 +45,6 @@ export function Dashboard() {
     );
   }
 
-  const nextWorkout = programStatuses.find(p => p.hasDraft) ?? programStatuses.find(p => p.status === 'pending');
 
   return (
     <PageContainer>
