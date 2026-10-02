@@ -50,6 +50,23 @@ export function makeSampleState(): AppState {
     }
   });
 
+  // This week: the first two days already done, a little better and a little
+  // worse than last week, so a design shows logged days as well as open ones.
+  for (const program of programs.slice(0, 2)) {
+    const last = weekLogs.find(log => log.programId === program.id && log.weekNumber === weeks - 1)!;
+    weekLogs.push({
+      ...last,
+      id: `ornek-log-${program.id}-${weeks}`,
+      weekNumber: weeks,
+      date: new Date(Date.now() - 86400000 * (2 - programs.indexOf(program))).toISOString().slice(0, 10),
+      updatedAt: now,
+      exercises: last.exercises.map((exercise, index) => ({
+        ...exercise,
+        sets: exercise.sets.map(set => ({ ...set, reps: set.reps + (index % 3 === 0 ? 1 : index % 5 === 1 ? -1 : 0) })),
+      })),
+    });
+  }
+
   return {
     ...initialState,
     programs,
