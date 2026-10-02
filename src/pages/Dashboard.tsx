@@ -1,205 +1,164 @@
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
-import { useWeekOverview } from '@/hooks/useWeekOverview';
-import { PageContainer } from '@/components/layout/PageContainer';
+import { useWeekOverview, type WeekDay } from '@/hooks/useWeekOverview';
 import { Modal } from '@/components/shared/Modal';
 import { samplePrograms } from '@/data/sampleProgram';
 import { formatSet } from '@/utils/formatters';
 import { STALL_WEEKS } from '@/utils/progression';
 
 const nf = new Intl.NumberFormat('tr-TR');
+const weekdayFormat = new Intl.DateTimeFormat('tr-TR', { weekday: 'long' });
+const dayMonthFormat = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long' });
+
+// One day of the week as a tile: what it did against last week once logged.
+function DayTile({ day, isNext, week }: { day: WeekDay; isNext: boolean; week: number }) {
+  const { improved, same, decreased, new: first } = day.counts;
+  const compared = improved + same + decreased + first;
+  const style = isNext
+    ? { boxShadow: 'inset 0 0 0 1.5px var(--color-text-primary)' }
+    : day.status === 'pending' && !day.hasDraft ? { background: 'color-mix(in srgb, var(--color-bg-card) 55%, transparent)' } : { background: 'var(--color-bg-card)' };
+  return (
+    <Link to={`/workout/${day.program.id}/week/${week}`} style={style}
+      className="min-h-14 rounded-[14px] px-1 py-1.5 flex flex-col items-center justify-center gap-0.5 text-center">
+      <span className={`text-[12px] leading-tight truncate max-w-full ${isNext ? 'font-semibold' : 'text-(--color-text-secondary)'}`}>{day.program.name}</span>
+      {day.status === 'done' && compared > 0 ? (
+        <span className="lb-figure text-[18px] font-semibold leading-none" style={{ color: improved > 0 ? 'var(--lb-gain)' : undefined }}>
+          {improved} / {compared}
+        </span>
+      ) : day.status === 'done' ? <span className="text-[12px]">kayıtlı</span>
+        : day.status === 'holiday' ? <span className="text-[12px] text-(--color-text-secondary)">tatil</span>
+        : day.hasDraft ? <span className="text-[12px] font-semibold">taslak</span>
+        : isNext ? <span className="text-[12px] text-(--color-text-secondary)">sırada</span> : null}
+    </Link>
+  );
+}
 
 export function Dashboard() {
-  const [showWorkoutPicker, setShowWorkoutPicker] = useState(false);
   const [confirmNewWeek, setConfirmNewWeek] = useState(false);
   const [showAllStalled, setShowAllStalled] = useState(false);
   const {
-    activePlan, activePlanPrograms, programs, addProgram, currentWeek, incrementWeek,
-    weekLabel, weekStats, streak, programStatuses, stalled, nextWorkout,
+    activePlanPrograms, programs, addProgram, currentWeek, incrementWeek,
+    phase, displayWeek, weekStats, streak, programStatuses, stalled, nextWorkout, nextTargets,
   } = useWeekOverview();
+  const now = new Date();
+  const weekday = weekdayFormat.format(now);
+  const dateLine = `${weekday.charAt(0).toLocaleUpperCase('tr-TR')}${weekday.slice(1)}, ${dayMonthFormat.format(now)}`;
 
   if (programs.length === 0) {
     return (
-      <PageContainer>
-        <div className="logbook max-w-md">
-          <h1 className="text-2xl font-semibold tracking-tight mb-2">Henüz bir programın yok</h1>
-          <p className="lb-label mb-6">
-            Kendi programını kur ya da hazır setle başla, ilk haftanı hemen kaydet.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Link
-              to="/programs/edit"
-              className="lb-press px-5 py-3 rounded-lg bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold text-center"
-            >
-              Program oluştur
-            </Link>
-            <button
-              onClick={() => samplePrograms.forEach(p => addProgram(p))}
-              className="lb-press px-5 py-3 rounded-lg border lb-rule text-sm font-semibold"
-            >
-              Örnek programları yükle
-            </button>
-          </div>
-        </div>
-      </PageContainer>
+      <div className="max-w-xl mx-auto px-5 pb-8">
+        <p className="text-[15px] text-(--color-text-secondary)">{dateLine}</p>
+        <h1 className="a-display text-[56px] mt-1">Program yok</h1>
+        <p className="mt-2 text-[16px] text-(--color-text-secondary)">Kendi programını kur ya da hazır programla başla.</p>
+        <Link to="/programs/edit" className="mt-6 flex items-center justify-center h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Program oluştur</Link>
+        <button onClick={() => samplePrograms.forEach(p => addProgram(p))}
+          className="mt-2 w-full h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">Örnek programları yükle</button>
+      </div>
     );
   }
 
+  const weekDone = weekStats.total > 0 && weekStats.completed === weekStats.total;
 
   return (
-    <PageContainer>
-      <div className="logbook">
-        {/* ── Masthead: the week, and the number the week is judged by ── */}
-        <header className="lb-settle flex items-start justify-between gap-4 pb-5 border-b lb-rule-strong">
-          <div className="min-w-0">
-            {/* The page's heading is the week; it just isn't the loudest thing
-                on screen — the number it produced is. */}
-            <h1 className="lb-label">
-              {activePlan ? activePlan.name : 'Antrenman defteri'} · {weekLabel}
-            </h1>
-
-            <p className="lb-figure text-2xl font-semibold mt-2">
-              {weekStats.volume > 0 ? nf.format(Math.round(weekStats.volume)) : '—'}
-              {weekStats.volume > 0 && (
-                <span className="text-[0.3em] font-medium ml-2 text-(--color-text-secondary)">kg</span>
-              )}
-            </p>
-
-            <p className="lb-label mt-2">Bu haftanın toplam hacmi{weekStats.completed < weekStats.total ? ' · hafta devam ediyor' : ''}</p>
-          </div>
-
-          <button
-            onClick={() => setConfirmNewWeek(true)}
-            className="lb-press shrink-0 px-4 py-2.5 rounded-lg border lb-rule text-sm font-semibold"
-          >
-            Yeni hafta
-          </button>
-        </header>
-
-        <section className="my-6 p-5 sm:p-7 rounded-2xl border lb-rule-strong bg-(--color-bg-card)">
-          <p className="lb-label mb-2">{nextWorkout?.hasDraft ? 'Yarım kalan antrenmanın' : 'Sıradaki antrenmanın'}</p>
-          <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">{nextWorkout?.program.name ?? (activePlanPrograms.length ? 'Bu haftayı tamamladın' : 'Planına bir gün ekle')}</h2>
-          <p className="text-sm text-(--color-text-secondary) mt-3 mb-5">
-            {nextWorkout ? `${nextWorkout.program.exercises.filter(e => e.isActive).length} egzersiz · ${weekLabel}` : 'Aşağıdaki günleri açarak kayıtlarını düzenleyebilir veya Programlar bölümünden gün ekleyebilirsin.'}
-          </p>
-          <div className="flex flex-wrap gap-3">
-            {nextWorkout && <Link className="lb-press px-5 py-3 rounded-lg bg-(--color-text-primary) text-(--color-bg-primary) font-semibold text-sm" to={`/workout/${nextWorkout.program.id}/week/${currentWeek}`}>
-              {nextWorkout.hasDraft ? 'Antrenmana devam et' : 'Antrenmana başla'} →
-            </Link>}
-            {activePlanPrograms.length > 0 && <button type="button" aria-expanded={showWorkoutPicker} aria-controls="workout-picker" onClick={() => setShowWorkoutPicker(value => !value)} className="lb-press px-5 py-3 rounded-lg border lb-rule text-sm font-medium">Başka bir antrenman seç ↓</button>}
-            {!activePlanPrograms.length && <Link to="/programs" className="lb-press px-5 py-3 rounded-lg border lb-rule text-sm">Programlar →</Link>}
-          </div>
-          {showWorkoutPicker && <div id="workout-picker" className="mt-4 p-4 border lb-rule rounded-lg">
-            <p className="lb-label mb-3">Bu hafta hangi antrenmanı açmak istiyorsun?</p>
-            <div className="flex flex-wrap gap-2">
-              {programStatuses.map(({ program, status, hasDraft }) => <Link key={program.id} to={`/workout/${program.id}/week/${currentWeek}`} className="lb-press px-4 py-3 border lb-rule rounded-lg text-sm">
-                <span className="font-semibold">{program.name}</span>
-                <span className="lb-label block mt-1">{hasDraft ? 'Taslağa devam et' : status === 'done' ? 'Kaydı düzenle' : status === 'holiday' ? 'Tatil kaydını aç' : 'Antrenman gir'}</span>
-              </Link>)}
-            </div>
-          </div>}
-        </section>
-
-        {/* ── Secondary figures: quiet, in a row, no boxes ── */}
-        <div className="lb-settle flex gap-8 py-5 border-b lb-rule" style={{ animationDelay: '40ms' }}>
-          <div>
-            <p className="lb-figure text-2xl font-semibold">
-              {weekStats.completed}<span className="text-(--color-text-secondary)">/{weekStats.total}</span>
-            </p>
-            <p className="lb-label mt-1">antrenman</p>
-          </div>
-          <div>
-            <p className="lb-figure text-2xl font-semibold">{streak}</p>
-            <p className="lb-label mt-1">hafta üst üste</p>
-          </div>
-        </div>
-        {weekStats.total > 0 && weekStats.completed === weekStats.total && weekStats.delta !== null && (
-          <p className="lb-label mt-3">Geçen haftaya göre toplam hacim: {weekStats.delta > 0 ? '+' : ''}{nf.format(Math.round(weekStats.delta))} kg</p>
-        )}
-
-        {/* ── The week's workouts, as ruled rows ── */}
-        <div id="week-workouts" className="scroll-mt-20 flex items-baseline justify-between pt-6 pb-2">
-          <h2 className="text-sm font-semibold">Bu haftanın antrenmanları</h2>
-          <Link to="/history" className="lb-label hover:text-(--color-text-primary) transition-colors">
-            Geçmiş →
-          </Link>
-        </div>
-
-        <ul>
-          {programStatuses.map(({ program, status, hasDraft, volume }, i) => (
-            <li key={program.id} className="lb-settle" style={{ animationDelay: `${80 + i * 45}ms` }}>
-              <Link
-                to={`/workout/${program.id}/week/${currentWeek}`}
-                className="lb-press flex items-center gap-3 py-4 border-b lb-rule -mx-2 px-2 rounded"
-              >
-                {/* Status lives in the left margin, like a tick in a logbook */}
-                <span
-                  aria-hidden="true"
-                  className="w-1.5 h-1.5 rounded-full shrink-0"
-                  style={{
-                    backgroundColor:
-                      status === 'done'
-                        ? 'var(--lb-gain)'
-                        : status === 'holiday'
-                          ? 'var(--color-text-secondary)'
-                          : 'transparent',
-                    boxShadow: status === 'pending' ? 'inset 0 0 0 1px var(--lb-rule-strong)' : undefined,
-                  }}
-                />
-
-                <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-semibold truncate">{program.name}</span>
-                  <span className="lb-label block mt-0.5">
-                    {hasDraft ? 'taslak · devam et' : status === 'holiday'
-                      ? 'tatil'
-                      : status === 'done'
-                        ? `${program.exercises.filter(e => e.isActive).length} egzersiz · kaydedildi`
-                        : `${program.exercises.filter(e => e.isActive).length} egzersiz`}
-                  </span>
-                </span>
-
-                <span className="lb-figure text-sm text-right shrink-0 text-(--color-text-secondary)">
-                  {volume > 0 ? `${nf.format(Math.round(volume))} kg` : 'Aç →'}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-        {stalled.length > 0 && (
-          <section className="pt-8">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 pb-2 border-b lb-rule">
-              <h2 className="text-sm font-semibold">Yerinde sayanlar</h2>
-              <span className="lb-label">en iyi set {STALL_WEEKS}+ haftadır aşılmadı</span>
-            </div>
-            <ul>
-              {(showAllStalled ? stalled : stalled.slice(0, 5)).map(({ key, name, stall }) => (
-                <li key={key} className="flex items-baseline gap-3 py-3 border-b lb-rule">
-                  <span className="flex-1 min-w-0 text-sm font-medium truncate">{name}</span>
-                  <span className="lb-figure text-xs text-(--color-text-secondary) whitespace-nowrap">{formatSet(stall.best)}</span>
-                  <span className="lb-figure text-sm w-14 text-right whitespace-nowrap">{stall.weeks} hf</span>
-                </li>
-              ))}
-            </ul>
-            {stalled.length > 5 && (
-              <button onClick={() => setShowAllStalled(value => !value)}
-                className="lb-press mt-3 text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)">
-                {showAllStalled ? 'Daha az göster' : `Tümünü göster (${stalled.length})`}
-              </button>
-            )}
-          </section>
-        )}
-        <p className="mt-8 text-xs text-(--color-text-secondary)">
-          <a href={`${import.meta.env.BASE_URL}privacy.html`} className="underline hover:text-(--color-text-primary)">
-            Gizlilik Politikası
-          </a>
+    <div className="max-w-xl mx-auto px-5 pt-2 pb-8">
+      <p className="text-[15px] text-(--color-text-secondary)">{dateLine}</p>
+      <p className="mt-2 text-[15px] text-(--color-text-secondary)">
+        {phase?.name} · Hafta {displayWeek} · {nextWorkout ? (nextWorkout.hasDraft ? 'yarım kalan' : 'sıradaki') : 'hafta bitti'}
+      </p>
+      <h1 className="a-display text-[clamp(56px,22vw,92px)] tracking-[-0.01em] mt-0.5">
+        {nextWorkout ? nextWorkout.program.name : weekDone ? 'Tamam' : 'Plan boş'}
+      </h1>
+      {nextWorkout && (
+        <p className="mt-2 text-[15px] text-(--color-text-secondary)">
+          {nextTargets.length} hareket · {nextWorkout.program.exercises.filter(e => e.isActive).reduce((sum, e) => sum + e.defaultSets, 0)} set
         </p>
+      )}
+
+      <div className="mt-5 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.max(1, programStatuses.length)}, minmax(0, 1fr))` }}>
+        {programStatuses.map(day => <DayTile key={day.program.id} day={day} isNext={day === nextWorkout} week={currentWeek} />)}
       </div>
+      <p className="mt-1.5 text-[12px] text-(--color-text-secondary)">Yeşil rakam: geçen haftayı geçtiğin hareket sayısı</p>
+
+      {nextWorkout ? (
+        <>
+          {nextTargets.length > 0 && (
+            <div className="mt-5">
+              <div className="flex justify-between pb-1.5 border-b border-(--color-border) text-[13px] text-(--color-text-secondary)">
+                <span>Hareket</span><span>geçmen gereken</span>
+              </div>
+              <ul>
+                {nextTargets.map(target => (
+                  <li key={target.id} className="flex items-baseline justify-between gap-3 py-2 border-b border-(--color-bg-card) last:border-b-0">
+                    <span className="text-[16px] truncate">{target.name}</span>
+                    <span className="lb-figure shrink-0 text-[22px] font-semibold">{target.text ?? '—'}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <Link to={`/workout/${nextWorkout.program.id}/week/${currentWeek}`}
+            className="mt-4 flex items-center justify-center h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">
+            {nextWorkout.hasDraft ? 'Devam et' : 'Başla'}
+          </Link>
+        </>
+      ) : activePlanPrograms.length ? (
+        <button onClick={() => setConfirmNewWeek(true)}
+          className="mt-6 w-full h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Yeni haftaya geç</button>
+      ) : (
+        <Link to="/programs" className="mt-6 flex items-center justify-center h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">Programlar</Link>
+      )}
+
+      <div className="mt-8 grid grid-cols-2 gap-2">
+        <div className="a-card px-4 py-3">
+          <p className="lb-figure text-[30px] font-bold leading-none">{weekStats.volume > 0 ? nf.format(Math.round(weekStats.volume)) : '—'}{weekStats.volume > 0 && <span className="text-[16px] font-semibold text-(--color-text-secondary)"> kg</span>}</p>
+          <p className="mt-1 text-[13px] text-(--color-text-secondary)">bu haftanın hacmi</p>
+        </div>
+        <div className="a-card px-4 py-3">
+          <p className="lb-figure text-[30px] font-bold leading-none">{streak}<span className="text-[16px] font-semibold text-(--color-text-secondary)"> hafta</span></p>
+          <p className="mt-1 text-[13px] text-(--color-text-secondary)">üst üste antrenman</p>
+        </div>
+      </div>
+      {weekDone && weekStats.delta !== null && (
+        <p className="mt-2 text-[13px] text-(--color-text-secondary)">Geçen haftaya göre toplam hacim: {weekStats.delta > 0 ? '+' : ''}{nf.format(Math.round(weekStats.delta))} kg</p>
+      )}
+
+      {stalled.length > 0 && (
+        <section className="mt-8">
+          <h2 className="a-display text-[28px]">Yerinde sayanlar</h2>
+          <p className="mt-1 text-[13px] text-(--color-text-secondary)">En iyi set {STALL_WEEKS} haftadan uzun süredir aşılmadı.</p>
+          <ul className="mt-2">
+            {(showAllStalled ? stalled : stalled.slice(0, 5)).map(({ key, name, stall }) => (
+              <li key={key} className="flex items-baseline gap-3 py-2.5 border-b border-(--color-bg-card)">
+                <span className="flex-1 min-w-0 text-[16px] truncate">{name}</span>
+                <span className="lb-figure text-[18px] text-(--color-text-secondary)">{formatSet(stall.best)}</span>
+                <span className="lb-figure w-14 text-right text-[18px] font-semibold">{stall.weeks} hf</span>
+              </li>
+            ))}
+          </ul>
+          {stalled.length > 5 && (
+            <button onClick={() => setShowAllStalled(value => !value)} className="mt-1 h-11 text-[15px] text-(--color-text-secondary)">
+              {showAllStalled ? 'Daha az göster' : `Tümünü göster (${stalled.length})`}
+            </button>
+          )}
+        </section>
+      )}
+
+      {!weekDone && (
+        <button onClick={() => setConfirmNewWeek(true)} className="mt-8 w-full h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">
+          Yeni haftaya geç
+        </button>
+      )}
+
+      <p className="mt-8 text-[13px] text-(--color-text-secondary)">
+        <a href={`${import.meta.env.BASE_URL}privacy.html`} className="underline">Gizlilik Politikası</a>
+      </p>
+
       {/* The week only moves forward in the app, so a stray tap needs a stop. */}
       <Modal isOpen={confirmNewWeek} onClose={() => setConfirmNewWeek(false)}
         onConfirm={() => { setConfirmNewWeek(false); incrementWeek(); }}
         title="Yeni haftaya geçilsin mi?"
         message={`Bu hafta ${weekStats.completed}/${weekStats.total} antrenman kaydedildi. Geçtikten sonra haftayı uygulamadan geri alamazsın.`}
         confirmText="Yeni haftaya geç" />
-    </PageContainer>
+    </div>
   );
 }

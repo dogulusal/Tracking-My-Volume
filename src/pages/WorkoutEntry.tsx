@@ -3,9 +3,9 @@ import { useContext, useState, useEffect, useCallback, useMemo, useRef } from 'r
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePrograms } from '@/hooks/usePrograms';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
-import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Modal } from '@/components/shared/Modal';
+import { formatSetLine } from '../../supabase/functions/_shared/historyGrid.mjs';
 import { formatSet } from '@/utils/formatters';
 import { moveItem } from '@/utils/reorder';
 import { syncExerciseLogs, syncProgramFromWorkout } from '@/utils/exerciseSync';
@@ -21,6 +21,27 @@ const INTENSITY_OPTIONS: { value: Intensity; label: string }[] = [
   { value: 'rir2', label: '2' },
   { value: 'rir3', label: '3' },
 ];
+const roundWeight = (weight: number) => Math.round(weight * 100) / 100;
+const RESERVE: Record<string, number> = { failure: 0, rir1: 1, rir2: 2, rir3: 3 };
+const TONE = {
+  gain: { color: 'var(--lb-gain)', fill: 'var(--lb-gain-fill)' },
+  drop: { color: 'var(--lb-drop)', fill: 'var(--lb-drop-fill)' },
+  ref: { color: 'var(--lb-ref)', fill: 'var(--lb-ref-fill)' },
+  same: { color: 'var(--color-text-secondary)', fill: 'var(--color-bg-input)' },
+};
+
+// This set against the same set last time, in words: weight first, then reps.
+// Reserve alone is not called better or worse while the set is still being
+// entered — every new day starts at F.
+function compareToPrevious(set: SetLog, prev: SetLog | null): { text: string; tone: keyof typeof TONE } {
+  if (!prev) return { text: 'İlk kayıt', tone: 'ref' };
+  if (set.weight > prev.weight) return { text: `Geçen haftadan ${roundWeight(set.weight - prev.weight)} kg fazla`, tone: 'gain' };
+  if (set.weight < prev.weight) return { text: `Geçen haftadan ${roundWeight(prev.weight - set.weight)} kg az`, tone: 'drop' };
+  if (set.reps > prev.reps) return { text: `Geçen haftadan ${set.reps - prev.reps} tekrar fazla`, tone: 'gain' };
+  if (set.reps < prev.reps) return { text: `Geçen haftadan ${prev.reps - set.reps} tekrar az`, tone: 'drop' };
+  if ((RESERVE[set.intensity] ?? 0) !== (RESERVE[prev.intensity] ?? 0)) return { text: `Kilo ve tekrar aynı · geçen ${formatSetLine(prev)}`, tone: 'same' };
+  return { text: 'Geçen haftayla aynı', tone: 'same' };
+}
 const REST_TIMER_KEY = 'rest-timer-default-sec';
 const REST_TIMER_RECENTS_KEY = 'rest-timer-recent-sec';
 const TIMER_END_AT_KEY = 'rest-timer-end-at';
@@ -60,7 +81,6 @@ export function WorkoutEntry() {
   const returnPath = searchParams.get('from') === 'history' ? '/history' : '/';
   const { getProgramById, updateProgram } = usePrograms(Number(weekParam) || 0);
   const { getLogForWeek, saveWorkout } = useWeekLogs();
-  const isMobile = useIsMobileDevice();
 
   const weekNumber = Number(weekParam) || 0;
   const ctx = useContext(AppContext);
@@ -84,8 +104,6 @@ export function WorkoutEntry() {
   );
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>([]);
   const [isDirty, setIsDirty] = useState(false);
-  const [expandedExercise, setExpandedExercise] = useState<string | null | undefined>(undefined);
-  const [showAllExercises, setShowAllExercises] = useState(false);
   const [completedSets, setCompletedSets] = useState<Record<string, boolean>>({});
   const [draftStatus, setDraftStatus] = useState<'idle' | 'saved' | 'error'>('idle');
   const [restDurationSec, setRestDurationSec] = useState<number>(() => {
@@ -117,8 +135,6 @@ export function WorkoutEntry() {
   const [setInputDrafts, setSetInputDrafts] = useState<Record<string, string>>({});
   const [orderDiffersFromProgram, setOrderDiffersFromProgram] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
-  // Exercises whose note box was opened; a note already written keeps it open.
-  const [noteOpenIds, setNoteOpenIds] = useState<ReadonlySet<string>>(new Set());
   const [pinnedEdit, setPinnedEdit] = useState<{ key: string; text: string } | null>(null);
   const editedExerciseIdsRef = useRef<Set<string>>(new Set());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -401,16 +417,6 @@ export function WorkoutEntry() {
     });
   }, [getSetInputKey, parseSetInput, setInputDrafts, updateSet]);
 
-  const renderRepStepper = (exerciseIdx: number, setIdx: number, reps: number) => (
-    <span className="flex shrink-0 gap-1">
-      {([-1, 1] as const).map(delta => <button key={delta} type="button"
-        aria-label={`Set ${setIdx + 1} Rep ${delta > 0 ? 'artır' : 'azalt'}`}
-        onPointerDown={e => e.preventDefault()}
-        onClick={() => handleSetFieldChange(exerciseIdx, setIdx, 'reps', String(Math.max(0, reps + delta)))}
-        className="lb-press w-10 h-11 rounded-lg border lb-rule text-lg font-semibold">{delta > 0 ? '+' : '−'}</button>)}
-    </span>
-  );
-
   const handleSetFieldFocus = useCallback((exerciseIdx: number, setIdx: number, field: 'weight' | 'reps', currentValue: number) => {
     if (currentValue !== 0) return;
     const key = getSetInputKey(exerciseIdx, setIdx, field);
@@ -590,7 +596,7 @@ export function WorkoutEntry() {
     }, 500);
   }, [fireTimerFinishedAlerts]);
 
-  const startRestTimer = (seconds: number = restDurationSec) => {
+  const startRestTimer = (seconds: number = restDurationSec, remember = true) => {
     // Unlock / resume AudioContext on this user gesture — required for iOS audio policy
     try {
       if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
@@ -614,7 +620,7 @@ export function WorkoutEntry() {
     localStorage.setItem(TIMER_END_AT_KEY, String(endAt));
     setTimerRemainingSec(safeSeconds);
     setTimerActive(true);
-    addRecentDuration(safeSeconds);
+    if (remember) addRecentDuration(safeSeconds);
     // Play silent audio loop — keeps iOS audio session alive when screen locks
     if (SILENT_WAV_URL) {
       if (!silentAudioRef.current) {
@@ -735,6 +741,49 @@ export function WorkoutEntry() {
     };
   }, [previousLog]);
 
+  // Focus mode: one set on screen; by default the first one not yet done.
+  const [focus, setFocus] = useState<{ ex: number; set: number } | null>(null);
+  const [screen, setScreen] = useState<'set' | 'list'>('set');
+  const [daySettingsOpen, setDaySettingsOpen] = useState(false);
+  const [exerciseSheetOpen, setExerciseSheetOpen] = useState(false);
+
+  // The next set not yet done after (fromEx, fromSet), in program order,
+  // wrapping round to the start; null once every set is done.
+  const nextOpenSet = (fromEx: number, fromSet: number, done: Record<string, boolean>) => {
+    const order: { ex: number; set: number }[] = [];
+    exerciseLogs.forEach((exercise, ex) => exercise.sets.forEach((_, set) => order.push({ ex, set })));
+    const start = order.findIndex(item => item.ex === fromEx && item.set === fromSet);
+    for (let step = 1; step <= order.length; step++) {
+      const item = order[(start + step + order.length) % order.length];
+      if (!done[`${exerciseLogs[item.ex].exerciseId}:${item.set}`]) return item;
+    }
+    return null;
+  };
+  const current = focus && exerciseLogs[focus.ex]?.sets[focus.set] ? focus : nextOpenSet(-1, -1, completedSets);
+
+  // Seti bitir: tick it, move on to the next set not yet done, and rest
+  // unless that was the last one.
+  const finishSet = () => {
+    if (!current) return;
+    const key = `${exerciseLogs[current.ex].exerciseId}:${current.set}`;
+    const done = { ...completedSets, [key]: true };
+    setCompletedSets(done);
+    setIsDirty(true);
+    const next = nextOpenSet(current.ex, current.set, done);
+    setFocus(next);
+    if (next) startRestTimer();
+  };
+  // Moves the end of a running rest; the alarm is rescheduled with it, and the
+  // adjusted length is not remembered as a new duration.
+  const adjustRestTimer = (deltaSec: number) => {
+    if (timerEndAtRef.current === null) return;
+    const remaining = Math.ceil((timerEndAtRef.current - Date.now()) / 1000) + deltaSec;
+    if (remaining <= 0) { stopRestTimer(); return; }
+    const total = timerTotalRef.current;
+    startRestTimer(remaining, false);
+    timerTotalRef.current = Math.max(total, remaining);
+  };
+
   if (!program) {
     return (
       <PageContainer>
@@ -743,557 +792,398 @@ export function WorkoutEntry() {
     );
   }
 
-  return (
-    <PageContainer>
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        <div>
-          <button
-            onClick={() => navigate(returnPath)}
-            className="lb-press text-sm font-medium text-(--color-text-secondary) hover:text-(--color-text-primary) mb-1"
-          >
-            ← Geri
-          </button>
-          <h1 className="text-2xl font-semibold tracking-tight">{program.name}</h1>
-          <p className="lb-label">{phase?.name} · H{displayWeek}</p>
-        </div>
-        <input
-          type="date"
-          value={date}
-          onChange={e => { setDate(e.target.value); setIsDirty(true); }}
-          className="lb-figure px-4 py-2.5 bg-(--color-bg-input) border lb-rule rounded-lg text-sm focus:outline-none"
-        />
-      </div>
+  const doneCount = exerciseLogs.reduce((count, e) => count + e.sets.filter((_, i) => completedSets[`${e.exerciseId}:${i}`]).length, 0);
+  const setCount = exerciseLogs.reduce((count, e) => count + e.sets.length, 0);
+  const exercise = current ? exerciseLogs[current.ex] : null;
+  const set = exercise && current ? exercise.sets[current.set] : null;
+  const prevSet = exercise && current ? getPreviousSetRef(exercise.exerciseId, current.set) : null;
+  const key = exercise ? exerciseKey(exercise.exerciseName) : '';
+  const info = exercise ? movementInfo.get(exercise.exerciseId) : undefined;
+  const pinned = key ? exerciseSettings?.[key]?.note : undefined;
+  const step = info?.rule.step ?? 2.5;
+  const comparison = set ? compareToPrevious(set, prevSet) : null;
+  const currentDone = exercise && current ? !!completedSets[`${exercise.exerciseId}:${current.set}`] : false;
+  const restShown = timerActive || timerJustFinished;
+  const restFraction = timerActive && timerTotalRef.current > 0 ? 1 - timerRemainingSec / timerTotalRef.current : 1;
 
-      {previousNoteLog?.notes?.trim() && (
-        <div className="mb-6 border-l-2 lb-rule-strong pl-3">
-          <p className="lb-label">Geçen {program.name} notu · {weekLabel(allPhases, previousNoteLog.weekNumber)}</p>
-          <p className="text-sm mt-1 whitespace-pre-line">{previousNoteLog.notes.trim()}</p>
-        </div>
-      )}
-
-      {/* Holiday Toggle */}
-      <div className="mb-6">
-      <label className="lb-press flex items-center gap-3 px-3 py-3 -mx-3 rounded-lg border-b lb-rule cursor-pointer">
-        <input
-          type="checkbox"
-          checked={isHoliday}
-          onChange={e => { setIsHoliday(e.target.checked); setIsDirty(true); }}
-          className="w-5 h-5 rounded"
-        />
-        <span className="text-sm font-medium">Bu günü tatil olarak işaretle</span>
-      </label>
-      {!isHoliday && (
-        <label className="lb-press flex items-center gap-3 px-3 py-3 -mx-3 rounded-lg border-b lb-rule cursor-pointer">
-          <input
-            type="checkbox"
-            checked={offDay}
-            onChange={e => { setOffDay(e.target.checked); setIsDirty(true); }}
-            className="w-5 h-5 rounded shrink-0"
-          />
-          <span className="min-w-0">
-            <span className="block text-sm font-medium">Zor gün — hasta, uykusuz, ağrılı ya da acele</span>
-            <span className="lb-label block mt-0.5">Bu günün rengi yine hesaplanır; sonraki hafta bununla değil, ondan önceki normal günle kıyaslanır.</span>
+  const segments = (
+    <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.max(1, exerciseLogs.length)}, minmax(0, 1fr))` }}>
+      {exerciseLogs.map((e, index) => {
+        const done = e.sets.filter((_, i) => completedSets[`${e.exerciseId}:${i}`]).length;
+        return (
+          <span key={e.exerciseId} className="block h-[3px] rounded-full overflow-hidden"
+            style={{ background: current?.ex === index ? 'color-mix(in srgb, var(--color-text-secondary) 45%, transparent)' : 'var(--color-border)' }}>
+            <span className="block h-[3px] bg-(--color-text-primary)" style={{ width: `${e.sets.length ? (done / e.sets.length) * 100 : 0}%` }} />
           </span>
-        </label>
-      )}
+        );
+      })}
+    </div>
+  );
+
+  const roundButton = (label: string, onClick: () => void, plus: boolean) => (
+    <button type="button" aria-label={label} onPointerDown={e => e.preventDefault()} onClick={onClick}
+      className="shrink-0 w-16 h-16 rounded-full bg-(--color-bg-input) flex items-center justify-center active:scale-95 transition-transform">
+      <svg aria-hidden="true" className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d={plus ? 'M12 5v14M5 12h14' : 'M5 12h14'} /></svg>
+    </button>
+  );
+
+  return (
+    <div className="min-h-[100dvh] max-w-xl mx-auto flex flex-col pt-[env(safe-area-inset-top)]">
+      <div className="px-4 pt-3">
+        {segments}
+        <div className="mt-1.5 flex items-center justify-between">
+          <button onClick={() => navigate(returnPath)} aria-label="Antrenmandan çık (taslak saklanır)" className="-ml-2.5 w-11 h-11 flex items-center justify-center">
+            <svg aria-hidden="true" className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+          <span className="text-[15px] font-semibold truncate px-2">
+            {program.name} <span className="font-medium text-(--color-text-secondary)">· {current ? `hareket ${current.ex + 1}/${exerciseLogs.length}` : `${doneCount}/${setCount} set`}</span>
+          </span>
+          <button onClick={() => setScreen('list')} aria-label="Hareket listesi ve gün ayarları" className="-mr-2.5 w-11 h-11 flex items-center justify-center">
+            <svg aria-hidden="true" className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" /></svg>
+          </button>
+        </div>
       </div>
 
-      {/* Rest timer control */}
-      {!isHoliday && (
-        <details className="mb-6 rounded-lg border lb-rule overflow-hidden">
-          <summary className="lb-press cursor-pointer px-4 py-3 text-sm font-semibold">Set arası dinlenme · {formatDurationLabel(restDurationSec)} <span className="lb-label ml-2">Ayarlar</span></summary>
-
-          {/* Header row */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-b lb-rule">
-            <p className="text-sm font-semibold">⏱ Set arası dinlenme</p>
-            {notificationPermission === 'default' && (
-              <button
-                onClick={handleEnableNotifications}
-                className="text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary) hover:underline"
-              >
-                Bildirim izni ver
+      {isHoliday ? (
+        <div className="flex-1 flex flex-col justify-center px-6 pb-8 text-center">
+          <p className="a-display text-[56px]">Tatil</p>
+          <p className="mt-2 text-[16px] text-(--color-text-secondary)">Bu gün tatil olarak işaretli; setler gizli.</p>
+          <button onClick={() => { setIsHoliday(false); setIsDirty(true); }} className="mt-6 h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">Tatili kaldır</button>
+          <button onClick={handleSave} className="mt-2 h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Kaydet</button>
+        </div>
+      ) : !exercise || !set || !current ? (
+        <div className="flex-1 flex flex-col justify-center px-6 pb-8">
+          <p className="text-center text-[16px] text-(--color-text-secondary)">{program.name} · {phase?.name} H{displayWeek}</p>
+          <p className="a-display text-center text-[72px] mt-1">{setCount ? 'Tamam' : 'Hareket yok'}</p>
+          <p className="text-center text-[17px] text-(--color-text-secondary)">{doneCount} / {setCount} set işaretlendi</p>
+          <button onClick={handleSave} className="mt-8 h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Kaydet</button>
+          <button onClick={() => setScreen('list')} className="mt-2 h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">Hareketlere dön</button>
+        </div>
+      ) : (
+        <>
+          <div className="px-5 pt-2">
+            <div className="flex items-start gap-2">
+              <h1 className="a-display flex-1 min-w-0 text-[40px]">{exercise.exerciseName}</h1>
+              <button onClick={() => setExerciseSheetOpen(true)} aria-label={`${exercise.exerciseName} seçenekleri: not, kural, set ekle ya da sil, sıra`}
+                className="-mr-2.5 shrink-0 w-11 h-11 flex items-center justify-center text-(--color-text-secondary)">
+                <svg aria-hidden="true" className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
               </button>
-            )}
-            {notificationPermission === 'granted' && (
-              <span className="text-xs font-medium" style={{ color: 'var(--lb-gain)' }}>● Bildirimler açık</span>
-            )}
-            {notificationPermission === 'denied' && (
-              <span className="lb-label">Bildirim engellendi</span>
+            </div>
+            <div className="mt-1.5 flex items-baseline justify-between gap-3">
+              <span className="text-[15px] text-(--color-text-secondary)">Set {current.set + 1} / {exercise.sets.length}</span>
+              <span className="text-[14px] text-(--color-text-secondary)">
+                geçen hafta <span className="lb-figure text-[22px] font-semibold text-(--color-text-primary)">{prevSet ? formatSetLine(prevSet) : '—'}</span>
+              </span>
+            </div>
+            {(info?.target || pinned || info?.lastNote || (doneCount === 0 && previousNoteLog?.notes?.trim())) && (
+              <div className="mt-1.5 space-y-0.5 text-[14px] text-(--color-text-secondary)">
+                {info?.target && (
+                  <p>Hedef <span className="lb-figure text-[17px] font-semibold text-(--color-text-primary)">{info.target.reps !== null ? `${info.target.weight} × ${info.target.reps}` : `${info.target.weight} kg`}</span>
+                    {' · '}{info.target.reps !== null ? `geçen ${formatSet(info.target.from)}` : `${info.target.from.reps} tekrara ulaştın`}</p>
+                )}
+                {pinned && <p className="truncate">Sabit: <span className="text-(--color-text-primary)">{pinned}</span></p>}
+                {info?.lastNote && <p className="truncate">Geçen sefer ({[programName(info.lastNote.log.programId), weekLabel(allPhases, info.lastNote.log.weekNumber)].filter(Boolean).join(' · ')}): <span className="text-(--color-text-primary)">{info.lastNote.exercise.note!.trim()}</span></p>}
+                {doneCount === 0 && previousNoteLog?.notes?.trim() && <p className="truncate">Geçen gün notu: <span className="text-(--color-text-primary)">{previousNoteLog.notes.trim()}</span></p>}
+              </div>
             )}
           </div>
 
-          <div className="p-5 space-y-4">
-
-            {/* Last 3 used durations — big tap targets */}
-            {recentDurations.length > 0 ? (
-              <div className={`grid gap-3 ${
-                recentDurations.length === 1 ? 'grid-cols-1'
-                  : recentDurations.length === 2 ? 'grid-cols-2'
-                  : 'grid-cols-3'
-              }`}>
-                {recentDurations.map(sec => (
-                  <button
-                    key={sec}
-                    onClick={() => { setRestDurationSec(sec); startRestTimer(sec); }}
-                    className={`lb-press lb-figure py-5 rounded-lg text-2xl font-semibold border ${
-                      restDurationSec === sec
-                        ? 'lb-rule-strong bg-(--color-bg-input)'
-                        : 'lb-rule text-(--color-text-secondary)'
-                    }`}
-                  >
-                    {formatDurationLabel(sec)}
+          <div className="flex-1 flex flex-col justify-center gap-3 px-5 py-3">
+            <div className="flex flex-col items-center">
+              <span className="text-[14px] text-(--color-text-secondary)">kg</span>
+              <div className="w-full flex items-center justify-between gap-2">
+                {roundButton('Kiloyu azalt', () => handleSetFieldChange(current.ex, current.set, 'weight', String(roundWeight(Math.max(0, set.weight - step)))), false)}
+                <input type="text" inputMode="decimal" aria-label="Kilo"
+                  value={getSetFieldDisplayValue(current.ex, current.set, 'weight', set.weight)}
+                  onChange={e => handleSetFieldChange(current.ex, current.set, 'weight', e.target.value)}
+                  onFocus={() => handleSetFieldFocus(current.ex, current.set, 'weight', set.weight)}
+                  onBlur={() => handleSetFieldBlur(current.ex, current.set, 'weight', set.weight)}
+                  className="lb-figure flex-1 min-w-0 bg-transparent text-center text-[96px]! leading-none font-bold focus:outline-none" />
+                {roundButton('Kiloyu artır', () => handleSetFieldChange(current.ex, current.set, 'weight', String(roundWeight(set.weight + step))), true)}
+              </div>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="text-[14px] text-(--color-text-secondary)">tekrar</span>
+              <div className="w-full flex items-center justify-between gap-2">
+                {roundButton('Tekrarı azalt', () => handleSetFieldChange(current.ex, current.set, 'reps', String(Math.max(0, set.reps - 1))), false)}
+                <input type="text" inputMode="numeric" aria-label="Tekrar"
+                  value={getSetFieldDisplayValue(current.ex, current.set, 'reps', set.reps)}
+                  onChange={e => handleSetFieldChange(current.ex, current.set, 'reps', e.target.value)}
+                  onFocus={() => handleSetFieldFocus(current.ex, current.set, 'reps', set.reps)}
+                  onBlur={() => handleSetFieldBlur(current.ex, current.set, 'reps', set.reps)}
+                  className="lb-figure flex-1 min-w-0 bg-transparent text-center text-[96px]! leading-none font-bold focus:outline-none" />
+                {roundButton('Tekrarı artır', () => handleSetFieldChange(current.ex, current.set, 'reps', String(set.reps + 1)), true)}
+              </div>
+              {comparison && (
+                <span role="status" className="mt-2 rounded-full px-3 py-1.5 text-[15px] font-semibold"
+                  style={{ color: TONE[comparison.tone].color, background: TONE[comparison.tone].fill }}>{comparison.text}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 text-[14px] text-(--color-text-secondary)">RIR</span>
+              <div className="flex-1 grid grid-cols-4 gap-1 p-1 rounded-2xl bg-(--color-bg-card)">
+                {INTENSITY_OPTIONS.map(opt => (
+                  <button key={opt.value} onClick={() => updateSet(current.ex, current.set, 'intensity', opt.value)}
+                    aria-pressed={set.intensity === opt.value} aria-label={opt.value === 'failure' ? 'Tükeniş' : `RIR ${opt.label}`}
+                    className={`h-[50px] rounded-xl text-[20px] font-semibold ${set.intensity === opt.value ? 'bg-(--color-text-primary) text-(--color-bg-primary)' : 'text-(--color-text-secondary)'}`}>
+                    {opt.label}
                   </button>
                 ))}
               </div>
-            ) : (
-              <p className="lb-label text-center py-2">
-                Henüz kayıtlı süre yok — özel süre girerek başlayabilirsin.
-              </p>
-            )}
-
-            {/* Custom duration row */}
-            <div className="flex gap-2">
-              <div className="flex flex-1 items-center bg-(--color-bg-input) border lb-rule rounded-lg overflow-hidden">
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  inputMode="numeric"
-                  value={customDurationInput}
-                  onChange={e => setCustomDurationInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') void handleStartCustomTimer(); }}
-                  placeholder="Süre gir…"
-                  className="lb-figure flex-1 min-w-0 px-4 py-3 bg-transparent text-sm focus:outline-none placeholder:text-(--color-text-secondary)"
-                />
-              </div>
-              {/* Unit choice is a selection, not a signal — stays neutral */}
-              <div className="flex items-stretch rounded-lg overflow-hidden border lb-rule shrink-0">
-                <button
-                  onClick={() => setCustomDurationUnit('sec')}
-                  className={`lb-press px-3 text-sm font-semibold ${
-                    customDurationUnit === 'sec'
-                      ? 'bg-(--color-text-primary) text-(--color-bg-primary)'
-                      : 'text-(--color-text-secondary)'
-                  }`}
-                >sn</button>
-                <button
-                  onClick={() => setCustomDurationUnit('min')}
-                  className={`lb-press px-3 text-sm font-semibold border-l lb-rule ${
-                    customDurationUnit === 'min'
-                      ? 'bg-(--color-text-primary) text-(--color-bg-primary)'
-                      : 'text-(--color-text-secondary)'
-                  }`}
-                >dk</button>
-              </div>
-              <button
-                onClick={handleStartCustomTimer}
-                disabled={!customDurationInput || Number(customDurationInput) <= 0}
-                className="lb-press px-5 py-3 border lb-rule-strong font-semibold rounded-lg disabled:opacity-40 whitespace-nowrap"
-              >
-                Başlat
-              </button>
             </div>
-
-            <p className="lb-label">
-              {notificationPermission === 'granted'
-                ? 'Süre bitince ses + titreşim + bildirim. Uygulama arka plandayken de uyarır.'
-                : 'Süre bitince ses çalar ve telefon titreşir.'}
-            </p>
-
           </div>
-        </details>
+
+          <div className="px-4 pb-[calc(20px+env(safe-area-inset-bottom))] flex flex-col gap-2.5">
+            {exercise.sets.some((_, i) => completedSets[`${exercise.exerciseId}:${i}`]) && (
+              <div className="flex flex-wrap gap-x-4 gap-y-1 px-1.5">
+                {exercise.sets.map((s, i) => completedSets[`${exercise.exerciseId}:${i}`] && (
+                  <button key={i} onClick={() => setFocus({ ex: current.ex, set: i })} aria-label={`Set ${i + 1} düzelt`}
+                    className="min-h-11 flex items-center gap-1.5 text-[14px] text-(--color-text-secondary)">
+                    <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="var(--lb-gain)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                    Set {i + 1} <span className="lb-figure text-[18px] font-semibold text-(--color-text-primary)">{formatSetLine(s)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {currentDone ? (
+              <button onClick={() => setFocus(null)} className="h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Düzeltmeyi bitir</button>
+            ) : (
+              <button onClick={finishSet} className="h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Seti bitir</button>
+            )}
+            <span className="text-center text-[13px] text-(--color-text-secondary)">
+              {draftStatus === 'error' ? 'Taslak kaydedilemedi' : currentDone ? 'Bu set işaretli; değişiklik kaydedilir.' : `Bitince ${formatDurationLabel(restDurationSec)} dinlenme başlar · taslak bu telefonda saklanır`}
+            </span>
+          </div>
+        </>
       )}
 
-
-
-      {/* Exercise Cards */}
-      {!isHoliday && (
-        <div className="space-y-5">
-          <div className="flex items-center justify-between gap-3">
-            <p className="lb-label">{exerciseLogs.length} egzersiz · {exerciseLogs.reduce((count, e) => count + e.sets.filter((_, i) => completedSets[`${e.exerciseId}:${i}`]).length, 0)}/{exerciseLogs.reduce((count, e) => count + e.sets.length, 0)} set işaretlendi</p>
-            <button onClick={() => setShowAllExercises(!showAllExercises)} className="lb-press text-xs px-3 py-2 border lb-rule rounded-lg">{showAllExercises ? 'Tek egzersiz göster' : 'Tümünü aç'}</button>
-          </div>
-          {exerciseLogs.map((exercise, exIdx) => {
-            const key = exerciseKey(exercise.exerciseName);
-            const pinned = exerciseSettings?.[key]?.note;
-            const { lastNote = null, rule, target = null, stall = null } = movementInfo.get(exercise.exerciseId) ?? {};
-            const editingRule = ruleEdit?.key === key;
-            const editingPinned = pinnedEdit?.key === key;
-            const noteOpen = noteOpenIds.has(exercise.exerciseId) || exercise.note !== undefined;
-            return (
-            <div key={exercise.exerciseId} className="pb-5 border-b lb-rule">
-              <div className="flex items-center gap-2 mb-4">
-                <h3 className="font-semibold text-base flex-1 min-w-0">
-                  <button className="lb-press w-full text-left py-2 rounded-lg" aria-expanded={showAllExercises || (expandedExercise === undefined ? exIdx === 0 : expandedExercise === exercise.exerciseId)} aria-controls={`exercise-${exercise.exerciseId}`} onClick={() => {
-                    setShowAllExercises(false);
-                    setExpandedExercise((expandedExercise === undefined ? exIdx === 0 : expandedExercise === exercise.exerciseId) ? null : exercise.exerciseId);
-                  }}>
-                    <span className="lb-label mr-3">{String(exIdx + 1).padStart(2, '0')}</span>{exercise.exerciseName}
-                    <span className="lb-label block mt-1">{exercise.sets.length} set · {exercise.sets.filter((_, i) => completedSets[`${exercise.exerciseId}:${i}`]).length} işaretlendi{pinned || lastNote ? ' · not var' : ''} {showAllExercises || (expandedExercise === undefined ? exIdx === 0 : expandedExercise === exercise.exerciseId) ? '−' : '+'}</span>
-                  </button>
-                </h3>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => moveExercise(exIdx, -1)}
-                    disabled={exIdx === 0}
-                    aria-label={`${exercise.exerciseName} yukarı taşı`}
-                    title="Yukarı taşı"
-                    className="lb-press px-2 py-1 leading-none text-sm rounded-lg border lb-rule text-(--color-text-secondary) disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => moveExercise(exIdx, 1)}
-                    disabled={exIdx === exerciseLogs.length - 1}
-                    aria-label={`${exercise.exerciseName} aşağı taşı`}
-                    title="Aşağı taşı"
-                    className="lb-press px-2 py-1 leading-none text-sm rounded-lg border lb-rule text-(--color-text-secondary) disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    ▼
-                  </button>
-                </div>
-              </div>
-
-              <div id={`exercise-${exercise.exerciseId}`} hidden={!(showAllExercises || (expandedExercise === undefined ? exIdx === 0 : expandedExercise === exercise.exerciseId))}>
-              {/* The next step: beat the set this workout is compared with */}
-              {target && rule && (
-                <div className="mb-4">
-                  <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                    <span className="lb-label">Hedef</span>
-                    <span className="lb-figure text-base font-semibold">
-                      {target.reps !== null ? `${target.weight} × ${target.reps}` : `${target.weight} kg`}
-                    </span>
-                    <span className="lb-label">
-                      {target.reps !== null ? `geçen ${formatSet(target.from)}` : `${target.from.reps} tekrara ulaştın, kiloyu artır`}
-                    </span>
-                  </p>
-                  {editingRule ? (
-                    <div className="mt-2 flex flex-wrap items-end gap-2">
-                      <label className="lb-label">Kilo artışı kaç tekrarda
-                        <input inputMode="numeric" value={ruleEdit.repTop} onChange={e => setRuleEdit({ ...ruleEdit, repTop: e.target.value })}
-                          className="lb-figure block mt-1 w-20 px-2 py-1.5 bg-(--color-bg-input) border lb-rule rounded-lg text-sm text-(--color-text-primary) focus:outline-none focus:border-(--color-text-primary)" />
-                      </label>
-                      <label className="lb-label">Kaç kg
-                        <input inputMode="decimal" value={ruleEdit.step} onChange={e => setRuleEdit({ ...ruleEdit, step: e.target.value })}
-                          className="lb-figure block mt-1 w-20 px-2 py-1.5 bg-(--color-bg-input) border lb-rule rounded-lg text-sm text-(--color-text-primary) focus:outline-none focus:border-(--color-text-primary)" />
-                      </label>
-                      {/* The actions wrap as one group on a narrow phone. */}
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => saveRule()} className="lb-press px-3 py-2 text-xs font-semibold rounded-lg bg-(--color-text-primary) text-(--color-bg-primary)">Kaydet</button>
-                        {rule.source === 'manual' && <button onClick={() => saveRule(true)} className="lb-press px-2 py-2 text-xs text-(--color-text-secondary)">Geçmişten öğren</button>}
-                        <button onClick={() => setRuleEdit(null)} className="lb-press px-2 py-2 text-xs text-(--color-text-secondary)">Vazgeç</button>
-                      </div>
-                    </div>
-                  ) : (
-                    // Links sit beside the text, not in it: on phones every
-                    // button is 44px tall and would open up the line.
-                    <div className="lb-label mt-1 flex items-center gap-2">
-                      <p>{rule.repTop} tekrarda +{rule.step} kg · {{ manual: 'senin ayarın', log: 'geçmişinden', step: 'tekrar varsayılan, artış geçmişinden', default: 'varsayılan' }[rule.source]}</p>
-                      <button onClick={() => setRuleEdit({ key, repTop: String(rule.repTop), step: String(rule.step) })}
-                        className="lb-press shrink-0 px-1 underline underline-offset-2 hover:text-(--color-text-primary)">değiştir</button>
-                    </div>
-                  )}
-                  {stall && stall.weeks >= STALL_WEEKS && (
-                    <p className="text-xs mt-1">
-                      {stall.weeks} haftadır yerinde <span className="text-(--color-text-secondary)">· en iyi {formatSet(stall.best)}, {weekLabel(allPhases, stall.since)}</span>
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* What earlier sessions left for this one */}
-              {(pinned || lastNote || editingPinned) && (
-                <div className="mb-4 border-l-2 lb-rule-strong pl-3 space-y-2 text-sm">
-                  {editingPinned ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <input autoFocus value={pinnedEdit.text} onChange={e => setPinnedEdit({ key, text: e.target.value })}
-                        onKeyDown={e => { if (e.key === 'Enter') savePinned(); if (e.key === 'Escape') setPinnedEdit(null); }}
-                        placeholder="Koltuk 3, 6. delik…" aria-label={`${exercise.exerciseName} sabit notu`}
-                        className="flex-1 min-w-0 px-3 py-2 bg-(--color-bg-input) border lb-rule rounded-lg text-sm focus:outline-none focus:border-(--color-text-primary) placeholder:text-(--color-text-secondary)" />
-                      <button onClick={savePinned} className="lb-press px-3 py-2 text-xs font-semibold rounded-lg bg-(--color-text-primary) text-(--color-bg-primary)">Kaydet</button>
-                      <button onClick={() => setPinnedEdit(null)} className="lb-press px-2 py-2 text-xs text-(--color-text-secondary)">Vazgeç</button>
-                    </div>
-                  ) : pinned && (
-                    <div className="flex items-center gap-2">
-                      <p className="flex-1 min-w-0 whitespace-pre-line">
-                        <span className="lb-label mr-2">Sabit</span>{pinned}
-                      </p>
-                      <button onClick={() => setPinnedEdit({ key, text: pinned })}
-                        className="lb-press shrink-0 px-1 text-xs text-(--color-text-secondary) underline underline-offset-2">Düzenle</button>
-                    </div>
-                  )}
-                  {lastNote && (
-                    <p className="whitespace-pre-line">
-                      <span className="lb-label mr-2">Geçen sefer · {[programName(lastNote.log.programId), weekLabel(allPhases, lastNote.log.weekNumber)].filter(Boolean).join(' · ')}</span>
-                      {lastNote.exercise.note!.trim()}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Sets */}
-              <div className="space-y-2.5 md:space-y-2.5">
-                {exercise.sets.map((set, setIdx) => {
-                  const prevSet = getPreviousSetRef(exercise.exerciseId, setIdx);
-                  return isMobile ? (
-                    /* ── Mobile: Card layout ── */
-                    <div key={setIdx} className="rounded-lg p-3 border lb-rule relative">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-semibold">Set {setIdx + 1}</span>
-                        {prevSet && (
-                          <span className="lb-figure text-xs text-(--color-text-secondary)">
-                            Geçen: {formatSet(prevSet)}
-                          </span>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div>
-                          <label className="lb-label mb-1 block">Ağırlık</label>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={getSetFieldDisplayValue(exIdx, setIdx, 'weight', set.weight)}
-                              onChange={e => handleSetFieldChange(exIdx, setIdx, 'weight', e.target.value)}
-                              onFocus={() => handleSetFieldFocus(exIdx, setIdx, 'weight', set.weight)}
-                              onBlur={() => handleSetFieldBlur(exIdx, setIdx, 'weight', set.weight)}
-                              step={0.5}
-                              min={0}
-                              className="lb-figure w-full px-3 py-3 bg-(--color-bg-input) border lb-rule rounded-lg text-lg font-semibold focus:outline-none focus:border-(--color-text-primary)"
-                            />
-                            <span className="lb-label absolute right-3 top-1/2 -translate-y-1/2">kg</span>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="lb-label mb-1 block">Tekrar</label>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              value={getSetFieldDisplayValue(exIdx, setIdx, 'reps', set.reps)}
-                              onChange={e => handleSetFieldChange(exIdx, setIdx, 'reps', e.target.value)}
-                              onFocus={() => handleSetFieldFocus(exIdx, setIdx, 'reps', set.reps)}
-                              onBlur={() => handleSetFieldBlur(exIdx, setIdx, 'reps', set.reps)}
-                              min={0}
-                              className="lb-figure w-full px-3 py-3 bg-(--color-bg-input) border lb-rule rounded-lg text-lg font-semibold focus:outline-none focus:border-(--color-text-primary)"
-                            />
-                            <span className="lb-label absolute right-3 top-1/2 -translate-y-1/2">rep</span>
-                          </div>
-                          <div className="flex justify-end mt-2">{renderRepStepper(exIdx, setIdx, set.reps)}</div>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="lb-label mr-1">RIR</span>
-                        {/* Which RIR you picked is a selection, not a gain/drop —
-                            neutral fill reads faster mid-set than accent anyway. */}
-                        {INTENSITY_OPTIONS.map(opt => (
-                          <button
-                            key={opt.value}
-                            onClick={() => updateSet(exIdx, setIdx, 'intensity', opt.value)}
-                            className={`lb-press w-11 h-11 rounded-lg text-sm font-semibold border ${
-                              set.intensity === opt.value
-                                ? 'bg-(--color-text-primary) text-(--color-bg-primary) border-transparent'
-                                : 'lb-rule text-(--color-text-secondary)'
-                            }`}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                        <button
-                          onClick={() => {
-                            const key = `${exercise.exerciseId}:${setIdx}`;
-                            setCompletedSets(prev => ({ ...prev, [key]: !prev[key] }));
-                            setIsDirty(true);
-                            if (!completedSets[key]) startRestTimer();
-                          }}
-                          aria-pressed={!!completedSets[`${exercise.exerciseId}:${setIdx}`]}
-                          aria-label={`Set ${setIdx + 1} ${completedSets[`${exercise.exerciseId}:${setIdx}`] ? 'işaretini kaldır' : 'tamamla ve dinlenmeyi başlat'}`}
-                          className={`lb-press w-11 h-11 rounded-lg text-sm font-semibold border ${
-                            completedSets[`${exercise.exerciseId}:${setIdx}`] ? 'bg-(--color-text-primary) text-(--color-bg-primary) border-transparent' : 'lb-rule text-(--color-text-secondary)'
-                          }`}
-                          title="Set bitti — dinlenme sayacını başlat"
-                        >
-                          ✓
-                        </button>
-                        {exercise.sets.length > 1 && (
-                          <button
-                            onClick={() => removeSet(exIdx, setIdx)}
-                            aria-label={`Set ${setIdx + 1} sil`}
-                            className="lb-press ml-auto w-9 h-9 rounded-full border text-sm flex items-center justify-center"
-                            style={{ borderColor: 'var(--lb-drop)', color: 'var(--lb-drop)' }}
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    /* ── Desktop: Inline layout (unchanged) ── */
-                    <div key={setIdx} className="flex flex-wrap items-center gap-2">
-                      <span className="lb-figure text-xs font-semibold text-(--color-text-secondary) w-8">S{setIdx + 1}</span>
-
-                      {/* Weight */}
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={getSetFieldDisplayValue(exIdx, setIdx, 'weight', set.weight)}
-                          onChange={e => handleSetFieldChange(exIdx, setIdx, 'weight', e.target.value)}
-                          onFocus={() => handleSetFieldFocus(exIdx, setIdx, 'weight', set.weight)}
-                          onBlur={() => handleSetFieldBlur(exIdx, setIdx, 'weight', set.weight)}
-                          step={0.5}
-                          min={0}
-                          className="lb-figure w-16 px-2 py-1.5 bg-(--color-bg-input) border lb-rule rounded-lg text-sm font-semibold focus:outline-none focus:border-(--color-text-primary)"
-                        />
-                        <span className="lb-label">kg</span>
-                      </div>
-
-                      {/* Reps */}
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={getSetFieldDisplayValue(exIdx, setIdx, 'reps', set.reps)}
-                          onChange={e => handleSetFieldChange(exIdx, setIdx, 'reps', e.target.value)}
-                          onFocus={() => handleSetFieldFocus(exIdx, setIdx, 'reps', set.reps)}
-                          onBlur={() => handleSetFieldBlur(exIdx, setIdx, 'reps', set.reps)}
-                          min={0}
-                          className="lb-figure w-14 px-2 py-1.5 bg-(--color-bg-input) border lb-rule rounded-lg text-sm font-semibold focus:outline-none focus:border-(--color-text-primary)"
-                        />
-                        <span className="lb-label">rep</span>
-                        {renderRepStepper(exIdx, setIdx, set.reps)}
-                      </div>
-
-                      {/* Intensity */}
-                      <div className="flex gap-1">
-                        {INTENSITY_OPTIONS.map(opt => (
-                          <button
-                            key={opt.value}
-                            onClick={() => updateSet(exIdx, setIdx, 'intensity', opt.value)}
-                            className={`lb-press w-8 h-8 rounded-lg text-xs font-semibold border ${
-                              set.intensity === opt.value
-                                ? 'bg-(--color-text-primary) text-(--color-bg-primary) border-transparent'
-                                : 'lb-rule text-(--color-text-secondary)'
-                            }`}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                        <button
-                          onClick={() => {
-                            const key = `${exercise.exerciseId}:${setIdx}`;
-                            setCompletedSets(prev => ({ ...prev, [key]: !prev[key] }));
-                            setIsDirty(true);
-                            if (!completedSets[key]) startRestTimer();
-                          }}
-                          aria-pressed={!!completedSets[`${exercise.exerciseId}:${setIdx}`]}
-                          aria-label={`Set ${setIdx + 1} ${completedSets[`${exercise.exerciseId}:${setIdx}`] ? 'işaretini kaldır' : 'tamamla ve dinlenmeyi başlat'}`}
-                          className={`lb-press w-8 h-8 rounded-lg text-xs font-semibold border ${
-                            completedSets[`${exercise.exerciseId}:${setIdx}`] ? 'bg-(--color-text-primary) text-(--color-bg-primary) border-transparent' : 'lb-rule text-(--color-text-secondary)'
-                          }`}
-                          title="Set bitti — dinlenme sayacını başlat"
-                        >
-                          ✓
-                        </button>
-                      </div>
-
-                      {/* Remove set */}
-                      {exercise.sets.length > 1 && (
-                        <button
-                          onClick={() => removeSet(exIdx, setIdx)}
-                          aria-label={`Set ${setIdx + 1} sil`}
-                          className="lb-press text-xs font-semibold ml-1 px-1.5 py-1 rounded"
-                          style={{ color: 'var(--lb-drop)' }}
-                        >
-                          ✕
-                        </button>
-                      )}
-
-                      {/* Previous reference */}
-                      {prevSet && (
-                        <span className="lb-figure text-xs text-(--color-text-secondary) ml-auto">
-                          Geçen: {formatSet(prevSet)}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {noteOpen && (
-                <label className="block mt-3">
-                  <span className="lb-label">Not · bir sonraki {exercise.exerciseName} antrenmanında görünür</span>
-                  <textarea
-                    value={exercise.note ?? ''}
-                    onChange={e => updateExerciseNote(exIdx, e.target.value)}
-                    autoFocus={noteOpenIds.has(exercise.exerciseId) && !exercise.note}
-                    rows={2}
-                    placeholder="Haftaya 50 kilo gir…"
-                    className="mt-1 w-full px-3 py-2 bg-(--color-bg-input) border lb-rule rounded-lg text-sm resize-none focus:outline-none focus:border-(--color-text-primary) placeholder:text-(--color-text-secondary)"
-                  />
-                </label>
-              )}
-
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-                <button
-                  onClick={() => addSet(exIdx)}
-                  className="lb-press text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)"
-                >
-                  + Set ekle
-                </button>
-                {!noteOpen && (
-                  <button onClick={() => setNoteOpenIds(prev => new Set(prev).add(exercise.exerciseId))}
-                    className="lb-press text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)">
-                    + Not
-                  </button>
-                )}
-                {!pinned && !editingPinned && (
-                  <button onClick={() => setPinnedEdit({ key, text: '' })} title="Her antrenmanda görünür: koltuk ayarı, tutuş…"
-                    className="lb-press text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary)">
-                    + Sabit not
-                  </button>
-                )}
-                {exIdx < exerciseLogs.length - 1 && <button onClick={() => { setShowAllExercises(false); setExpandedExercise(exerciseLogs[exIdx + 1].exerciseId); }} className="lb-press text-xs font-semibold px-3 py-2 border lb-rule rounded-lg">Sonraki egzersiz →</button>}
-              </div>
-              </div>
+      {/* Rest: the whole screen, a clock to read from across the room. */}
+      {restShown && (
+        <div role="dialog" aria-modal="true" aria-label="Dinlenme" className="fixed inset-0 z-50 bg-(--color-bg-primary) flex flex-col pt-[env(safe-area-inset-top)]">
+          <div className="max-w-xl w-full mx-auto flex-1 flex flex-col">
+            <div className="px-4 pt-3">
+              {segments}
+              <p className="h-11 mt-1.5 flex items-center justify-center text-[15px] font-semibold">{program.name}</p>
             </div>
-            );
-          })}
-
-          {orderDiffersFromProgram && (
-            <div className="flex flex-wrap items-center gap-3 p-4 rounded-lg bg-(--color-bg-input) border lb-rule">
-              <span className="lb-label flex-1 min-w-[200px]">
-                Yeni hareket sırası Kaydet ile programa ve sonraki haftalara uygulanacak.
+            <div className="flex-1 flex flex-col items-center justify-center gap-3.5">
+              <span className="text-[16px] text-(--color-text-secondary)">{timerActive ? 'Dinlenme' : 'Dinlenme bitti'}</span>
+              <span className="lb-figure text-[min(42vw,168px)] leading-[0.9] font-bold">{timerActive ? formatTimer(timerRemainingSec) : '0:00'}</span>
+              <span className="block w-64 h-1.5 rounded-full bg-(--color-bg-input) overflow-hidden">
+                <span className="block h-1.5 bg-(--color-text-primary) transition-all duration-500" style={{ width: `${restFraction * 100}%` }} />
               </span>
+              {timerActive && (
+                <div className="flex gap-2.5 mt-2">
+                  <button onClick={() => adjustRestTimer(-15)} className="h-[52px] px-6 rounded-full bg-(--color-bg-card) text-[17px] font-semibold">−15 sn</button>
+                  <button onClick={() => adjustRestTimer(30)} className="h-[52px] px-6 rounded-full bg-(--color-bg-card) text-[17px] font-semibold">+30 sn</button>
+                </div>
+              )}
+              <span className="text-[13px] text-(--color-text-secondary)">Süre bitince ses çalar, telefon titrer</span>
             </div>
-          )}
+            <div className="px-4 pb-[calc(24px+env(safe-area-inset-bottom))] flex flex-col gap-3">
+              {exercise && set && current && (
+                <section className="a-card rounded-[22px] px-5 py-4">
+                  <span className="text-[13px] text-(--color-text-secondary)">Sıradaki</span>
+                  <p className="text-[20px] font-semibold truncate">{exercise.exerciseName} · Set {current.set + 1}</p>
+                  {prevSet && (
+                    <div className="mt-2.5 flex items-baseline justify-between gap-3">
+                      <span className="text-[14px] text-(--color-text-secondary)">Geçmen gereken</span>
+                      <span className="lb-figure text-[44px] leading-none font-bold">{formatSetLine(prevSet)}</span>
+                    </div>
+                  )}
+                </section>
+              )}
+              <button onClick={() => { if (timerActive) stopRestTimer(); else setTimerJustFinished(false); }}
+                className="h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Hazırım</button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Notes */}
-      <div className="mt-6">
-        <label className="block text-sm font-semibold">
-          Antrenman notu
-        </label>
-        <p className="lb-label mt-0.5 mb-2">Bir hareketle ilgiliyse o hareketin notuna yaz; o hareket bir dahaki sefere hangi günde olursa orada çıkar.</p>
-        <textarea
-          value={notes}
-          onChange={e => { setNotes(e.target.value); setIsDirty(true); }}
-          placeholder="Bu antrenman hakkında not..."
-          rows={3}
-          className="w-full px-4 py-3 bg-(--color-bg-input) border lb-rule rounded-lg text-sm resize-none focus:outline-none focus:border-(--color-text-primary) placeholder:text-(--color-text-secondary)"
-        />
-      </div>
-
-      {(existingLog || isDirty) && (
-        <button onClick={() => setConfirmClear(true)} className="lb-press mt-6 text-sm underline underline-offset-2"
-          style={{ color: 'var(--lb-drop)' }}>
-          Bu haftanın kaydını sil…
-        </button>
+      {/* Every movement, to jump to one when a machine is taken. */}
+      {screen === 'list' && (
+        <div role="dialog" aria-modal="true" aria-labelledby="hareketler" className="fixed inset-0 z-40 bg-(--color-bg-primary) overflow-y-auto pt-[env(safe-area-inset-top)]">
+          <div className="max-w-xl mx-auto px-4 pt-3 pb-[calc(24px+env(safe-area-inset-bottom))] min-h-full flex flex-col">
+            <div className="flex items-center justify-between">
+              <h2 id="hareketler" className="a-display text-[34px]">Hareketler</h2>
+              <button onClick={() => setScreen('set')} aria-label="Listeyi kapat" className="-mr-2.5 w-11 h-11 flex items-center justify-center">
+                <svg aria-hidden="true" className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </button>
+            </div>
+            <p className="mt-1 mb-3.5 text-[14px] text-(--color-text-secondary)">Makine doluysa başka bir harekete geç; sıra seni bağlamaz.</p>
+            {previousNoteLog?.notes?.trim() && (
+              <div className="a-card px-4 py-3 mb-2">
+                <p className="text-[13px] text-(--color-text-secondary)">Geçen {program.name} notu · {weekLabel(allPhases, previousNoteLog.weekNumber)}</p>
+                <p className="mt-0.5 text-[15px] whitespace-pre-line">{previousNoteLog.notes.trim()}</p>
+              </div>
+            )}
+            <div className="flex flex-col gap-2">
+              {exerciseLogs.map((e, index) => {
+                const done = e.sets.filter((_, i) => completedSets[`${e.exerciseId}:${i}`]).length;
+                const first = getPreviousSetRef(e.exerciseId, 0);
+                const isCurrent = current?.ex === index;
+                return (
+                  <button key={e.exerciseId}
+                    onClick={() => { const open = e.sets.findIndex((_, i) => !completedSets[`${e.exerciseId}:${i}`]); setFocus({ ex: index, set: open < 0 ? 0 : open }); setScreen('set'); }}
+                    className="min-h-16 px-4 py-2.5 rounded-2xl bg-(--color-bg-card) flex items-center gap-3 text-left"
+                    style={isCurrent ? { boxShadow: 'inset 0 0 0 1.5px var(--color-text-primary)' } : undefined}>
+                    <span className="flex-1 min-w-0 flex flex-col">
+                      <span className="text-[17px] font-semibold truncate">{e.exerciseName}</span>
+                      <span className="lb-figure text-[15px] text-(--color-text-secondary)">{done} / {e.sets.length} set{first ? ` · geçen ${formatSetLine(first)}` : ''}</span>
+                    </span>
+                    <span className="lb-figure text-[18px] font-semibold" style={{ color: done === e.sets.length ? 'var(--lb-gain)' : undefined }}>
+                      {done === e.sets.length ? 'Tamam' : isCurrent ? 'Şimdi' : ''}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {orderDiffersFromProgram && <p className="mt-3 text-[13px] text-(--color-text-secondary)">Yeni hareket sırası Kaydet ile programa ve sonraki haftalara uygulanır.</p>}
+            <span className="flex-1 min-h-6" />
+            <div className="mt-4 flex flex-col gap-2">
+              <button onClick={() => setDaySettingsOpen(true)} className="h-[52px] rounded-2xl bg-(--color-bg-card) text-[16px] font-medium">Gün ayarları ve antrenman notu</button>
+              <button onClick={handleSave} className="h-14 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[17px] font-semibold">Antrenmanı kaydet ve çık</button>
+            </div>
+          </div>
+        </div>
       )}
+
+      {/* What belongs to the movement rather than the set. */}
+      {exerciseSheetOpen && exercise && current && (
+        <Sheet title={exercise.exerciseName} onClose={() => { setExerciseSheetOpen(false); setPinnedEdit(null); setRuleEdit(null); }}>
+          <label className="block">
+            <span className="text-[14px] text-(--color-text-secondary)">Not · bir sonraki {exercise.exerciseName} antrenmanında görünür</span>
+            <textarea value={exercise.note ?? ''} onChange={e => updateExerciseNote(current.ex, e.target.value)} rows={2} placeholder="Haftaya 50 kilo gir…"
+              className="mt-1 w-full px-4 py-3 rounded-2xl bg-(--color-bg-input) text-[16px] resize-none focus:outline-none placeholder:text-(--color-text-secondary)" />
+          </label>
+
+          <div className="mt-4">
+            <span className="text-[14px] text-(--color-text-secondary)">Sabit not · her antrenmanda görünür</span>
+            {pinnedEdit?.key === key ? (
+              <div className="mt-1 flex items-center gap-2">
+                <input autoFocus value={pinnedEdit.text} onChange={e => setPinnedEdit({ key, text: e.target.value })}
+                  onKeyDown={e => { if (e.key === 'Enter') savePinned(); }} placeholder="Koltuk 3, 6. delik…" aria-label="Sabit not"
+                  className="flex-1 min-w-0 px-4 h-12 rounded-2xl bg-(--color-bg-input) text-[16px] focus:outline-none placeholder:text-(--color-text-secondary)" />
+                <button onClick={savePinned} className="h-12 px-4 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) font-semibold">Kaydet</button>
+              </div>
+            ) : (
+              <button onClick={() => setPinnedEdit({ key, text: pinned ?? '' })} className="mt-1 w-full min-h-12 px-4 rounded-2xl bg-(--color-bg-input) text-left text-[16px]">
+                {pinned || <span className="text-(--color-text-secondary)">Ekle</span>}
+              </button>
+            )}
+          </div>
+
+          {info?.rule && (
+            <div className="mt-4">
+              <span className="text-[14px] text-(--color-text-secondary)">Kilo artış kuralı</span>
+              {ruleEdit?.key === key ? (
+                <div className="mt-1 flex flex-wrap items-end gap-2">
+                  <label className="text-[13px] text-(--color-text-secondary)">Kaç tekrarda
+                    <input inputMode="numeric" value={ruleEdit.repTop} onChange={e => setRuleEdit({ ...ruleEdit, repTop: e.target.value })}
+                      className="lb-figure block mt-1 w-20 px-3 h-12 rounded-xl bg-(--color-bg-input) text-[20px] text-(--color-text-primary) focus:outline-none" />
+                  </label>
+                  <label className="text-[13px] text-(--color-text-secondary)">Kaç kg
+                    <input inputMode="decimal" value={ruleEdit.step} onChange={e => setRuleEdit({ ...ruleEdit, step: e.target.value })}
+                      className="lb-figure block mt-1 w-20 px-3 h-12 rounded-xl bg-(--color-bg-input) text-[20px] text-(--color-text-primary) focus:outline-none" />
+                  </label>
+                  <button onClick={() => saveRule()} className="h-12 px-4 rounded-xl bg-(--color-text-primary) text-(--color-bg-primary) font-semibold">Kaydet</button>
+                  {info.rule.source === 'manual' && <button onClick={() => saveRule(true)} className="h-12 px-2 text-[15px]">Geçmişten öğren</button>}
+                </div>
+              ) : (
+                <button onClick={() => setRuleEdit({ key, repTop: String(info.rule.repTop), step: String(info.rule.step) })}
+                  className="mt-1 w-full min-h-12 px-4 rounded-2xl bg-(--color-bg-input) text-left text-[16px]">
+                  {info.rule.repTop} tekrarda +{info.rule.step} kg <span className="text-(--color-text-secondary)">· {{ manual: 'senin ayarın', log: 'geçmişinden', step: 'tekrar varsayılan, artış geçmişinden', default: 'varsayılan' }[info.rule.source]}</span>
+                </button>
+              )}
+              {info.stall && info.stall.weeks >= STALL_WEEKS && (
+                <p className="mt-1 text-[14px] text-(--color-text-secondary)">{info.stall.weeks} haftadır yerinde · en iyi {formatSet(info.stall.best)}, {weekLabel(allPhases, info.stall.since)}</p>
+              )}
+            </div>
+          )}
+
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            <button onClick={() => { addSet(current.ex); setFocus({ ex: current.ex, set: exercise.sets.length }); setExerciseSheetOpen(false); }}
+              className="h-[52px] rounded-2xl bg-(--color-bg-input) text-[16px] font-medium">Set ekle</button>
+            <button disabled={exercise.sets.length <= 1} onClick={() => { removeSet(current.ex, current.set); setFocus(null); setExerciseSheetOpen(false); }}
+              className="h-[52px] rounded-2xl bg-(--color-bg-input) text-[16px] font-medium disabled:opacity-30" style={{ color: 'var(--lb-drop)' }}>Bu seti sil</button>
+            <button disabled={current.ex === 0} onClick={() => { moveExercise(current.ex, -1); setFocus({ ex: current.ex - 1, set: current.set }); }}
+              className="h-[52px] rounded-2xl bg-(--color-bg-input) text-[16px] font-medium disabled:opacity-30">Sırada yukarı al</button>
+            <button disabled={current.ex === exerciseLogs.length - 1} onClick={() => { moveExercise(current.ex, 1); setFocus({ ex: current.ex + 1, set: current.set }); }}
+              className="h-[52px] rounded-2xl bg-(--color-bg-input) text-[16px] font-medium disabled:opacity-30">Sırada aşağı al</button>
+          </div>
+        </Sheet>
+      )}
+
+      {/* Everything about the day itself, out of the way of the sets. */}
+      {daySettingsOpen && (
+        <Sheet title="Gün ayarları" onClose={() => setDaySettingsOpen(false)}>
+          <label className="flex items-center justify-between gap-3 min-h-14">
+            <span className="text-[17px]">Tarih</span>
+            <input type="date" value={date} onChange={e => { setDate(e.target.value); setIsDirty(true); }}
+              className="lb-figure h-11 px-3 rounded-xl bg-(--color-bg-input) text-[20px]! focus:outline-none" />
+          </label>
+          <ToggleRow label="Tatil" checked={isHoliday} onChange={value => { setIsHoliday(value); setIsDirty(true); }} />
+          {!isHoliday && (
+            <>
+              <ToggleRow label="Zor gün" checked={offDay} onChange={value => { setOffDay(value); setIsDirty(true); }} />
+              <p className="text-[14px] leading-snug text-(--color-text-secondary)">Hasta, uykusuz, ağrılı ya da aceleyle geldiysen aç. Bu günün rengi yine hesaplanır; sonraki hafta ondan önceki normal günle kıyaslanır.</p>
+            </>
+          )}
+
+          <div className="mt-5 a-card !bg-(--color-bg-input) px-4 py-3.5">
+            <span className="text-[14px] text-(--color-text-secondary)">Set arası dinlenme</span>
+            <div className="mt-1 flex items-center justify-between">
+              <button aria-label="15 sn kısalt" onClick={() => setRestDurationSec(sec => Math.max(15, sec - 15))} className="w-14 h-14 rounded-full bg-(--color-bg-card) text-[24px]">−</button>
+              <span className="lb-figure text-[56px] leading-none font-bold">{formatTimer(restDurationSec)}</span>
+              <button aria-label="15 sn uzat" onClick={() => setRestDurationSec(sec => Math.min(7200, sec + 15))} className="w-14 h-14 rounded-full bg-(--color-bg-card) text-[24px]">+</button>
+            </div>
+            {recentDurations.length > 0 && (
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {recentDurations.map(sec => (
+                  <button key={sec} onClick={() => setRestDurationSec(sec)}
+                    className={`lb-figure h-11 rounded-xl text-[17px] ${restDurationSec === sec ? 'bg-(--color-text-primary) text-(--color-bg-primary) font-semibold' : 'bg-(--color-bg-card)'}`}>
+                    {formatTimer(sec)}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="mt-3 flex items-center gap-2">
+              <input type="number" min={1} step={1} inputMode="numeric" value={customDurationInput}
+                onChange={e => setCustomDurationInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') void handleStartCustomTimer(); }}
+                placeholder="Başka süre" aria-label="Başka dinlenme süresi"
+                className="lb-figure flex-1 min-w-0 h-11 px-3 rounded-xl bg-(--color-bg-card) text-[18px]! focus:outline-none placeholder:text-(--color-text-secondary)" />
+              <div className="flex p-1 rounded-xl bg-(--color-bg-card)">
+                {(['sec', 'min'] as const).map(unit => (
+                  <button key={unit} onClick={() => setCustomDurationUnit(unit)} aria-pressed={customDurationUnit === unit}
+                    className={`h-9 px-3 rounded-lg text-[15px] ${customDurationUnit === unit ? 'bg-(--color-text-primary) text-(--color-bg-primary) font-semibold' : 'text-(--color-text-secondary)'}`}>
+                    {unit === 'sec' ? 'sn' : 'dk'}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => void handleStartCustomTimer()} disabled={!customDurationInput || Number(customDurationInput) <= 0}
+                className="h-11 px-3 text-[16px] font-semibold disabled:opacity-30">Başlat</button>
+            </div>
+            <p className="mt-2 text-[13px] text-(--color-text-secondary)">
+              {recentDurations.length > 0 ? 'Son kullandığın süreler. ' : ''}
+              {notificationPermission === 'granted' ? 'Süre bitince ses, titreşim ve bildirim.' : 'Süre bitince ses çalar ve telefon titrer.'}
+              {notificationPermission === 'default' && <> <button onClick={handleEnableNotifications} className="underline underline-offset-2">Bildirim izni ver</button></>}
+            </p>
+          </div>
+
+          <label className="mt-5 block">
+            <span className="text-[14px] text-(--color-text-secondary)">Antrenman notu</span>
+            <textarea value={notes} onChange={e => { setNotes(e.target.value); setIsDirty(true); }} rows={3} placeholder="Bu antrenman hakkında not…"
+              className="mt-1 w-full px-4 py-3 rounded-2xl bg-(--color-bg-input) text-[16px] resize-none focus:outline-none placeholder:text-(--color-text-secondary)" />
+          </label>
+          <p className="text-[13px] text-(--color-text-secondary)">Bir hareketle ilgiliyse o hareketin notuna yaz (hareketin ⋯ menüsü).</p>
+
+          {(existingLog || isDirty) && (
+            <button onClick={() => { setDaySettingsOpen(false); setConfirmClear(true); }}
+              className="mt-5 w-full h-[52px] rounded-2xl bg-(--color-bg-input) text-[16px] font-medium" style={{ color: 'var(--lb-drop)' }}>Bu haftanın kaydını sil</button>
+          )}
+        </Sheet>
+      )}
+
       <Modal
         isOpen={confirmClear}
         onClose={() => setConfirmClear(false)}
@@ -1303,85 +1193,35 @@ export function WorkoutEntry() {
         confirmText="Sil"
         confirmVariant="danger"
       />
+    </div>
+  );
+}
 
-      {/* Save Button — the page's one primary action, so it gets the solid
-          fill. Neutral, because saving isn't a gain or a drop. */}
-      <div className="h-28" />
-      <div className={`fixed left-0 right-0 z-40 bg-(--color-bg-card) border-t lb-rule p-3 ${isMobile ? 'bottom-[calc(4rem+env(safe-area-inset-bottom))]' : 'bottom-0'}`}>
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
-          <div className="min-w-0"><p className="text-sm font-semibold truncate">{program.name} · H{displayWeek}</p>
-            <p role="status" className="lb-label mt-1">{draftStatus === 'error' ? 'Taslak kaydedilemedi' : isDirty && draftStatus === 'saved' ? 'Taslak bu cihazda saklandı' : existingLog ? 'Kayıt düzenleniyor' : 'Kaydet ile antrenmanı tamamla'}</p>
-          </div>
-          <button onClick={handleSave} className="lb-press shrink-0 px-6 py-3 bg-(--color-text-primary) text-(--color-bg-primary) font-semibold rounded-lg">Kaydet</button>
+function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end">
+      <button aria-label="Kapat" className="absolute inset-0 bg-black/50 cursor-default" onClick={onClose} />
+      <div role="dialog" aria-modal="true" aria-label={title}
+        className="relative w-full max-w-xl mx-auto max-h-[90vh] overflow-y-auto bg-(--color-bg-card) rounded-t-[22px] px-5 pt-3 pb-[calc(24px+env(safe-area-inset-bottom))]">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h2 className="a-display text-[30px] truncate">{title}</h2>
+          <button onClick={onClose} className="shrink-0 h-11 px-4 rounded-full bg-(--color-bg-input) text-[15px] font-semibold">Tamam</button>
         </div>
+        {children}
       </div>
+    </div>
+  );
+}
 
-      {/* Floating rest timer */}
-      <div
-        className={`fixed z-50 transition-all duration-300 ${
-          (timerActive || timerJustFinished) ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
-        } ${
-          isMobile ? 'bottom-[calc(10rem+env(safe-area-inset-bottom))] left-4 right-4' : 'bottom-24 right-6 w-72'
-        }`}
-      >
-        {timerJustFinished && !timerActive ? (
-          /* Finished state — reliable visual alert for iOS where audio may be
-             blocked. Green here is the same "completed" meaning the Dashboard
-             uses for a logged workout, not decoration. */
-          <div
-            className="bg-(--color-bg-card) border rounded-lg p-5 shadow-2xl text-center"
-            style={{ borderColor: 'var(--lb-gain)' }}
-          >
-            <p className="text-xl font-semibold" style={{ color: 'var(--lb-gain)' }}>✓ Dinlenme bitti</p>
-            <p className="lb-label mt-1">Sonraki sete hazırsın.</p>
-            <button
-              onClick={() => setTimerJustFinished(false)}
-              className="lb-press mt-3 px-5 py-1.5 text-sm font-semibold border lb-rule-strong rounded-lg"
-            >Tamam</button>
-          </div>
-        ) : (
-          <div className="bg-(--color-bg-card) border lb-rule-strong rounded-lg p-4 shadow-2xl">
-            {/* Progress bar */}
-            <div className="w-full h-1.5 bg-(--color-bg-input) rounded-full mb-3 overflow-hidden">
-              <div
-                className="h-full bg-(--color-text-primary) rounded-full transition-all duration-1000"
-                style={{ width: `${timerTotalRef.current > 0 ? (timerRemainingSec / timerTotalRef.current) * 100 : 0}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="lb-label mb-0.5">Dinlenme süresi</p>
-                <p className="lb-figure text-3xl font-semibold leading-none">{formatTimer(timerRemainingSec)}</p>
-              </div>
-              <div className="flex flex-col gap-2 items-end">
-                <button
-                  onClick={stopRestTimer}
-                  className="lb-press w-8 h-8 rounded-full border text-xs font-semibold flex items-center justify-center"
-                  style={{ borderColor: 'var(--lb-drop)', color: 'var(--lb-drop)' }}
-                  title="Sayacı durdur"
-                >
-                  ✕
-                </button>
-                <div className="flex gap-1">
-                  {[60, 90, 120, 180].map(sec => (
-                    <button
-                      key={sec}
-                      onClick={() => { setRestDurationSec(sec); startRestTimer(sec); }}
-                      className={`lb-press lb-figure px-2 py-1 rounded text-[10px] font-semibold border ${
-                        restDurationSec === sec
-                          ? 'bg-(--color-text-primary) text-(--color-bg-primary) border-transparent'
-                          : 'lb-rule text-(--color-text-secondary)'
-                      }`}
-                    >
-                      {sec < 60 ? `${sec}s` : `${sec / 60}dk`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </PageContainer>
+function ToggleRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3 min-h-14">
+      <span className="text-[17px]">{label}</span>
+      <button role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)}
+        className="relative w-[52px] h-8 rounded-full" style={{ background: checked ? 'var(--color-text-primary)' : 'var(--color-bg-input)' }}>
+        <span className="absolute top-[3px] w-[26px] h-[26px] rounded-full transition-all"
+          style={{ left: checked ? 23 : 3, background: checked ? 'var(--color-bg-card)' : 'var(--color-text-secondary)' }} />
+      </button>
+    </div>
   );
 }
