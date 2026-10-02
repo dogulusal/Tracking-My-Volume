@@ -13,6 +13,7 @@ import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { useCloudSync } from '@/hooks/useCloudSync';
 import { LoginPromptModal } from '@/components/shared/LoginPromptModal';
 import { SheetRenewalNotice, SheetSetupModal } from '@/components/shared/SheetSetupModal';
+import { PreviewBar } from '@/preview/PreviewBar';
 
 // Inner component — must be inside AppProvider to access context hooks
 function AppContent() {
@@ -45,6 +46,7 @@ function AppContent() {
       }`}
     >
       <Header />
+      <PreviewBar />
       <main>
         {configured && <SheetRenewalNotice />}
         <Routes>
