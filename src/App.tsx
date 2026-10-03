@@ -14,7 +14,7 @@ import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { useCloudSync } from '@/hooks/useCloudSync';
 import { LoginPromptModal } from '@/components/shared/LoginPromptModal';
 import { SheetRenewalNotice, SheetSetupModal } from '@/components/shared/SheetSetupModal';
-import { PreviewBar } from '@/preview/PreviewBar';
+import { PREVIEW_NAME, PreviewBar } from '@/preview/PreviewBar';
 
 // A workout page belongs to one day and week: moving to another (e.g. on to
 // the next week) starts it afresh instead of carrying the last one's state.
@@ -29,7 +29,7 @@ function AppContent() {
   const { configured, syncStatus, userId, hydrated, authError, refreshFromCloud, signOut } = useCloudSync();
   // The workout page is full screen: its own bar, no tabs.
   const { pathname } = useLocation();
-  const inWorkout = pathname.startsWith('/workout/') || pathname === '/baslangic';
+  const inWorkout = pathname.startsWith('/workout/') || pathname === '/baslangic' || pathname === '/onizleme/giris';
 
   if (configured && !userId) {
     return syncStatus === 'auth_loading'
@@ -71,6 +71,8 @@ function AppContent() {
           <Route path="/charts" element={<Charts />} />
           <Route path="/export" element={<Export />} />
           <Route path="/baslangic" element={<Onboarding />} />
+          {/* The preview has no cloud, so the sign-in screen is shown here to be seen. */}
+          {PREVIEW_NAME && <Route path="/onizleme/giris" element={<LoginPromptModal />} />}
         </Routes>
       </main>
       {!inWorkout && <BottomNav />}

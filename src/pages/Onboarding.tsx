@@ -45,6 +45,8 @@ export function Onboarding() {
   const [picking, setPicking] = useState(false);
   const [query, setQuery] = useState('');
   const week = ctx?.state.currentWeek ?? 0;
+  // With the cloud on, the sign-in screen has already said what the app is for.
+  const signedIn = Boolean(ctx?.cloud.configured && ctx.cloud.userId);
   // Right after signing up, the tour is offered once on this device.
   const [tour, setTour] = useState<'offer' | 'open' | null>(() => (tourOffered() ? null : 'offer'));
 
@@ -110,11 +112,13 @@ export function Onboarding() {
         <>
           <div className="flex-1 flex flex-col justify-center">
             <p className="text-[15px] text-(--color-text-secondary)">Volume</p>
-            <h1 className="a-display text-[clamp(56px,19vw,84px)] leading-[0.95] mt-2">Geçen haftayı geç.</h1>
-            <p className="mt-5 text-[17px] leading-snug text-(--color-text-secondary)">
-              Her hareketin geçen haftaki rakamını gösterir; sen onu geçmeye çalışırsın.
-            </p>
-            <p className="mt-3 text-[17px] leading-snug text-(--color-text-secondary)">
+            <h1 className="a-display text-[clamp(56px,19vw,84px)] leading-[0.95] mt-2">{signedIn ? 'Hoş geldin.' : 'Geçen haftayı geç.'}</h1>
+            {!signedIn && (
+              <p className="mt-5 text-[17px] leading-snug text-(--color-text-secondary)">
+                Her hareketin geçen haftaki rakamını gösterir; sen onu geçmeye çalışırsın.
+              </p>
+            )}
+            <p className={`${signedIn ? 'mt-5' : 'mt-3'} text-[17px] leading-snug text-(--color-text-secondary)`}>
               Önce programını birlikte kuralım: birkaç adımda, her adımda neden öyle olduğunu da anlatarak.
             </p>
           </div>
