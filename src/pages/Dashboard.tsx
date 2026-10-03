@@ -94,6 +94,7 @@ export function Dashboard() {
                   </li>
                 ))}
               </ul>
+              <p className="mt-1 text-[12px] text-(--color-text-secondary)">75 x 7 +1: 75 kg, 7 tekrar, 1 tekrar daha yapabilirdin · F: tükendin</p>
             </div>
           )}
           <Link to={`/workout/${nextWorkout.program.id}/week/${currentWeek}`}

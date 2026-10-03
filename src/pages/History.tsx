@@ -267,7 +267,8 @@ export function History() {
           </div>
         </div>
       )}
-      <p className="mt-2 px-1 text-[13px] text-(--color-text-secondary)">Hücreye dokun: setleri gör ve düzelt. Hafta başlığına dokun: o haftanın antrenmanını aç.</p>
+      <p className="mt-2 px-1 text-[13px] text-(--color-text-secondary)">75 x 7 +1: 75 kg, 7 tekrar, 1 tekrar daha yapabilirdin · F: tükendin.</p>
+      <p className="mt-1 px-1 text-[13px] text-(--color-text-secondary)">Hücreye dokun: setleri gör ve düzelt. Hafta başlığına dokun: o haftanın antrenmanını aç.</p>
 
       {removedRows.length > 0 && (
         <div className="mt-6 a-card px-4 py-3">
