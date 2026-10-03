@@ -4,6 +4,7 @@ import { useWeekOverview, type WeekDay } from '@/hooks/useWeekOverview';
 import { Modal } from '@/components/shared/Modal';
 import { formatSet } from '@/utils/formatters';
 import { STALL_WEEKS } from '@/utils/progression';
+import { staleWeekAge } from '@/utils/weekAdvance';
 
 const nf = new Intl.NumberFormat('tr-TR');
 const weekdayFormat = new Intl.DateTimeFormat('tr-TR', { weekday: 'long' });
@@ -39,9 +40,20 @@ export function Dashboard() {
   const [confirmNewWeek, setConfirmNewWeek] = useState(false);
   const [showAllStalled, setShowAllStalled] = useState(false);
   const {
-    activePlanPrograms, programs, currentWeek, incrementWeek,
+    activePlanPrograms, programs, weekLogs, currentWeek, incrementWeek,
     phase, displayWeek, weekStats, streak, programStatuses, stalled, nextWorkout, nextTargets,
   } = useWeekOverview();
+  // The week moves on only when told; a week whose first workout was days
+  // ago is asked about once (per week, on this phone).
+  const staleKey = `tmv-hafta-sorma-${currentWeek}`;
+  const [staleDismissed, setStaleDismissed] = useState(() => {
+    try { return localStorage.getItem(staleKey) === '1'; } catch { return false; }
+  });
+  const staleWeek = staleWeekAge(weekLogs, currentWeek, new Date());
+  const keepWeek = () => {
+    setStaleDismissed(true);
+    try { localStorage.setItem(staleKey, '1'); } catch { /* a per-device nicety only */ }
+  };
   const now = new Date();
   const weekday = weekdayFormat.format(now);
   const dateLine = `${weekday.charAt(0).toLocaleUpperCase('tr-TR')}${weekday.slice(1)}, ${dayMonthFormat.format(now)}`;
@@ -66,6 +78,19 @@ export function Dashboard() {
             ? `${nextTargets.length} hareket · ${nextWorkout.program.exercises.filter(e => e.isActive).reduce((sum, e) => sum + e.defaultSets, 0)} set`
             : 'İlk antrenman: hareketlerini yaparken ekleyeceksin'}
         </p>
+      )}
+
+      {staleWeek !== null && !weekDone && !staleDismissed && (
+        <section className="mt-5 a-card px-4 py-3.5" style={{ boxShadow: 'inset 0 0 0 1.5px var(--color-text-primary)' }}>
+          <p className="text-[18px] font-semibold">Yeni hafta başladı mı?</p>
+          <p className="mt-1 text-[15px] leading-snug text-(--color-text-secondary)">
+            Bu haftanın ilk antrenmanı {staleWeek} gün önceydi. Yeni haftaya geçmezsen bu haftanın kayıtlarının üstüne yazarsın.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button onClick={() => setConfirmNewWeek(true)} className="flex-1 h-12 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[16px] font-semibold">Yeni haftaya geç</button>
+            <button onClick={keepWeek} className="h-12 px-4 rounded-2xl bg-(--color-bg-input) text-[16px] font-medium">Aynı hafta</button>
+          </div>
+        </section>
       )}
 
       <div className="mt-5 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.max(1, programStatuses.length)}, minmax(0, 1fr))` }}>

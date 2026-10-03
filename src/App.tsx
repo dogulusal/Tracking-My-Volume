@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, useParams } from 'react-router-dom';
 import { AppProvider } from '@/context/AppContext';
 import { Header } from '@/components/layout/Header';
 import { BottomNav } from '@/components/layout/BottomNav';
@@ -15,6 +15,13 @@ import { useCloudSync } from '@/hooks/useCloudSync';
 import { LoginPromptModal } from '@/components/shared/LoginPromptModal';
 import { SheetRenewalNotice, SheetSetupModal } from '@/components/shared/SheetSetupModal';
 import { PreviewBar } from '@/preview/PreviewBar';
+
+// A workout page belongs to one day and week: moving to another (e.g. on to
+// the next week) starts it afresh instead of carrying the last one's state.
+function WorkoutRoute() {
+  const { programId, weekNumber } = useParams();
+  return <WorkoutEntry key={`${programId}:${weekNumber}`} />;
+}
 
 // Inner component — must be inside AppProvider to access context hooks
 function AppContent() {
@@ -59,7 +66,7 @@ function AppContent() {
           <Route path="/programs" element={<ProgramSelect />} />
           <Route path="/programs/edit" element={<ProgramEditor />} />
           <Route path="/programs/edit/:id" element={<ProgramEditor />} />
-          <Route path="/workout/:programId/week/:weekNumber" element={<WorkoutEntry />} />
+          <Route path="/workout/:programId/week/:weekNumber" element={<WorkoutRoute />} />
           <Route path="/history" element={<History />} />
           <Route path="/charts" element={<Charts />} />
           <Route path="/export" element={<Export />} />

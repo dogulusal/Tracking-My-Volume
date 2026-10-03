@@ -10,6 +10,7 @@ import { formatSet } from '@/utils/formatters';
 import { moveItem } from '@/utils/reorder';
 import { addMovementsFromWorkout, syncExerciseLogs, syncProgramFromWorkout } from '@/utils/exerciseSync';
 import { searchMovements } from '@/data/movementLibrary';
+import { staleRecordAge } from '@/utils/weekAdvance';
 import { REGIONS, REGION_HINTS, muscleRegions } from '@/data/muscleRegions';
 import { exerciseKey } from '@/utils/muscleGroups';
 import { movementSessions, sessionsBefore, type MovementSession } from '@/utils/movements';
@@ -755,6 +756,14 @@ export function WorkoutEntry() {
   const [addQuery, setAddQuery] = useState('');
   // The movement whose set was just finished, offered one more set while resting.
   const [lastFinished, setLastFinished] = useState<number | null>(null);
+  // This day was already logged this week, days ago: asked once whether it
+  // is a new week's workout before anything is changed.
+  const [staleAge] = useState(() => staleRecordAge(existingLog, ctx?.state.currentWeek ?? weekNumber, new Date()));
+  const [staleAnswered, setStaleAnswered] = useState(false);
+  const startNewWeek = () => {
+    ctx?.dispatch({ type: 'INCREMENT_WEEK' });
+    navigate(`/workout/${programId}/week/${weekNumber + 1}`, { replace: true });
+  };
   // Someone with no workout saved yet gets one line on how a set is entered,
   // until they say they have it.
   const [firstHintSeen, setFirstHintSeen] = useState(() => {
@@ -1111,6 +1120,23 @@ export function WorkoutEntry() {
             {draftStatus === 'error' && <span role="alert" className="text-center text-[13px]" style={{ color: 'var(--lb-drop)' }}>Taslak bu telefona kaydedilemedi</span>}
           </div>
         </>
+      )}
+
+      {staleAge !== null && !staleAnswered && (
+        <div className="fixed inset-0 z-[70] flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/60" />
+          <div role="dialog" aria-modal="true" aria-labelledby="stale-title"
+            className="relative w-full max-w-xl mx-auto bg-(--color-bg-card) rounded-t-[22px] px-5 pt-5 pb-[calc(24px+env(safe-area-inset-bottom))]">
+            <h2 id="stale-title" className="a-display text-[34px]">Yeni bir antrenman mı?</h2>
+            <p className="mt-2 text-[16px] leading-snug text-(--color-text-secondary)">
+              {program.name} bu hafta {staleAge} gün önce kaydedildi. Bugün yeniden çalışıyorsan önce yeni haftaya geç; yoksa o kaydın üstüne yazarsın.
+            </p>
+            <div className="mt-5 flex flex-col gap-2">
+              <button onClick={startNewWeek} className="h-14 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[17px] font-semibold">Yeni haftaya geç ve başla</button>
+              <button onClick={() => setStaleAnswered(true)} className="h-12 rounded-2xl text-[16px] text-(--color-text-secondary)">Hayır, o kaydı düzenliyorum</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Rest: the whole screen, a clock to read from across the room. */}
