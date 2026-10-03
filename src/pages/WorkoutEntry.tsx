@@ -775,7 +775,7 @@ export function WorkoutEntry() {
     for (const day of ctx?.state.programs ?? []) for (const exercise of day.exercises) names.push(exercise.name);
     return names;
   }, [allLogs, ctx?.state.programs]);
-  const addResults = searchMovements(addQuery, ownMovementNames);
+  const addResults = searchMovements(addQuery, ownMovementNames, 12, name => muscleRegions(name, exerciseSettings?.[exerciseKey(name)]?.region).join(' '));
   const addExact = [...addResults.own, ...addResults.library].some(name => exerciseKey(name) === exerciseKey(addQuery));
 
   // A movement joins this workout (and, on save, the program). Done before on
@@ -875,6 +875,8 @@ export function WorkoutEntry() {
   // Never done on any day: no number to start from yet, so the person is
   // told how to pick one.
   const firstTimeMovement = !!exercise && movementSessions(allLogs ?? [], key).length === 0;
+  // Room for the guidance card on a phone: the figures give way a little.
+  const guidanceShown = firstTimeMovement || showFirstHint;
   const currentDone = exercise && current ? !!completedSets[`${exercise.exerciseId}:${current.set}`] : false;
   // On the finish screen: one more set of what was just done, or after a
   // reload (when that is not known) of the last movement.
@@ -997,15 +999,15 @@ export function WorkoutEntry() {
                 geçen hafta <span className="lb-figure text-[22px] font-semibold text-(--color-text-primary)">{prevSet ? formatSetLine(prevSet) : '—'}</span>
               </span>
             </div>
-            {firstTimeMovement && (
-              <p className="mt-2 rounded-2xl px-4 py-2.5 text-[14px] leading-snug" style={{ background: 'var(--lb-ref-fill)' }}>
-                <span className="font-semibold" style={{ color: 'var(--lb-ref)' }}>Ağırlığını bul:</span> 8–12 tekrar yapabileceğin, tükenişe yakın çalışabileceğin bir ağırlık seç.
-              </p>
-            )}
-            {showFirstHint && (
-              <div className="mt-2 flex items-center gap-3 rounded-2xl px-4 py-2.5" style={{ background: 'var(--lb-ref-fill)' }}>
-                <p className="flex-1 text-[14px] leading-snug">Rakama dokunup yaz ya da − + kullan. Set bitince “Seti bitir”e bas; dinlenme sayacı başlar.</p>
-                <button onClick={dismissFirstHint} className="shrink-0 h-11 px-3 rounded-xl text-[14px] font-semibold" style={{ color: 'var(--lb-ref)' }}>Anladım</button>
+            {/* One card for both: how to pick a weight never done before, and
+                (until dismissed) how a set is entered at all. */}
+            {(firstTimeMovement || showFirstHint) && (
+              <div className="mt-2 flex items-center gap-2 rounded-2xl pl-4 pr-1 py-2" style={{ background: 'var(--lb-ref-fill)' }}>
+                <div className="flex-1 text-[14px] leading-snug">
+                  {firstTimeMovement && <p><span className="font-semibold" style={{ color: 'var(--lb-ref)' }}>Ağırlığını bul:</span> 8–12 tekrar yapabileceğin, tükenişe yakın çalışabileceğin bir ağırlık seç.</p>}
+                  {showFirstHint && <p className={firstTimeMovement ? 'mt-1' : ''}>Rakama dokunup yaz ya da − + kullan; set bitince “Seti bitir”.</p>}
+                </div>
+                {showFirstHint && <button onClick={dismissFirstHint} className="shrink-0 h-11 px-3 rounded-xl text-[14px] font-semibold" style={{ color: 'var(--lb-ref)' }}>Anladım</button>}
               </div>
             )}
             {(info?.target || pinned || info?.lastNote || (doneCount === 0 && previousNoteLog?.notes?.trim())) && (
@@ -1031,7 +1033,7 @@ export function WorkoutEntry() {
                   onChange={e => handleSetFieldChange(current.ex, current.set, 'weight', e.target.value)}
                   onFocus={() => handleSetFieldFocus(current.ex, current.set, 'weight', set.weight)}
                   onBlur={() => handleSetFieldBlur(current.ex, current.set, 'weight', set.weight)}
-                  className="lb-figure flex-1 min-w-0 bg-transparent text-center text-[84px]! leading-none font-bold focus:outline-none placeholder:text-(--color-border)" />
+                  className={`lb-figure flex-1 min-w-0 bg-transparent text-center ${guidanceShown ? 'text-[68px]!' : 'text-[84px]!'} leading-none font-bold focus:outline-none placeholder:text-(--color-border)`} />
                 {roundButton('Kiloyu artır', () => handleSetFieldChange(current.ex, current.set, 'weight', String(roundWeight(set.weight + step))), true)}
               </div>
             </div>
@@ -1044,7 +1046,7 @@ export function WorkoutEntry() {
                   onChange={e => handleSetFieldChange(current.ex, current.set, 'reps', e.target.value)}
                   onFocus={() => handleSetFieldFocus(current.ex, current.set, 'reps', set.reps)}
                   onBlur={() => handleSetFieldBlur(current.ex, current.set, 'reps', set.reps)}
-                  className="lb-figure flex-1 min-w-0 bg-transparent text-center text-[84px]! leading-none font-bold focus:outline-none placeholder:text-(--color-border)" />
+                  className={`lb-figure flex-1 min-w-0 bg-transparent text-center ${guidanceShown ? 'text-[68px]!' : 'text-[84px]!'} leading-none font-bold focus:outline-none placeholder:text-(--color-border)`} />
                 {roundButton('Tekrarı artır', () => handleSetFieldChange(current.ex, current.set, 'reps', String(set.reps + 1)), true)}
               </div>
               {comparison && (
@@ -1215,7 +1217,7 @@ export function WorkoutEntry() {
         <Sheet title="Hareket ekle" onClose={() => { setAddOpen(false); setAddQuery(''); }}>
           <input autoFocus value={addQuery} onChange={e => setAddQuery(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') addMovement(addQuery); }}
-            placeholder="Ara ya da yaz: Bench Press…" aria-label="Hareket adı" enterKeyHint="done"
+            placeholder="Ara: bench, göğüs, yan omuz…" aria-label="Hareket adı" enterKeyHint="done"
             className="w-full h-14 px-4 rounded-2xl bg-(--color-bg-input) text-[18px]! focus:outline-none placeholder:text-(--color-text-secondary)" />
           {/* The typed name as it is: the main choice only when nothing matches. */}
           {addQuery.trim() && !addExact && addResults.own.length + addResults.library.length === 0 && (
