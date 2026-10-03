@@ -162,7 +162,7 @@ export function ProgramEditor() {
                 <button onClick={() => updateExercise(idx, 'isActive', true)} className="h-11 px-3 text-[15px]">Geri al</button>
               )}
               <button onClick={() => removeExercise(idx)} aria-label={`${exercise.name || 'Hareket'} sil`}
-                className="ml-auto h-11 px-3 text-[15px]" style={{ color: 'var(--lb-drop)' }}>Sil</button>
+                className="ml-auto h-11 min-w-11 px-3 text-[15px]" style={{ color: 'var(--lb-drop)' }}>Sil</button>
             </div>
           </div>
         ))}

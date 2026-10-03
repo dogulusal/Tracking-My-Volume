@@ -170,7 +170,7 @@ export function Dashboard() {
       )}
 
       <p className="mt-8 text-[13px] text-(--color-text-secondary)">
-        <a href={`${import.meta.env.BASE_URL}privacy.html`} className="underline">Gizlilik Politikası</a>
+        <a href={`${import.meta.env.BASE_URL}privacy.html`} className="inline-flex min-h-11 items-center underline">Gizlilik Politikası</a>
       </p>
 
       {/* The week only moves forward in the app, so a stray tap needs a stop. */}
