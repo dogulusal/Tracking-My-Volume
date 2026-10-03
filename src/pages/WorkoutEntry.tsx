@@ -10,6 +10,7 @@ import { formatSet } from '@/utils/formatters';
 import { moveItem } from '@/utils/reorder';
 import { addMovementsFromWorkout, syncExerciseLogs, syncProgramFromWorkout } from '@/utils/exerciseSync';
 import { searchMovements } from '@/data/movementLibrary';
+import { REGIONS, REGION_HINTS, muscleRegions } from '@/data/muscleRegions';
 import { exerciseKey } from '@/utils/muscleGroups';
 import { movementSessions, sessionsBefore, type MovementSession } from '@/utils/movements';
 import { STALL_WEEKS, bestSet, nextTarget, previousRecord, progressionRule, stallOf, type ProgressionRule, type Stall, type Target } from '@/utils/progression';
@@ -23,6 +24,8 @@ const INTENSITY_OPTIONS: { value: Intensity; label: string }[] = [
   { value: 'rir3', label: '3' },
 ];
 const roundWeight = (weight: number) => Math.round(weight * 100) / 100;
+// A field still at zero shows its placeholder: nothing has been entered yet.
+const blankIfZero = (value: string) => (value === '0' ? '' : value);
 const RESERVE: Record<string, number> = { failure: 0, rir1: 1, rir2: 2, rir3: 3 };
 const TONE = {
   gain: { color: 'var(--lb-gain)', fill: 'var(--lb-gain-fill)' },
@@ -867,6 +870,11 @@ export function WorkoutEntry() {
   const pinned = key ? exerciseSettings?.[key]?.note : undefined;
   const step = info?.rule.step ?? 2.5;
   const comparison = set ? compareToPrevious(set, prevSet) : null;
+  const chosenRegion = key ? exerciseSettings?.[key]?.region : undefined;
+  const regions = exercise ? muscleRegions(exercise.exerciseName, chosenRegion) : [];
+  // Never done on any day: no number to start from yet, so the person is
+  // told how to pick one.
+  const firstTimeMovement = !!exercise && movementSessions(allLogs ?? [], key).length === 0;
   const currentDone = exercise && current ? !!completedSets[`${exercise.exerciseId}:${current.set}`] : false;
   // On the finish screen: one more set of what was just done, or after a
   // reload (when that is not known) of the last movement.
@@ -978,12 +986,22 @@ export function WorkoutEntry() {
                 <svg aria-hidden="true" className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
               </button>
             </div>
-            <div className="mt-1.5 flex items-baseline justify-between gap-3">
+            <button onClick={() => setExerciseSheetOpen(true)} className="mt-0.5 min-h-8 text-left text-[14px] text-(--color-text-secondary)">
+              {regions.length ? (
+                <><span className="font-semibold text-(--color-text-primary)">{regions[0]}</span>{regions.length > 1 && ` · ${regions.slice(1).join(', ').toLocaleLowerCase('tr-TR')}`}</>
+              ) : <span className="underline underline-offset-2">Çalıştırdığı bölgeyi seç</span>}
+            </button>
+            <div className="mt-1 flex items-baseline justify-between gap-3">
               <span className="text-[15px] text-(--color-text-secondary)">Set {current.set + 1} / {exercise.sets.length}</span>
               <span className="text-[14px] text-(--color-text-secondary)">
                 geçen hafta <span className="lb-figure text-[22px] font-semibold text-(--color-text-primary)">{prevSet ? formatSetLine(prevSet) : '—'}</span>
               </span>
             </div>
+            {firstTimeMovement && (
+              <p className="mt-2 rounded-2xl px-4 py-2.5 text-[14px] leading-snug" style={{ background: 'var(--lb-ref-fill)' }}>
+                <span className="font-semibold" style={{ color: 'var(--lb-ref)' }}>Ağırlığını bul:</span> 8–12 tekrar yapabileceğin, tükenişe yakın çalışabileceğin bir ağırlık seç.
+              </p>
+            )}
             {showFirstHint && (
               <div className="mt-2 flex items-center gap-3 rounded-2xl px-4 py-2.5" style={{ background: 'var(--lb-ref-fill)' }}>
                 <p className="flex-1 text-[14px] leading-snug">Rakama dokunup yaz ya da − + kullan. Set bitince “Seti bitir”e bas; dinlenme sayacı başlar.</p>
@@ -1009,11 +1027,11 @@ export function WorkoutEntry() {
               <div className="w-full flex items-center justify-between gap-2">
                 {roundButton('Kiloyu azalt', () => handleSetFieldChange(current.ex, current.set, 'weight', String(roundWeight(Math.max(0, set.weight - step)))), false)}
                 <input type="text" inputMode="decimal" aria-label="Kilo"
-                  value={getSetFieldDisplayValue(current.ex, current.set, 'weight', set.weight)}
+                  value={blankIfZero(getSetFieldDisplayValue(current.ex, current.set, 'weight', set.weight))} placeholder="0"
                   onChange={e => handleSetFieldChange(current.ex, current.set, 'weight', e.target.value)}
                   onFocus={() => handleSetFieldFocus(current.ex, current.set, 'weight', set.weight)}
                   onBlur={() => handleSetFieldBlur(current.ex, current.set, 'weight', set.weight)}
-                  className="lb-figure flex-1 min-w-0 bg-transparent text-center text-[84px]! leading-none font-bold focus:outline-none" />
+                  className="lb-figure flex-1 min-w-0 bg-transparent text-center text-[84px]! leading-none font-bold focus:outline-none placeholder:text-(--color-border)" />
                 {roundButton('Kiloyu artır', () => handleSetFieldChange(current.ex, current.set, 'weight', String(roundWeight(set.weight + step))), true)}
               </div>
             </div>
@@ -1022,11 +1040,11 @@ export function WorkoutEntry() {
               <div className="w-full flex items-center justify-between gap-2">
                 {roundButton('Tekrarı azalt', () => handleSetFieldChange(current.ex, current.set, 'reps', String(Math.max(0, set.reps - 1))), false)}
                 <input type="text" inputMode="numeric" aria-label="Tekrar"
-                  value={getSetFieldDisplayValue(current.ex, current.set, 'reps', set.reps)}
+                  value={blankIfZero(getSetFieldDisplayValue(current.ex, current.set, 'reps', set.reps))} placeholder="0"
                   onChange={e => handleSetFieldChange(current.ex, current.set, 'reps', e.target.value)}
                   onFocus={() => handleSetFieldFocus(current.ex, current.set, 'reps', set.reps)}
                   onBlur={() => handleSetFieldBlur(current.ex, current.set, 'reps', set.reps)}
-                  className="lb-figure flex-1 min-w-0 bg-transparent text-center text-[84px]! leading-none font-bold focus:outline-none" />
+                  className="lb-figure flex-1 min-w-0 bg-transparent text-center text-[84px]! leading-none font-bold focus:outline-none placeholder:text-(--color-border)" />
                 {roundButton('Tekrarı artır', () => handleSetFieldChange(current.ex, current.set, 'reps', String(set.reps + 1)), true)}
               </div>
               {comparison && (
@@ -1211,7 +1229,10 @@ export function WorkoutEntry() {
               <p className="mt-4 mb-1.5 text-[13px] text-(--color-text-secondary)">Daha önce yaptıkların</p>
               <div className="flex flex-col gap-1.5">
                 {addResults.own.map(name => (
-                  <button key={name} onClick={() => addMovement(name)} className="min-h-12 px-4 rounded-2xl bg-(--color-bg-input) text-left text-[16px]">{name}</button>
+                  <button key={name} onClick={() => addMovement(name)} className="min-h-12 px-4 rounded-2xl bg-(--color-bg-input) flex items-center justify-between gap-3 text-left">
+                    <span className="text-[16px] truncate">{name}</span>
+                    <span className="shrink-0 text-[13px] text-(--color-text-secondary)">{muscleRegions(name, exerciseSettings?.[exerciseKey(name)]?.region)[0] ?? ''}</span>
+                  </button>
                 ))}
               </div>
             </>
@@ -1221,7 +1242,10 @@ export function WorkoutEntry() {
               <p className="mt-4 mb-1.5 text-[13px] text-(--color-text-secondary)">Yaygın hareketler</p>
               <div className="flex flex-col gap-1.5">
                 {addResults.library.map(name => (
-                  <button key={name} onClick={() => addMovement(name)} className="min-h-12 px-4 rounded-2xl bg-(--color-bg-input) text-left text-[16px]">{name}</button>
+                  <button key={name} onClick={() => addMovement(name)} className="min-h-12 px-4 rounded-2xl bg-(--color-bg-input) flex items-center justify-between gap-3 text-left">
+                    <span className="text-[16px] truncate">{name}</span>
+                    <span className="shrink-0 text-[13px] text-(--color-text-secondary)">{muscleRegions(name)[0] ?? ''}</span>
+                  </button>
                 ))}
               </div>
             </>
@@ -1242,6 +1266,23 @@ export function WorkoutEntry() {
             <textarea value={exercise.note ?? ''} onChange={e => updateExerciseNote(current.ex, e.target.value)} rows={2} placeholder="Haftaya 50 kilo gir…"
               className="mt-1 w-full px-4 py-3 rounded-2xl bg-(--color-bg-input) text-[16px] resize-none focus:outline-none placeholder:text-(--color-text-secondary)" />
           </label>
+
+          <div className="mt-4">
+            <span className="text-[14px] text-(--color-text-secondary)">Çalıştırdığı bölge{regions.length && !chosenRegion ? ' · adından anlaşıldı, değiştirebilirsin' : ''}</span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {REGIONS.map(region => {
+                const on = regions[0] === region;
+                return (
+                  <button key={region} onClick={() => ctx?.dispatch({ type: 'SET_EXERCISE_SETTINGS', payload: { key, settings: { region: on && chosenRegion ? '' : region } } })}
+                    aria-pressed={on} title={REGION_HINTS[region]}
+                    className={`h-11 px-3.5 rounded-full text-[15px] ${on ? 'bg-(--color-text-primary) text-(--color-bg-primary) font-semibold' : 'bg-(--color-bg-input)'}`}>
+                    {region}
+                  </button>
+                );
+              })}
+            </div>
+            {regions[0] && REGION_HINTS[regions[0]] && <p className="mt-1 text-[13px] text-(--color-text-secondary)">{regions[0]}: {REGION_HINTS[regions[0]]}</p>}
+          </div>
 
           <div className="mt-4">
             <span className="text-[14px] text-(--color-text-secondary)">Sabit not · her antrenmanda görünür</span>
