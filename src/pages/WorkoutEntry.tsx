@@ -91,7 +91,6 @@ export function WorkoutEntry() {
   const weekNumber = Number(weekParam) || 0;
   const ctx = useContext(AppContext);
   const phase = ctx?.state.phases.find(p => weekNumber >= p.startWeek && (p.endWeek === null || weekNumber <= p.endWeek));
-  const displayWeek = weekNumber - (phase?.startWeek ?? 0);
   const program = getProgramById(programId || '');
   const existingLog = getLogForWeek(programId || '', weekNumber);
   // The workout this one is measured against, as History colours it: the
@@ -922,7 +921,7 @@ export function WorkoutEntry() {
 
   const roundButton = (label: string, onClick: () => void, plus: boolean) => (
     <button type="button" aria-label={label} onPointerDown={e => e.preventDefault()} onClick={onClick}
-      className="shrink-0 w-[60px] h-[60px] rounded-full bg-(--color-bg-input) flex items-center justify-center active:scale-95 transition-transform">
+      className="shrink-0 w-[60px] h-[60px] [@media(max-height:700px)]:w-[52px] [@media(max-height:700px)]:h-[52px] rounded-full bg-(--color-bg-input) flex items-center justify-center active:scale-95 transition-transform">
       <svg aria-hidden="true" className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d={plus ? 'M12 5v14M5 12h14' : 'M5 12h14'} /></svg>
     </button>
   );
@@ -953,7 +952,7 @@ export function WorkoutEntry() {
         </div>
       ) : exerciseLogs.length === 0 ? (
         <div className="flex-1 flex flex-col justify-center px-6 pb-8">
-          <p className="text-center text-[16px] text-(--color-text-secondary)">{program.name} · {phase?.name} H{displayWeek}</p>
+          <p className="text-center text-[16px] text-(--color-text-secondary)">{program.name} · {nameOfWeek(weekNumber)}</p>
           <p className="a-display text-center text-[60px] mt-1">İlk hareket</p>
           <p className="mt-3 text-center text-[16px] leading-snug text-(--color-text-secondary)">
             Bugün yaptığın ilk hareketi ekle. Program antrenman yaparken kurulur; gelecek hafta bu rakamları geçmeye çalışırsın.
@@ -963,7 +962,7 @@ export function WorkoutEntry() {
       ) : !exercise || !set || !current ? (
         <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col">
         <div className="my-auto flex flex-col">
-          <p className="text-center text-[16px] text-(--color-text-secondary)">{program.name} · {phase?.name} H{displayWeek}</p>
+          <p className="text-center text-[16px] text-(--color-text-secondary)">{program.name} · {nameOfWeek(weekNumber)}</p>
           <p className="a-display text-center text-[72px] mt-1">Tamam</p>
           <p className="text-center text-[17px] text-(--color-text-secondary)">{doneCount} / {setCount} set işaretlendi</p>
           {/* The point of the app, in the person's own numbers: what next week has to beat. */}
@@ -994,7 +993,7 @@ export function WorkoutEntry() {
         <>
           <div className="px-5 pt-2">
             <div className="flex items-start gap-2">
-              <h1 className="a-display flex-1 min-w-0 text-[40px]">{exercise.exerciseName}</h1>
+              <h1 className="a-display flex-1 min-w-0 text-[40px] [@media(max-height:700px)]:text-[32px]">{exercise.exerciseName}</h1>
               <button onClick={() => setExerciseSheetOpen(true)} aria-label={`${exercise.exerciseName} seçenekleri: not, kural, set ekle ya da sil, sıra`}
                 className="-mr-2.5 shrink-0 w-11 h-11 flex items-center justify-center text-(--color-text-secondary)">
                 <svg aria-hidden="true" className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
@@ -1035,7 +1034,7 @@ export function WorkoutEntry() {
             )}
           </div>
 
-          <div className="flex-1 flex flex-col justify-center gap-2.5 px-5 py-2">
+          <div className="flex-1 flex flex-col justify-center gap-2.5 [@media(max-height:700px)]:gap-1.5 px-5 py-2 [@media(max-height:700px)]:py-1">
             <div className="flex flex-col items-center">
               <span className="text-[14px] text-(--color-text-secondary)">kg</span>
               <div className="w-full flex items-center justify-between gap-2">
@@ -1045,7 +1044,7 @@ export function WorkoutEntry() {
                   onChange={e => handleSetFieldChange(current.ex, current.set, 'weight', e.target.value)}
                   onFocus={() => handleSetFieldFocus(current.ex, current.set, 'weight', set.weight)}
                   onBlur={() => handleSetFieldBlur(current.ex, current.set, 'weight', set.weight)}
-                  className={`lb-figure flex-1 min-w-0 bg-transparent text-center ${guidanceShown ? 'text-[68px]!' : 'text-[84px]!'} leading-none font-bold focus:outline-none placeholder:text-(--color-border)`} />
+                  className={`lb-figure flex-1 min-w-0 bg-transparent text-center ${guidanceShown ? 'text-[68px]! [@media(max-height:700px)]:text-[48px]!' : 'text-[84px]! [@media(max-height:700px)]:text-[52px]!'} leading-none font-bold focus:outline-none placeholder:text-(--color-border)`} />
                 {roundButton('Kiloyu artır', () => handleSetFieldChange(current.ex, current.set, 'weight', String(roundWeight(set.weight + step))), true)}
               </div>
             </div>
@@ -1058,7 +1057,7 @@ export function WorkoutEntry() {
                   onChange={e => handleSetFieldChange(current.ex, current.set, 'reps', e.target.value)}
                   onFocus={() => handleSetFieldFocus(current.ex, current.set, 'reps', set.reps)}
                   onBlur={() => handleSetFieldBlur(current.ex, current.set, 'reps', set.reps)}
-                  className={`lb-figure flex-1 min-w-0 bg-transparent text-center ${guidanceShown ? 'text-[68px]!' : 'text-[84px]!'} leading-none font-bold focus:outline-none placeholder:text-(--color-border)`} />
+                  className={`lb-figure flex-1 min-w-0 bg-transparent text-center ${guidanceShown ? 'text-[68px]! [@media(max-height:700px)]:text-[48px]!' : 'text-[84px]! [@media(max-height:700px)]:text-[52px]!'} leading-none font-bold focus:outline-none placeholder:text-(--color-border)`} />
                 {roundButton('Tekrarı artır', () => handleSetFieldChange(current.ex, current.set, 'reps', String(set.reps + 1)), true)}
               </div>
               {comparison && (
@@ -1077,7 +1076,7 @@ export function WorkoutEntry() {
                   return (
                     <button key={opt.value} onClick={() => updateSet(current.ex, current.set, 'intensity', opt.value)}
                       aria-pressed={picked} aria-label={failure ? 'Hiç, tükendim' : `${opt.label} tekrar daha`}
-                      className={`h-[52px] rounded-xl flex flex-col items-center justify-center gap-1 ${picked ? 'bg-(--color-text-primary) text-(--color-bg-primary)' : 'text-(--color-text-secondary)'}`}>
+                      className={`h-[52px] [@media(max-height:700px)]:h-11 rounded-xl flex flex-col items-center justify-center gap-1 ${picked ? 'bg-(--color-text-primary) text-(--color-bg-primary)' : 'text-(--color-text-secondary)'}`}>
                       <span className="lb-figure text-[22px] font-bold leading-none">{failure ? 'F' : `+${opt.label}`}</span>
                       <span className="text-[12px] leading-none">{failure ? 'tükendim' : `${opt.label} daha`}</span>
                     </button>
@@ -1087,9 +1086,11 @@ export function WorkoutEntry() {
             </div>
           </div>
 
-          <div className="px-4 pb-[calc(20px+env(safe-area-inset-bottom))] flex flex-col gap-2.5">
+          {/* Pinned to the bottom: on a short screen (or Safari with its bars)
+              the set scrolls behind it, and "Seti bitir" stays under the thumb. */}
+          <div className="sticky bottom-0 z-10 bg-(--color-bg-primary) px-4 pt-2 pb-[calc(20px+env(safe-area-inset-bottom))] flex flex-col gap-2.5">
             <button onClick={() => setScreen('list')} aria-label="Bütün hareketleri göster"
-              className="min-h-12 px-4 py-1 rounded-2xl bg-(--color-bg-card) flex items-center gap-3 text-left">
+              className="min-h-12 px-4 py-1 rounded-2xl bg-(--color-bg-card) flex items-center gap-3 text-left [@media(max-height:700px)]:hidden">
               <span className="flex-1 min-w-0 flex flex-col">
                 <span className="text-[12px] text-(--color-text-secondary)">{nextUp ? 'Sonra' : 'Başka hareket yok · eklemek için dokun'}</span>
                 {nextUp && (
