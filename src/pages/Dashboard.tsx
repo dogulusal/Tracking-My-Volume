@@ -64,7 +64,10 @@ export function Dashboard() {
   const weekDone = weekStats.total > 0 && weekStats.completed === weekStats.total;
 
   return (
-    <div className="max-w-xl mx-auto px-5 pt-2 pb-8">
+    // On a wide screen the week's numbers sit beside the workout instead of
+    // under it, and the page lines up with the header like the others.
+    <div className="max-w-xl lg:max-w-5xl mx-auto px-5 pt-2 pb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-x-14 lg:items-start">
+      <div>
       <p className="text-[15px] text-(--color-text-secondary)">{dateLine}</p>
       <p className="mt-2 text-[15px] text-(--color-text-secondary)">
         {weekLabel} · {nextWorkout ? (nextWorkout.hasDraft ? 'yarım kalan' : 'sıradaki') : 'hafta bitti'}
@@ -127,7 +130,9 @@ export function Dashboard() {
       ) : (
         <Link to="/programs" className="mt-6 flex items-center justify-center h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">Programlar</Link>
       )}
+      </div>
 
+      <div className="lg:pt-2 lg:[&>*:first-child]:mt-0">
       <div className="mt-8 grid grid-cols-2 gap-2">
         <div className="a-card px-4 py-3">
           <p className="lb-figure text-[30px] font-bold leading-none">{weekStats.volume > 0 ? nf.format(Math.round(weekStats.volume)) : '—'}{weekStats.volume > 0 && <span className="text-[16px] font-semibold text-(--color-text-secondary)"> kg</span>}</p>
@@ -172,6 +177,7 @@ export function Dashboard() {
       <p className="mt-8 text-[13px] text-(--color-text-secondary)">
         <a href={`${import.meta.env.BASE_URL}privacy.html`} className="inline-flex min-h-11 items-center underline">Gizlilik Politikası</a>
       </p>
+      </div>
 
       {/* The week only moves forward in the app, so a stray tap needs a stop. */}
       <Modal isOpen={confirmNewWeek} onClose={() => setConfirmNewWeek(false)}

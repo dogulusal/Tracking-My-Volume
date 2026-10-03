@@ -127,7 +127,7 @@ export function ProgramSelect() {
   }, [activePlanPrograms, weekLogs, phases, selectedWeek, state.currentWeek]);
 
   return (
-    <div className="max-w-3xl mx-auto px-5 pt-2 pb-8">
+    <div className="max-w-5xl mx-auto px-5 pt-2 pb-8">
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           <h1 className="a-display text-[48px]">Programlar</h1>
@@ -142,7 +142,7 @@ export function ProgramSelect() {
         <ProgramWeekPicker week={selectedWeek} onChange={week => setParams({ week: String(week) })} allowCopy />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {programPreviews.map(({ program, lastLog, visibleExercises, lastWeekLabel }) => (
           <section key={program.id} className="a-card px-4 pt-3.5 pb-3">
             <div className="flex items-start justify-between gap-3">
