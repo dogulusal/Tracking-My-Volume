@@ -7,6 +7,7 @@ import { Icon } from '@/components/shared/Icon';
 import { SheetLink } from '@/components/shared/SheetLink';
 import { InstallAppButton } from '@/components/shared/InstallAppButton';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
+import { AppTour } from '@/components/shared/AppTour';
 
 /**
  * Out of the way: on the phone only the account and settings button, each
@@ -18,6 +19,7 @@ export function Header() {
   const location = useLocation();
   const [dark, setDark] = useState(isDarkMode());
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
   const { configured, userEmail, syncStatus } = useCloudSync();
 
   const handleToggle = () => {
@@ -72,6 +74,7 @@ export function Header() {
                   <Icon name={dark ? 'sun' : 'moon'} className="w-5 h-5 text-(--color-text-secondary)" />
                 </button>
                 <Link to="/export" onClick={() => setSettingsOpen(false)} className="px-3 min-h-12 rounded-xl text-[16px] flex items-center">Yedek ve dışa aktarma</Link>
+                <button onClick={() => { setTourOpen(true); setSettingsOpen(false); }} className="px-3 min-h-12 rounded-xl text-left text-[16px]">Uygulama turu</button>
                 <InstallAppButton className="px-3 min-h-12 rounded-xl text-left text-[16px]" />
               </div>
             </>}
@@ -79,6 +82,7 @@ export function Header() {
         </div>
       </header>
       <CloudSyncModal isOpen={isCloudModalOpen} onClose={() => setIsCloudModalOpen(false)} />
+      {tourOpen && <AppTour onClose={() => setTourOpen(false)} />}
     </>
   );
 }

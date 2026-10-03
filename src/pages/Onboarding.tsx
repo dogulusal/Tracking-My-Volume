@@ -4,6 +4,7 @@ import { AppContext } from '@/context/AppContext';
 import { searchMovements } from '@/data/movementLibrary';
 import { muscleRegions, type Region } from '@/data/muscleRegions';
 import { exerciseKey } from '@/utils/muscleGroups';
+import { AppTour, TourOffer, markTourOffered, tourOffered } from '@/components/shared/AppTour';
 
 // Day names offered for each number of training days, and what that split
 // means; any name can be changed.
@@ -44,6 +45,8 @@ export function Onboarding() {
   const [picking, setPicking] = useState(false);
   const [query, setQuery] = useState('');
   const week = ctx?.state.currentWeek ?? 0;
+  // Right after signing up, the tour is offered once on this device.
+  const [tour, setTour] = useState<'offer' | 'open' | null>(() => (tourOffered() ? null : 'offer'));
 
   const back: Partial<Record<Step, Step>> = { days: 'welcome', names: 'days', moves: 'names', sets: 'moves', today: 'sets' };
   const finalNames = names.map((name, index) => name.trim().replace(/\s+/g, ' ') || `Gün ${index + 1}`);
@@ -256,6 +259,11 @@ export function Onboarding() {
           </div>
         </>
       )}
+
+      {tour === 'offer' && step === 'welcome' && (
+        <TourOffer onAnswer={show => { markTourOffered(show ? 'gosterildi' : 'hayir'); setTour(show ? 'open' : null); }} />
+      )}
+      {tour === 'open' && <AppTour onClose={() => setTour(null)} />}
 
       {/* Picking movements for a day: search, with each one's region; stays open for several. */}
       {picking && (
