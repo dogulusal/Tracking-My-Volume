@@ -43,6 +43,7 @@ function compareToPrevious(set: SetLog, prev: SetLog | null): { text: string; to
   if ((RESERVE[set.intensity] ?? 0) !== (RESERVE[prev.intensity] ?? 0)) return { text: `Kilo ve tekrar aynı · geçen ${formatSetLine(prev)}`, tone: 'same' };
   return { text: 'Geçen haftayla aynı', tone: 'same' };
 }
+const FIRST_HINT_KEY = 'tmv-ipucu-set';
 const REST_TIMER_KEY = 'rest-timer-default-sec';
 const REST_TIMER_RECENTS_KEY = 'rest-timer-recent-sec';
 const TIMER_END_AT_KEY = 'rest-timer-end-at';
@@ -751,6 +752,16 @@ export function WorkoutEntry() {
   const [addQuery, setAddQuery] = useState('');
   // The movement whose set was just finished, offered one more set while resting.
   const [lastFinished, setLastFinished] = useState<number | null>(null);
+  // Someone with no workout saved yet gets one line on how a set is entered,
+  // until they say they have it.
+  const [firstHintSeen, setFirstHintSeen] = useState(() => {
+    try { return localStorage.getItem(FIRST_HINT_KEY) === '1'; } catch { return false; }
+  });
+  const showFirstHint = !firstHintSeen && (ctx?.state.weekLogs.length ?? 0) === 0;
+  const dismissFirstHint = () => {
+    setFirstHintSeen(true);
+    try { localStorage.setItem(FIRST_HINT_KEY, '1'); } catch { /* a per-device nicety only */ }
+  };
 
   // Every movement this person has written down, newest first, for the search.
   const ownMovementNames = useMemo(() => {
@@ -973,6 +984,12 @@ export function WorkoutEntry() {
                 geçen hafta <span className="lb-figure text-[22px] font-semibold text-(--color-text-primary)">{prevSet ? formatSetLine(prevSet) : '—'}</span>
               </span>
             </div>
+            {showFirstHint && (
+              <div className="mt-2 flex items-center gap-3 rounded-2xl px-4 py-2.5" style={{ background: 'var(--lb-ref-fill)' }}>
+                <p className="flex-1 text-[14px] leading-snug">Rakama dokunup yaz ya da − + kullan. Set bitince “Seti bitir”e bas; dinlenme sayacı başlar.</p>
+                <button onClick={dismissFirstHint} className="shrink-0 h-11 px-3 rounded-xl text-[14px] font-semibold" style={{ color: 'var(--lb-ref)' }}>Anladım</button>
+              </div>
+            )}
             {(info?.target || pinned || info?.lastNote || (doneCount === 0 && previousNoteLog?.notes?.trim())) && (
               <div className="mt-1.5 space-y-0.5 text-[14px] text-(--color-text-secondary)">
                 {info?.target && (
@@ -1042,7 +1059,7 @@ export function WorkoutEntry() {
             <button onClick={() => setScreen('list')} aria-label="Bütün hareketleri göster"
               className="min-h-12 px-4 py-1 rounded-2xl bg-(--color-bg-card) flex items-center gap-3 text-left">
               <span className="flex-1 min-w-0 flex flex-col">
-                <span className="text-[12px] text-(--color-text-secondary)">{nextUp ? 'Sonra' : 'Başka hareket kalmadı'}</span>
+                <span className="text-[12px] text-(--color-text-secondary)">{nextUp ? 'Sonra' : 'Başka hareket yok · eklemek için dokun'}</span>
                 {nextUp && (
                   <span className="text-[15px] font-semibold truncate">
                     {nextUp.exercise.exerciseName} <span className="font-normal text-(--color-text-secondary)">· {nextUp.done}/{nextUp.exercise.sets.length} set</span>
