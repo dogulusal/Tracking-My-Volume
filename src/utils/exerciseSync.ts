@@ -20,12 +20,14 @@ export function syncExerciseLogs(
  * Movements added during the workout join the program, at the end and in
  * the order they were done, with the workout's first set as their defaults:
  * a program can be built by training it. Movements the program already has
- * (active or not) are left alone; a log with no sets adds nothing.
+ * (active or not) are left alone; a log with no sets adds nothing. Nor does
+ * one already in a saved record (`recorded`): that is a movement since
+ * removed from the day, whose old sets the workout still shows.
  */
-export function addMovementsFromWorkout(program: Program, logs: ExerciseLog[]): Program {
+export function addMovementsFromWorkout(program: Program, logs: ExerciseLog[], recorded: ReadonlySet<string> = new Set()): Program {
   const known = new Set(program.exercises.map(exercise => exercise.id));
   const added: ExerciseDefinition[] = logs
-    .filter(log => !known.has(log.exerciseId) && log.sets.length > 0)
+    .filter(log => !known.has(log.exerciseId) && !recorded.has(log.exerciseId) && log.sets.length > 0)
     .map(log => ({
       id: log.exerciseId,
       name: log.exerciseName,

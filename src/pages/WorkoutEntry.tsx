@@ -492,7 +492,8 @@ export function WorkoutEntry() {
   const handleSave = () => {
     if (!programId) return;
     if (program) {
-      const updated = syncProgramFromWorkout(addMovementsFromWorkout(program, exerciseLogs), exerciseLogs, editedExerciseIdsRef.current, orderDiffersFromProgram);
+      const recorded = new Set((allLogs ?? []).flatMap(log => log.exercises.map(exercise => exercise.exerciseId)));
+      const updated = syncProgramFromWorkout(addMovementsFromWorkout(program, exerciseLogs, recorded), exerciseLogs, editedExerciseIdsRef.current, orderDiffersFromProgram);
       if (updated !== program) {
         updateProgram(updated);
         if (orderDiffersFromProgram) ctx?.dispatch({ type: 'SET_EXERCISE_ROW_ORDER', payload: {

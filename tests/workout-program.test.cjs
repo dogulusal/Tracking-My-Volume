@@ -56,3 +56,16 @@ test('a reloaded draft keeps movements the program does not have yet', () => {
   ], exercise => ({ exerciseId: exercise.id, exerciseName: exercise.name, sets: [] }));
   assert.deepEqual(logs.map(log => log.exerciseId), ['bench', 'new-1']);
 });
+
+test('a movement removed from the program does not come back when its old record is saved again', () => {
+  const before = program([{ id: 'bench', name: 'Bench Press', defaultSets: 3, defaultWeight: 75, defaultReps: 8, isActive: true }]);
+  // Reopening a week that still holds sets of a movement since removed from the day.
+  const logs = syncExerciseLogs(before, [
+    { exerciseId: 'bench', exerciseName: 'Bench Press', sets: [set(75, 8)] },
+    { exerciseId: 'old-triceps', exerciseName: 'Triceps Short Head', sets: [set(30, 10)] },
+  ], ex => ({ exerciseId: ex.id, exerciseName: ex.name, sets: [] }));
+  assert.equal(addMovementsFromWorkout(before, logs, new Set(['bench', 'old-triceps'])), before);
+  // A movement added in this workout has no record yet, so it still joins.
+  const withNew = [...logs, { exerciseId: 'new-1', exerciseName: 'Cable Fly', sets: [set(15, 12)] }];
+  assert.deepEqual(addMovementsFromWorkout(before, withNew, new Set(['bench', 'old-triceps'])).exercises.map(e => e.id), ['bench', 'new-1']);
+});
