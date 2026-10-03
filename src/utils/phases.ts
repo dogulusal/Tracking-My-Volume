@@ -21,6 +21,23 @@ export function weekLabel(phases: PhaseDefinition[], week: number): string {
   return phase ? `${phase.name} H${week - phase.startWeek}` : `Hafta ${week}`;
 }
 
+/** Only the first phase has begun: weeks can simply be counted. */
+export function onlyFirstPhase(phases: PhaseDefinition[], currentWeek: number): boolean {
+  const sorted = [...phases].sort((a, b) => a.startWeek - b.startWeek);
+  return sorted.slice(1).every(phase => phase.startWeek > currentWeek);
+}
+
+/**
+ * A week in words for screens outside the grid: "4. hafta" while there is
+ * only one phase, "Faz 3 · H2" once there are more. The grid and the Sheet
+ * keep weekLabel.
+ */
+export function weekName(phases: PhaseDefinition[], week: number, currentWeek: number): string {
+  if (onlyFirstPhase(phases, currentWeek)) return `${week + 1}. hafta`;
+  const phase = phases.find(p => week >= p.startWeek && (p.endWeek === null || week <= p.endWeek));
+  return phase ? `${phase.name} · H${week - phase.startWeek}` : `Hafta ${week}`;
+}
+
 export type StartedPhase ={ id: string; label: string; weeks: number[]; baseWeek: number };
 
 /**

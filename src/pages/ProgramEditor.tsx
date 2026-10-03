@@ -7,6 +7,7 @@ import { usePrograms } from '@/hooks/usePrograms';
 import { MOVEMENT_LIBRARY } from '@/data/movementLibrary';
 import { moveItem } from '@/utils/reorder';
 import type { ExerciseDefinition } from '@/types';
+import { onlyFirstPhase } from '@/utils/phases';
 
 function generateId(name: string): string {
   return name
@@ -112,7 +113,9 @@ export function ProgramEditor() {
         Programlar
       </button>
       <h1 className="a-display text-[44px] mt-1">{existingProgram ? 'Günü düzenle' : 'Yeni gün'}</h1>
-      <p className="mt-1 text-[13px] leading-snug text-(--color-text-secondary)">{phase?.name} · H{week - (phase?.startWeek ?? 0)} için. Değişiklikler bir sonraki program sürümüne kadar geçerli; önceki haftalar ve diğer fazlar korunur.</p>
+      <p className="mt-1 text-[13px] leading-snug text-(--color-text-secondary)">{onlyFirstPhase(ctx.state.phases, ctx.state.currentWeek)
+        ? `${week + 1}. hafta için. Değişiklikler bir sonraki program değişikliğine kadar geçerli; önceki haftalar korunur.`
+        : `${phase?.name} · H${week - (phase?.startWeek ?? 0)} için. Değişiklikler bir sonraki program sürümüne kadar geçerli; önceki haftalar ve diğer fazlar korunur.`}</p>
 
       <div className="mt-5 grid grid-cols-[1fr_88px] gap-2">
         <label className="text-[13px] text-(--color-text-secondary)">Günün adı

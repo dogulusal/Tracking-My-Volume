@@ -41,7 +41,7 @@ export function Dashboard() {
   const [showAllStalled, setShowAllStalled] = useState(false);
   const {
     activePlanPrograms, programs, weekLogs, currentWeek, incrementWeek,
-    phase, displayWeek, weekStats, streak, programStatuses, stalled, nextWorkout, nextTargets,
+    weekLabel, weekStats, streak, programStatuses, stalled, nextWorkout, nextTargets,
   } = useWeekOverview();
   // The week moves on only when told; a week whose first workout was days
   // ago is asked about once (per week, on this phone).
@@ -67,7 +67,7 @@ export function Dashboard() {
     <div className="max-w-xl mx-auto px-5 pt-2 pb-8">
       <p className="text-[15px] text-(--color-text-secondary)">{dateLine}</p>
       <p className="mt-2 text-[15px] text-(--color-text-secondary)">
-        {phase?.name} · Hafta {displayWeek} · {nextWorkout ? (nextWorkout.hasDraft ? 'yarım kalan' : 'sıradaki') : 'hafta bitti'}
+        {weekLabel} · {nextWorkout ? (nextWorkout.hasDraft ? 'yarım kalan' : 'sıradaki') : 'hafta bitti'}
       </p>
       <h1 className="a-display text-[clamp(56px,22vw,92px)] tracking-[-0.01em] mt-0.5">
         {nextWorkout ? nextWorkout.program.name : weekDone ? 'Tamam' : 'Plan boş'}

@@ -15,7 +15,7 @@ import { REGIONS, REGION_HINTS, muscleRegions } from '@/data/muscleRegions';
 import { exerciseKey } from '@/utils/muscleGroups';
 import { movementSessions, sessionsBefore, type MovementSession } from '@/utils/movements';
 import { STALL_WEEKS, bestSet, nextTarget, previousRecord, progressionRule, stallOf, type ProgressionRule, type Stall, type Target } from '@/utils/progression';
-import { weekLabel } from '@/utils/phases';
+import { weekName } from '@/utils/phases';
 import type { SetLog, Intensity, ExerciseLog } from '@/types';
 
 const INTENSITY_OPTIONS: { value: Intensity; label: string }[] = [
@@ -159,6 +159,7 @@ export function WorkoutEntry() {
 
   const allLogs = ctx?.state.weekLogs;
   const allPhases = ctx?.state.phases ?? [];
+  const nameOfWeek = (week: number) => weekName(allPhases, week, ctx?.state.currentWeek ?? weekNumber);
   const exerciseSettings = ctx?.state.exerciseSettings;
   // The last time this day was trained, in any phase. Its note is mostly a
   // message to this workout ("pulldown ağırlık düşülebilir").
@@ -1026,7 +1027,7 @@ export function WorkoutEntry() {
                     {' · '}{info.target.reps !== null ? `geçen ${formatSet(info.target.from)}` : `${info.target.from.reps} tekrara ulaştın`}</p>
                 )}
                 {pinned && <p className="truncate">Sabit: <span className="text-(--color-text-primary)">{pinned}</span></p>}
-                {info?.lastNote && <p className="truncate">Geçen sefer ({[programName(info.lastNote.log.programId), weekLabel(allPhases, info.lastNote.log.weekNumber)].filter(Boolean).join(' · ')}): <span className="text-(--color-text-primary)">{info.lastNote.exercise.note!.trim()}</span></p>}
+                {info?.lastNote && <p className="truncate">Geçen sefer ({[programName(info.lastNote.log.programId), nameOfWeek(info.lastNote.log.weekNumber)].filter(Boolean).join(' · ')}): <span className="text-(--color-text-primary)">{info.lastNote.exercise.note!.trim()}</span></p>}
                 {doneCount === 0 && previousNoteLog?.notes?.trim() && <p className="truncate">Geçen gün notu: <span className="text-(--color-text-primary)">{previousNoteLog.notes.trim()}</span></p>}
               </div>
             )}
@@ -1193,7 +1194,7 @@ export function WorkoutEntry() {
           <p className="-mt-1 mb-3 text-[14px] text-(--color-text-secondary)">Makine doluysa başka bir harekete geç; sıra seni bağlamaz.</p>
           {previousNoteLog?.notes?.trim() && (
             <div className="rounded-2xl bg-(--color-bg-input) px-4 py-3 mb-2">
-              <p className="text-[13px] text-(--color-text-secondary)">Geçen {program.name} notu · {weekLabel(allPhases, previousNoteLog.weekNumber)}</p>
+              <p className="text-[13px] text-(--color-text-secondary)">Geçen {program.name} notu · {nameOfWeek(previousNoteLog.weekNumber)}</p>
               <p className="mt-0.5 text-[15px] whitespace-pre-line">{previousNoteLog.notes.trim()}</p>
             </div>
           )}
@@ -1351,7 +1352,7 @@ export function WorkoutEntry() {
                 </button>
               )}
               {info.stall && info.stall.weeks >= STALL_WEEKS && (
-                <p className="mt-1 text-[14px] text-(--color-text-secondary)">{info.stall.weeks} haftadır yerinde · en iyi {formatSet(info.stall.best)}, {weekLabel(allPhases, info.stall.since)}</p>
+                <p className="mt-1 text-[14px] text-(--color-text-secondary)">{info.stall.weeks} haftadır yerinde · en iyi {formatSet(info.stall.best)}, {nameOfWeek(info.stall.since)}</p>
               )}
             </div>
           )}
@@ -1445,7 +1446,7 @@ export function WorkoutEntry() {
         onClose={() => setConfirmClear(false)}
         onConfirm={handleClearWeek}
         title="Bu haftanın kaydı silinsin mi?"
-        message={`${program.name} · H${displayWeek}: setler, not ve tatil işareti silinir. Diğer haftalar ve program değişmez.`}
+        message={`${program.name} · ${nameOfWeek(weekNumber)}: setler, not ve tatil işareti silinir. Diğer haftalar ve program değişmez.`}
         confirmText="Sil"
         confirmVariant="danger"
       />

@@ -8,6 +8,7 @@ import { exerciseKey } from '@/utils/muscleGroups';
 import { movementSessions } from '@/utils/movements';
 import { STALL_WEEKS, bestSet, previousRecord, stallOf } from '@/utils/progression';
 import { buildPhaseGrid, formatSetLine } from '../../supabase/functions/_shared/historyGrid.mjs';
+import { onlyFirstPhase } from '@/utils/phases';
 import type { Program } from '@/types';
 
 export type DayStatus = 'done' | 'holiday' | 'pending';
@@ -25,7 +26,8 @@ export function useWeekOverview() {
   const state = ctx?.state;
   const phase = state?.phases.find(p => currentWeek >= p.startWeek && (p.endWeek === null || currentWeek <= p.endWeek));
   const displayWeek = currentWeek - (phase?.startWeek ?? 0);
-  const weekLabel = `${phase?.name ?? ''} · H${displayWeek}`;
+  // "4. hafta" while there is one phase; the phase and its week once there are more.
+  const weekLabel = state && onlyFirstPhase(state.phases, currentWeek) ? `${currentWeek + 1}. hafta` : `${phase?.name ?? ''} · Hafta ${displayWeek}`;
 
   const activeProgramIds = useMemo(() => activePlanPrograms.map(p => p.id), [activePlanPrograms]);
 

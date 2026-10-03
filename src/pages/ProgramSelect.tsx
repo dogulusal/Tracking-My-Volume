@@ -8,6 +8,7 @@ import { useWeekLogs } from '@/hooks/useWeekLogs';
 import type { Plan } from '@/types';
 import { Modal } from '@/components/shared/Modal';
 import { syncExerciseLogs } from '@/utils/exerciseSync';
+import { weekName } from '@/utils/phases';
 
 function PlanSelectModal({
   plans,
@@ -120,11 +121,10 @@ export function ProgramSelect() {
           ? Array.from({ length: exercise.defaultSets }, () => ({ weight: exercise.defaultWeight, reps: exercise.defaultReps, intensity: 'failure' as const }))
           : [],
       })).filter(exercise => program.exercises.some(definition => definition.id === exercise.exerciseId && definition.isActive));
-      const phase = lastLog ? phases.find(p => lastLog.weekNumber >= p.startWeek && (p.endWeek === null || lastLog.weekNumber <= p.endWeek)) : undefined;
-      const lastWeekLabel = lastLog ? `${phase?.name ?? ''} · H${lastLog.weekNumber - (phase?.startWeek ?? 0)}` : '';
+      const lastWeekLabel = lastLog ? weekName(phases, lastLog.weekNumber, state.currentWeek) : '';
       return { program, lastLog, visibleExercises, lastWeekLabel };
     });
-  }, [activePlanPrograms, weekLogs, phases, selectedWeek]);
+  }, [activePlanPrograms, weekLogs, phases, selectedWeek, state.currentWeek]);
 
   return (
     <div className="max-w-3xl mx-auto px-5 pt-2 pb-8">
