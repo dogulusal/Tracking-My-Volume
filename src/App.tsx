@@ -9,6 +9,7 @@ import { WorkoutEntry } from '@/pages/WorkoutEntry';
 import { History } from '@/pages/History';
 import { Charts } from '@/pages/Charts';
 import { Export } from '@/pages/Export';
+import { Onboarding } from '@/pages/Onboarding';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { useCloudSync } from '@/hooks/useCloudSync';
 import { LoginPromptModal } from '@/components/shared/LoginPromptModal';
@@ -20,7 +21,8 @@ function AppContent() {
   const isMobileDevice = useIsMobileDevice();
   const { configured, syncStatus, userId, hydrated, authError, refreshFromCloud, signOut } = useCloudSync();
   // The workout page is full screen: its own bar, no tabs.
-  const inWorkout = useLocation().pathname.startsWith('/workout/');
+  const { pathname } = useLocation();
+  const inWorkout = pathname.startsWith('/workout/') || pathname === '/baslangic';
 
   if (configured && !userId) {
     return syncStatus === 'auth_loading'
@@ -61,6 +63,7 @@ function AppContent() {
           <Route path="/history" element={<History />} />
           <Route path="/charts" element={<Charts />} />
           <Route path="/export" element={<Export />} />
+          <Route path="/baslangic" element={<Onboarding />} />
         </Routes>
       </main>
       {!inWorkout && <BottomNav />}

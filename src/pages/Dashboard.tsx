@@ -1,8 +1,7 @@
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useWeekOverview, type WeekDay } from '@/hooks/useWeekOverview';
 import { Modal } from '@/components/shared/Modal';
-import { samplePrograms } from '@/data/sampleProgram';
 import { formatSet } from '@/utils/formatters';
 import { STALL_WEEKS } from '@/utils/progression';
 
@@ -37,25 +36,15 @@ export function Dashboard() {
   const [confirmNewWeek, setConfirmNewWeek] = useState(false);
   const [showAllStalled, setShowAllStalled] = useState(false);
   const {
-    activePlanPrograms, programs, addProgram, currentWeek, incrementWeek,
+    activePlanPrograms, programs, currentWeek, incrementWeek,
     phase, displayWeek, weekStats, streak, programStatuses, stalled, nextWorkout, nextTargets,
   } = useWeekOverview();
   const now = new Date();
   const weekday = weekdayFormat.format(now);
   const dateLine = `${weekday.charAt(0).toLocaleUpperCase('tr-TR')}${weekday.slice(1)}, ${dayMonthFormat.format(now)}`;
 
-  if (programs.length === 0) {
-    return (
-      <div className="max-w-xl mx-auto px-5 pb-8">
-        <p className="text-[15px] text-(--color-text-secondary)">{dateLine}</p>
-        <h1 className="a-display text-[56px] mt-1">Program yok</h1>
-        <p className="mt-2 text-[16px] text-(--color-text-secondary)">Kendi programını kur ya da hazır programla başla.</p>
-        <Link to="/programs/edit" className="mt-6 flex items-center justify-center h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Program oluştur</Link>
-        <button onClick={() => samplePrograms.forEach(p => addProgram(p))}
-          className="mt-2 w-full h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">Örnek programları yükle</button>
-      </div>
-    );
-  }
+  // Nothing set up yet: the first-run guide builds it.
+  if (programs.length === 0) return <Navigate to="/baslangic" replace />;
 
   const weekDone = weekStats.total > 0 && weekStats.completed === weekStats.total;
 
