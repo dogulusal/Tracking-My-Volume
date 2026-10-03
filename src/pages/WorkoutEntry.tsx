@@ -822,7 +822,10 @@ export function WorkoutEntry() {
     const next = nextOpenSet(current.ex, current.set, done);
     setFocus(next);
     setLastFinished(current.ex);
-    if (next) startRestTimer();
+    // A movement being built this workout has no set after the last one yet,
+    // but the person still rests before deciding on another.
+    const building = !program?.exercises.some(e => e.id === exerciseLogs[current.ex].exerciseId);
+    if (next || building) startRestTimer();
   };
   // Moves the end of a running rest; the alarm is rescheduled with it, and the
   // adjusted length is not remembered as a new duration.
@@ -854,6 +857,14 @@ export function WorkoutEntry() {
   const step = info?.rule.step ?? 2.5;
   const comparison = set ? compareToPrevious(set, prevSet) : null;
   const currentDone = exercise && current ? !!completedSets[`${exercise.exerciseId}:${current.set}`] : false;
+  // On the finish screen: one more set of what was just done, or after a
+  // reload (when that is not known) of the last movement.
+  const moreFor = lastFinished ?? (exerciseLogs.length ? exerciseLogs.length - 1 : null);
+  // Each movement's best set ticked today: what the next session has to beat.
+  const nextWeekTargets = exerciseLogs.flatMap(e => {
+    const best = bestSet(e.sets.filter((_, i) => completedSets[`${e.exerciseId}:${i}`]));
+    return best ? [{ id: e.exerciseId, name: e.exerciseName, text: formatSetLine(best) }] : [];
+  });
   // The next movement with sets still to do after this one, wrapping round.
   const unfinished = exerciseLogs
     .map((e, index) => ({ exercise: e, index, done: e.sets.filter((_, i) => completedSets[`${e.exerciseId}:${i}`]).length }))
@@ -917,18 +928,34 @@ export function WorkoutEntry() {
           <button onClick={() => setAddOpen(true)} className="mt-8 h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Hareket ekle</button>
         </div>
       ) : !exercise || !set || !current ? (
-        <div className="flex-1 flex flex-col justify-center px-6 pb-8">
+        <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col">
+        <div className="my-auto flex flex-col">
           <p className="text-center text-[16px] text-(--color-text-secondary)">{program.name} · {phase?.name} H{displayWeek}</p>
           <p className="a-display text-center text-[72px] mt-1">Tamam</p>
           <p className="text-center text-[17px] text-(--color-text-secondary)">{doneCount} / {setCount} set işaretlendi</p>
+          {/* The point of the app, in the person's own numbers: what next week has to beat. */}
+          {nextWeekTargets.length > 0 && (
+            <div className="mt-6 a-card px-4 py-3">
+              <p className="text-[14px] text-(--color-text-secondary)">Gelecek {program.name} antrenmanında seni bunlar bekliyor</p>
+              <ul className="mt-1">
+                {nextWeekTargets.map(target => (
+                  <li key={target.id} className="flex items-baseline justify-between gap-3 py-1.5 border-b border-(--color-border) last:border-b-0">
+                    <span className="text-[16px] truncate">{target.name}</span>
+                    <span className="lb-figure shrink-0 text-[22px] font-semibold">{target.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <button onClick={handleSave} className="mt-8 h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Kaydet</button>
-          {lastFinished !== null && exerciseLogs[lastFinished] && (
-            <button onClick={() => oneMoreSet(lastFinished)} className="mt-2 h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium truncate px-4">
-              {exerciseLogs[lastFinished].exerciseName}: bir set daha
+          {moreFor !== null && exerciseLogs[moreFor] && (
+            <button onClick={() => oneMoreSet(moreFor)} className="mt-2 h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium truncate px-4">
+              {exerciseLogs[moreFor].exerciseName}: bir set daha
             </button>
           )}
           <button onClick={() => setAddOpen(true)} className="mt-2 h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">Hareket ekle</button>
           <button onClick={() => setScreen('list')} className="mt-2 h-14 rounded-[16px] text-[16px] text-(--color-text-secondary)">Hareketlere dön</button>
+        </div>
         </div>
       ) : (
         <>
