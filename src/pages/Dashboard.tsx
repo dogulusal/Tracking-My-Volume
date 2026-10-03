@@ -20,7 +20,10 @@ function DayTile({ day, isNext, week }: { day: WeekDay; isNext: boolean; week: n
     <Link to={`/workout/${day.program.id}/week/${week}`} style={style}
       className="min-h-14 rounded-[14px] px-1 py-1.5 flex flex-col items-center justify-center gap-0.5 text-center">
       <span className={`text-[12px] leading-tight truncate max-w-full ${isNext ? 'font-semibold' : 'text-(--color-text-secondary)'}`}>{day.program.name}</span>
-      {day.status === 'done' && compared > 0 ? (
+      {day.status === 'done' && compared > 0 && compared === first ? (
+        // Nothing to compare yet: a first record is not 0 out of N.
+        <span className="text-[12px]">ilk kayıt</span>
+      ) : day.status === 'done' && compared > 0 ? (
         <span className="lb-figure text-[18px] font-semibold leading-none" style={{ color: improved > 0 ? 'var(--lb-gain)' : undefined }}>
           {improved} / {compared}
         </span>
@@ -59,7 +62,9 @@ export function Dashboard() {
       </h1>
       {nextWorkout && (
         <p className="mt-2 text-[15px] text-(--color-text-secondary)">
-          {nextTargets.length} hareket · {nextWorkout.program.exercises.filter(e => e.isActive).reduce((sum, e) => sum + e.defaultSets, 0)} set
+          {nextTargets.length
+            ? `${nextTargets.length} hareket · ${nextWorkout.program.exercises.filter(e => e.isActive).reduce((sum, e) => sum + e.defaultSets, 0)} set`
+            : 'İlk antrenman: hareketlerini yaparken ekleyeceksin'}
         </p>
       )}
 
