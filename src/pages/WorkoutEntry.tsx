@@ -8,10 +8,11 @@ import { Modal } from '@/components/shared/Modal';
 import { formatSetLine } from '../../supabase/functions/_shared/historyGrid.mjs';
 import { formatSet } from '@/utils/formatters';
 import { moveItem } from '@/utils/reorder';
-import { syncExerciseLogs, syncProgramFromWorkout } from '@/utils/exerciseSync';
+import { addMovementsFromWorkout, syncExerciseLogs, syncProgramFromWorkout } from '@/utils/exerciseSync';
+import { searchMovements } from '@/data/movementLibrary';
 import { exerciseKey } from '@/utils/muscleGroups';
 import { movementSessions, sessionsBefore, type MovementSession } from '@/utils/movements';
-import { STALL_WEEKS, nextTarget, previousRecord, progressionRule, stallOf, type ProgressionRule, type Stall, type Target } from '@/utils/progression';
+import { STALL_WEEKS, bestSet, nextTarget, previousRecord, progressionRule, stallOf, type ProgressionRule, type Stall, type Target } from '@/utils/progression';
 import { weekLabel } from '@/utils/phases';
 import type { SetLog, Intensity, ExerciseLog } from '@/types';
 
@@ -485,7 +486,7 @@ export function WorkoutEntry() {
   const handleSave = () => {
     if (!programId) return;
     if (program) {
-      const updated = syncProgramFromWorkout(program, exerciseLogs, editedExerciseIdsRef.current, orderDiffersFromProgram);
+      const updated = syncProgramFromWorkout(addMovementsFromWorkout(program, exerciseLogs), exerciseLogs, editedExerciseIdsRef.current, orderDiffersFromProgram);
       if (updated !== program) {
         updateProgram(updated);
         if (orderDiffersFromProgram) ctx?.dispatch({ type: 'SET_EXERCISE_ROW_ORDER', payload: {
@@ -746,6 +747,55 @@ export function WorkoutEntry() {
   const [screen, setScreen] = useState<'set' | 'list'>('set');
   const [daySettingsOpen, setDaySettingsOpen] = useState(false);
   const [exerciseSheetOpen, setExerciseSheetOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addQuery, setAddQuery] = useState('');
+  // The movement whose set was just finished, offered one more set while resting.
+  const [lastFinished, setLastFinished] = useState<number | null>(null);
+
+  // Every movement this person has written down, newest first, for the search.
+  const ownMovementNames = useMemo(() => {
+    const names: string[] = [];
+    for (const log of [...(allLogs ?? [])].sort((a, b) => b.weekNumber - a.weekNumber)) {
+      for (const exercise of log.exercises) names.push(exercise.exerciseName);
+    }
+    for (const day of ctx?.state.programs ?? []) for (const exercise of day.exercises) names.push(exercise.name);
+    return names;
+  }, [allLogs, ctx?.state.programs]);
+  const addResults = searchMovements(addQuery, ownMovementNames);
+  const addExact = [...addResults.own, ...addResults.library].some(name => exerciseKey(name) === exerciseKey(addQuery));
+
+  // A movement joins this workout (and, on save, the program). Done before on
+  // another day, it starts from that day's best set; new, from zero.
+  const addMovement = (rawName: string) => {
+    const name = rawName.trim().replace(/\s+/g, ' ');
+    if (!name) return;
+    const key = exerciseKey(name);
+    const existing = exerciseLogs.findIndex(exercise => exerciseKey(exercise.exerciseName) === key);
+    if (existing >= 0) {
+      const open = exerciseLogs[existing].sets.findIndex((_, i) => !completedSets[`${exerciseLogs[existing].exerciseId}:${i}`]);
+      setFocus({ ex: existing, set: open < 0 ? 0 : open });
+    } else {
+      const sessions = movementSessions(allLogs ?? [], key);
+      const best = sessions.length ? bestSet(sessions[sessions.length - 1].exercise.sets) : null;
+      const id = crypto.randomUUID();
+      editedExerciseIdsRef.current.add(id);
+      setExerciseLogs(prev => [...prev, {
+        exerciseId: id, exerciseName: name,
+        sets: [{ weight: best?.weight ?? 0, reps: best?.reps ?? 0, intensity: 'failure' as Intensity }],
+      }]);
+      setIsDirty(true);
+      setFocus({ ex: exerciseLogs.length, set: 0 });
+    }
+    setAddOpen(false);
+    setAddQuery('');
+    setScreen('set');
+  };
+  // One more set of a movement, ready to be entered next.
+  const oneMoreSet = (ex: number) => {
+    addSet(ex);
+    setFocus({ ex, set: exerciseLogs[ex].sets.length });
+    setLastFinished(null);
+  };
 
   // The next set not yet done after (fromEx, fromSet), in program order,
   // wrapping round to the start; null once every set is done.
@@ -771,6 +821,7 @@ export function WorkoutEntry() {
     setIsDirty(true);
     const next = nextOpenSet(current.ex, current.set, done);
     setFocus(next);
+    setLastFinished(current.ex);
     if (next) startRestTimer();
   };
   // Moves the end of a running rest; the alarm is rescheduled with it, and the
@@ -856,13 +907,28 @@ export function WorkoutEntry() {
           <button onClick={() => { setIsHoliday(false); setIsDirty(true); }} className="mt-6 h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">Tatili kaldır</button>
           <button onClick={handleSave} className="mt-2 h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Kaydet</button>
         </div>
+      ) : exerciseLogs.length === 0 ? (
+        <div className="flex-1 flex flex-col justify-center px-6 pb-8">
+          <p className="text-center text-[16px] text-(--color-text-secondary)">{program.name} · {phase?.name} H{displayWeek}</p>
+          <p className="a-display text-center text-[60px] mt-1">İlk hareket</p>
+          <p className="mt-3 text-center text-[16px] leading-snug text-(--color-text-secondary)">
+            Bugün yaptığın ilk hareketi ekle. Program antrenman yaparken kurulur; gelecek hafta bu rakamları geçmeye çalışırsın.
+          </p>
+          <button onClick={() => setAddOpen(true)} className="mt-8 h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Hareket ekle</button>
+        </div>
       ) : !exercise || !set || !current ? (
         <div className="flex-1 flex flex-col justify-center px-6 pb-8">
           <p className="text-center text-[16px] text-(--color-text-secondary)">{program.name} · {phase?.name} H{displayWeek}</p>
-          <p className="a-display text-center text-[72px] mt-1">{setCount ? 'Tamam' : 'Hareket yok'}</p>
+          <p className="a-display text-center text-[72px] mt-1">Tamam</p>
           <p className="text-center text-[17px] text-(--color-text-secondary)">{doneCount} / {setCount} set işaretlendi</p>
           <button onClick={handleSave} className="mt-8 h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Kaydet</button>
-          <button onClick={() => setScreen('list')} className="mt-2 h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">Hareketlere dön</button>
+          {lastFinished !== null && exerciseLogs[lastFinished] && (
+            <button onClick={() => oneMoreSet(lastFinished)} className="mt-2 h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium truncate px-4">
+              {exerciseLogs[lastFinished].exerciseName}: bir set daha
+            </button>
+          )}
+          <button onClick={() => setAddOpen(true)} className="mt-2 h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">Hareket ekle</button>
+          <button onClick={() => setScreen('list')} className="mt-2 h-14 rounded-[16px] text-[16px] text-(--color-text-secondary)">Hareketlere dön</button>
         </div>
       ) : (
         <>
@@ -1018,6 +1084,11 @@ export function WorkoutEntry() {
                   )}
                 </section>
               )}
+              {lastFinished !== null && exerciseLogs[lastFinished] && (
+                <button onClick={() => oneMoreSet(lastFinished)} className="h-12 px-4 rounded-2xl bg-(--color-bg-card) text-[16px] font-medium truncate">
+                  {exerciseLogs[lastFinished].exerciseName}: bir set daha
+                </button>
+              )}
               <button onClick={() => { if (timerActive) stopRestTimer(); else setTimerJustFinished(false); }}
                 className="h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Hazırım</button>
             </div>
@@ -1070,9 +1141,52 @@ export function WorkoutEntry() {
           </div>
           {orderDiffersFromProgram && <p className="mt-3 text-[13px] text-(--color-text-secondary)">Yeni hareket sırası Kaydet ile programa ve sonraki haftalara uygulanır.</p>}
           <div className="mt-4 flex flex-col gap-2">
+            <button onClick={() => { setScreen('set'); setAddOpen(true); }} className="h-[52px] rounded-2xl bg-(--color-bg-input) text-[16px] font-medium">Hareket ekle</button>
             <button onClick={() => setDaySettingsOpen(true)} className="h-[52px] rounded-2xl bg-(--color-bg-input) text-[16px] font-medium">Gün ayarları ve antrenman notu</button>
             <button onClick={handleSave} className="h-14 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[17px] font-semibold">Antrenmanı kaydet ve çık</button>
           </div>
+        </Sheet>
+      )}
+
+      {/* Add a movement: own ones first, then common ones, or any name typed. */}
+      {addOpen && (
+        <Sheet title="Hareket ekle" onClose={() => { setAddOpen(false); setAddQuery(''); }}>
+          <input autoFocus value={addQuery} onChange={e => setAddQuery(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') addMovement(addQuery); }}
+            placeholder="Ara ya da yaz: Bench Press…" aria-label="Hareket adı" enterKeyHint="done"
+            className="w-full h-14 px-4 rounded-2xl bg-(--color-bg-input) text-[18px]! focus:outline-none placeholder:text-(--color-text-secondary)" />
+          {/* The typed name as it is: the main choice only when nothing matches. */}
+          {addQuery.trim() && !addExact && addResults.own.length + addResults.library.length === 0 && (
+            <button onClick={() => addMovement(addQuery)}
+              className="mt-2 w-full min-h-12 px-4 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-left text-[16px] font-semibold">
+              “{addQuery.trim().replace(/\s+/g, ' ')}” ekle
+            </button>
+          )}
+          {addResults.own.length > 0 && (
+            <>
+              <p className="mt-4 mb-1.5 text-[13px] text-(--color-text-secondary)">Daha önce yaptıkların</p>
+              <div className="flex flex-col gap-1.5">
+                {addResults.own.map(name => (
+                  <button key={name} onClick={() => addMovement(name)} className="min-h-12 px-4 rounded-2xl bg-(--color-bg-input) text-left text-[16px]">{name}</button>
+                ))}
+              </div>
+            </>
+          )}
+          {addResults.library.length > 0 && (
+            <>
+              <p className="mt-4 mb-1.5 text-[13px] text-(--color-text-secondary)">Yaygın hareketler</p>
+              <div className="flex flex-col gap-1.5">
+                {addResults.library.map(name => (
+                  <button key={name} onClick={() => addMovement(name)} className="min-h-12 px-4 rounded-2xl bg-(--color-bg-input) text-left text-[16px]">{name}</button>
+                ))}
+              </div>
+            </>
+          )}
+          {addQuery.trim() && !addExact && addResults.own.length + addResults.library.length > 0 && (
+            <button onClick={() => addMovement(addQuery)} className="mt-3 w-full min-h-12 px-4 rounded-2xl text-left text-[16px] text-(--color-text-secondary)">
+              Listede yok mu? “{addQuery.trim().replace(/\s+/g, ' ')}” adıyla ekle
+            </button>
+          )}
         </Sheet>
       )}
 
