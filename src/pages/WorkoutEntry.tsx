@@ -839,7 +839,8 @@ export function WorkoutEntry() {
   // Seti bitir: tick it, move on to the next set not yet done, and rest
   // unless that was the last one.
   const finishSet = () => {
-    if (!current) return;
+    // A set needs its reps; 0 kg is fine (bodyweight), 0 reps is never a set.
+    if (!current || !(exerciseLogs[current.ex]?.sets[current.set]?.reps > 0)) return;
     const key = `${exerciseLogs[current.ex].exerciseId}:${current.set}`;
     const done = { ...completedSets, [key]: true };
     setCompletedSets(done);
@@ -1114,8 +1115,9 @@ export function WorkoutEntry() {
             {currentDone ? (
               <button onClick={() => setFocus(null)} className="h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Düzeltmeyi bitir</button>
             ) : (
-              <button onClick={finishSet} className="h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) flex flex-col items-center justify-center">
-                <span className="text-[19px] font-semibold leading-tight">Seti bitir</span>
+              <button onClick={finishSet} disabled={!(set && set.reps > 0)}
+                className="h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) flex flex-col items-center justify-center disabled:opacity-40">
+                <span className="text-[19px] font-semibold leading-tight">{set && set.reps > 0 ? 'Seti bitir' : 'Önce tekrarı gir'}</span>
                 <span className="text-[12px] opacity-70">sonra {formatDurationLabel(restDurationSec)} dinlenme</span>
               </button>
             )}
