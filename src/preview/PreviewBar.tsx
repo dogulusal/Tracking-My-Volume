@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AppContext } from '@/context/AppContext';
 import { applyMigrations } from '@/data/migrations';
 import { makeSampleState } from './seed';
@@ -15,6 +15,7 @@ export const PREVIEW_NAME: string | undefined = import.meta.env.VITE_PREVIEW_NAM
 export function PreviewBar() {
   const ctx = useContext(AppContext);
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   // The workout page is full screen in both designs; the strip stays off it.
   if (!PREVIEW_NAME || !ctx || pathname.startsWith('/workout/')) return null;
   const empty = ctx.state.weekLogs.length === 0;
@@ -31,7 +32,11 @@ export function PreviewBar() {
           </p>
           <div className="flex justify-center gap-2">
             <button
-              onClick={() => ctx.dispatch({ type: 'IMPORT_DATA', payload: applyMigrations(makeSampleState()) })}
+              onClick={() => {
+                ctx.dispatch({ type: 'IMPORT_DATA', payload: applyMigrations(makeSampleState()) });
+                // Off the first-run guide (shown while empty) and onto the filled home page.
+                navigate('/', { replace: true });
+              }}
               className="px-4 py-2 rounded-lg bg-(--color-bg-primary) text-(--color-text-primary) font-semibold">
               Örnek veriyle doldur
             </button>
