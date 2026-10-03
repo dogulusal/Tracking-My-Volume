@@ -60,6 +60,9 @@ export interface ExerciseSettings {
   // Hand-set progression rule; absent fields are learned from the log.
   repTop?: number;
   step?: number;
+  // The muscle region picked by hand when the name does not tell
+  // (data/muscleRegions); absent means the name decides.
+  region?: string;
 }
 
 export interface WeekLog {
