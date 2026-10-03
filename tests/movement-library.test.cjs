@@ -41,3 +41,9 @@ test('an empty query lists own movements, then the library up to the limit', () 
   assert.equal(result.library.length, 4);
   assert.equal(result.library[0], MOVEMENT_LIBRARY[0]);
 });
+
+test('a movement can also be found by other words, such as its region', () => {
+  const regionOf = name => (name === 'Lateral Raise' ? 'Yan omuz' : '');
+  assert.deepEqual(searchMovements('yan omuz', [], 5, regionOf).library, ['Lateral Raise']);
+  assert.deepEqual(searchMovements('YAN', [], 5, regionOf).library, ['Lateral Raise']);
+});

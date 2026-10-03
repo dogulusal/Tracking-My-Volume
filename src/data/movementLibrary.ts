@@ -28,9 +28,16 @@ export const MOVEMENT_LIBRARY: readonly string[] = [
  * (they are what they will pick most), then the library; one entry per
  * movement however it was typed. Every word of the query has to appear.
  */
-export function searchMovements(query: string, own: readonly string[], limit = 12): { own: string[]; library: string[] } {
+export function searchMovements(
+  query: string, own: readonly string[], limit = 12,
+  // More words a movement is found by, e.g. the muscle region it works.
+  alsoKnownAs: (name: string) => string = () => '',
+): { own: string[]; library: string[] } {
   const words = exerciseKey(query).split(' ').filter(Boolean);
-  const matches = (name: string) => words.every(word => exerciseKey(name).includes(word));
+  const matches = (name: string) => {
+    const text = `${exerciseKey(name)} ${exerciseKey(alsoKnownAs(name))}`;
+    return words.every(word => text.includes(word));
+  };
   const seen = new Set<string>();
   const take = (names: readonly string[]) => names.filter(name => {
     const key = exerciseKey(name);
