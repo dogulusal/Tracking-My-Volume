@@ -803,6 +803,11 @@ export function WorkoutEntry() {
   const step = info?.rule.step ?? 2.5;
   const comparison = set ? compareToPrevious(set, prevSet) : null;
   const currentDone = exercise && current ? !!completedSets[`${exercise.exerciseId}:${current.set}`] : false;
+  // The next movement with sets still to do after this one, wrapping round.
+  const unfinished = exerciseLogs
+    .map((e, index) => ({ exercise: e, index, done: e.sets.filter((_, i) => completedSets[`${e.exerciseId}:${i}`]).length }))
+    .filter(item => item.index !== current?.ex && item.done < item.exercise.sets.length);
+  const nextUp = unfinished.find(item => item.index > (current?.ex ?? -1)) ?? unfinished[0];
   const restShown = timerActive || timerJustFinished;
   const restFraction = timerActive && timerTotalRef.current > 0 ? 1 - timerRemainingSec / timerTotalRef.current : 1;
 
@@ -822,7 +827,7 @@ export function WorkoutEntry() {
 
   const roundButton = (label: string, onClick: () => void, plus: boolean) => (
     <button type="button" aria-label={label} onPointerDown={e => e.preventDefault()} onClick={onClick}
-      className="shrink-0 w-16 h-16 rounded-full bg-(--color-bg-input) flex items-center justify-center active:scale-95 transition-transform">
+      className="shrink-0 w-[60px] h-[60px] rounded-full bg-(--color-bg-input) flex items-center justify-center active:scale-95 transition-transform">
       <svg aria-hidden="true" className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d={plus ? 'M12 5v14M5 12h14' : 'M5 12h14'} /></svg>
     </button>
   );
@@ -888,7 +893,7 @@ export function WorkoutEntry() {
             )}
           </div>
 
-          <div className="flex-1 flex flex-col justify-center gap-3 px-5 py-3">
+          <div className="flex-1 flex flex-col justify-center gap-2.5 px-5 py-2">
             <div className="flex flex-col items-center">
               <span className="text-[14px] text-(--color-text-secondary)">kg</span>
               <div className="w-full flex items-center justify-between gap-2">
@@ -898,7 +903,7 @@ export function WorkoutEntry() {
                   onChange={e => handleSetFieldChange(current.ex, current.set, 'weight', e.target.value)}
                   onFocus={() => handleSetFieldFocus(current.ex, current.set, 'weight', set.weight)}
                   onBlur={() => handleSetFieldBlur(current.ex, current.set, 'weight', set.weight)}
-                  className="lb-figure flex-1 min-w-0 bg-transparent text-center text-[96px]! leading-none font-bold focus:outline-none" />
+                  className="lb-figure flex-1 min-w-0 bg-transparent text-center text-[84px]! leading-none font-bold focus:outline-none" />
                 {roundButton('Kiloyu artır', () => handleSetFieldChange(current.ex, current.set, 'weight', String(roundWeight(set.weight + step))), true)}
               </div>
             </div>
@@ -911,7 +916,7 @@ export function WorkoutEntry() {
                   onChange={e => handleSetFieldChange(current.ex, current.set, 'reps', e.target.value)}
                   onFocus={() => handleSetFieldFocus(current.ex, current.set, 'reps', set.reps)}
                   onBlur={() => handleSetFieldBlur(current.ex, current.set, 'reps', set.reps)}
-                  className="lb-figure flex-1 min-w-0 bg-transparent text-center text-[96px]! leading-none font-bold focus:outline-none" />
+                  className="lb-figure flex-1 min-w-0 bg-transparent text-center text-[84px]! leading-none font-bold focus:outline-none" />
                 {roundButton('Tekrarı artır', () => handleSetFieldChange(current.ex, current.set, 'reps', String(set.reps + 1)), true)}
               </div>
               {comparison && (
@@ -919,21 +924,41 @@ export function WorkoutEntry() {
                   style={{ color: TONE[comparison.tone].color, background: TONE[comparison.tone].fill }}>{comparison.text}</span>
               )}
             </div>
-            <div className="flex items-center gap-2.5">
-              <span className="w-8 text-[14px] text-(--color-text-secondary)">RIR</span>
-              <div className="flex-1 grid grid-cols-4 gap-1 p-1 rounded-2xl bg-(--color-bg-card)">
-                {INTENSITY_OPTIONS.map(opt => (
-                  <button key={opt.value} onClick={() => updateSet(current.ex, current.set, 'intensity', opt.value)}
-                    aria-pressed={set.intensity === opt.value} aria-label={opt.value === 'failure' ? 'Tükeniş' : `RIR ${opt.label}`}
-                    className={`h-[50px] rounded-xl text-[20px] font-semibold ${set.intensity === opt.value ? 'bg-(--color-text-primary) text-(--color-bg-primary)' : 'text-(--color-text-secondary)'}`}>
-                    {opt.label}
-                  </button>
-                ))}
+            {/* RIR in plain words: the question it answers, and the same marks
+                the History grid and the Sheet write (75 x 7 +1, F). */}
+            <div>
+              <p className="mb-1.5 text-[15px] text-(--color-text-secondary)">Sette kaç tekrar daha yapabilirdin?</p>
+              <div className="grid grid-cols-4 gap-1 p-1 rounded-2xl bg-(--color-bg-card)">
+                {INTENSITY_OPTIONS.map(opt => {
+                  const failure = opt.value === 'failure';
+                  const picked = set.intensity === opt.value;
+                  return (
+                    <button key={opt.value} onClick={() => updateSet(current.ex, current.set, 'intensity', opt.value)}
+                      aria-pressed={picked} aria-label={failure ? 'Hiç, tükendim' : `${opt.label} tekrar daha`}
+                      className={`h-[52px] rounded-xl flex flex-col items-center justify-center gap-1 ${picked ? 'bg-(--color-text-primary) text-(--color-bg-primary)' : 'text-(--color-text-secondary)'}`}>
+                      <span className="lb-figure text-[22px] font-bold leading-none">{failure ? 'F' : `+${opt.label}`}</span>
+                      <span className="text-[12px] leading-none">{failure ? 'tükendim' : `${opt.label} daha`}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
 
           <div className="px-4 pb-[calc(20px+env(safe-area-inset-bottom))] flex flex-col gap-2.5">
+            <button onClick={() => setScreen('list')} aria-label="Bütün hareketleri göster"
+              className="min-h-12 px-4 py-1 rounded-2xl bg-(--color-bg-card) flex items-center gap-3 text-left">
+              <span className="flex-1 min-w-0 flex flex-col">
+                <span className="text-[12px] text-(--color-text-secondary)">{nextUp ? 'Sonra' : 'Başka hareket kalmadı'}</span>
+                {nextUp && (
+                  <span className="text-[15px] font-semibold truncate">
+                    {nextUp.exercise.exerciseName} <span className="font-normal text-(--color-text-secondary)">· {nextUp.done}/{nextUp.exercise.sets.length} set</span>
+                  </span>
+                )}
+              </span>
+              <span className="shrink-0 text-[14px] text-(--color-text-secondary)">Tümü ({exerciseLogs.length})</span>
+              <svg aria-hidden="true" className="w-4 h-4 shrink-0 text-(--color-text-secondary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 15l6-6 6 6" /></svg>
+            </button>
             {exercise.sets.some((_, i) => completedSets[`${exercise.exerciseId}:${i}`]) && (
               <div className="flex flex-wrap gap-x-4 gap-y-1 px-1.5">
                 {exercise.sets.map((s, i) => completedSets[`${exercise.exerciseId}:${i}`] && (
@@ -948,11 +973,12 @@ export function WorkoutEntry() {
             {currentDone ? (
               <button onClick={() => setFocus(null)} className="h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Düzeltmeyi bitir</button>
             ) : (
-              <button onClick={finishSet} className="h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Seti bitir</button>
+              <button onClick={finishSet} className="h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) flex flex-col items-center justify-center">
+                <span className="text-[19px] font-semibold leading-tight">Seti bitir</span>
+                <span className="text-[12px] opacity-70">sonra {formatDurationLabel(restDurationSec)} dinlenme</span>
+              </button>
             )}
-            <span className="text-center text-[13px] text-(--color-text-secondary)">
-              {draftStatus === 'error' ? 'Taslak kaydedilemedi' : currentDone ? 'Bu set işaretli; değişiklik kaydedilir.' : `Bitince ${formatDurationLabel(restDurationSec)} dinlenme başlar · taslak bu telefonda saklanır`}
-            </span>
+            {draftStatus === 'error' && <span role="alert" className="text-center text-[13px]" style={{ color: 'var(--lb-drop)' }}>Taslak bu telefona kaydedilemedi</span>}
           </div>
         </>
       )}
@@ -999,52 +1025,55 @@ export function WorkoutEntry() {
         </div>
       )}
 
-      {/* Every movement, to jump to one when a machine is taken. */}
+      {/* Every movement, in a sheet over the set: to see the whole workout, or
+          jump to another movement when a machine is taken. */}
       {screen === 'list' && (
-        <div role="dialog" aria-modal="true" aria-labelledby="hareketler" className="fixed inset-0 z-40 bg-(--color-bg-primary) overflow-y-auto pt-[env(safe-area-inset-top)]">
-          <div className="max-w-xl mx-auto px-4 pt-3 pb-[calc(24px+env(safe-area-inset-bottom))] min-h-full flex flex-col">
-            <div className="flex items-center justify-between">
-              <h2 id="hareketler" className="a-display text-[34px]">Hareketler</h2>
-              <button onClick={() => setScreen('set')} aria-label="Listeyi kapat" className="-mr-2.5 w-11 h-11 flex items-center justify-center">
-                <svg aria-hidden="true" className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
-              </button>
+        <Sheet title="Hareketler" onClose={() => setScreen('set')}>
+          <p className="-mt-1 mb-3 text-[14px] text-(--color-text-secondary)">Makine doluysa başka bir harekete geç; sıra seni bağlamaz.</p>
+          {previousNoteLog?.notes?.trim() && (
+            <div className="rounded-2xl bg-(--color-bg-input) px-4 py-3 mb-2">
+              <p className="text-[13px] text-(--color-text-secondary)">Geçen {program.name} notu · {weekLabel(allPhases, previousNoteLog.weekNumber)}</p>
+              <p className="mt-0.5 text-[15px] whitespace-pre-line">{previousNoteLog.notes.trim()}</p>
             </div>
-            <p className="mt-1 mb-3.5 text-[14px] text-(--color-text-secondary)">Makine doluysa başka bir harekete geç; sıra seni bağlamaz.</p>
-            {previousNoteLog?.notes?.trim() && (
-              <div className="a-card px-4 py-3 mb-2">
-                <p className="text-[13px] text-(--color-text-secondary)">Geçen {program.name} notu · {weekLabel(allPhases, previousNoteLog.weekNumber)}</p>
-                <p className="mt-0.5 text-[15px] whitespace-pre-line">{previousNoteLog.notes.trim()}</p>
-              </div>
-            )}
-            <div className="flex flex-col gap-2">
-              {exerciseLogs.map((e, index) => {
-                const done = e.sets.filter((_, i) => completedSets[`${e.exerciseId}:${i}`]).length;
-                const first = getPreviousSetRef(e.exerciseId, 0);
-                const isCurrent = current?.ex === index;
-                return (
-                  <button key={e.exerciseId}
-                    onClick={() => { const open = e.sets.findIndex((_, i) => !completedSets[`${e.exerciseId}:${i}`]); setFocus({ ex: index, set: open < 0 ? 0 : open }); setScreen('set'); }}
-                    className="min-h-16 px-4 py-2.5 rounded-2xl bg-(--color-bg-card) flex items-center gap-3 text-left"
-                    style={isCurrent ? { boxShadow: 'inset 0 0 0 1.5px var(--color-text-primary)' } : undefined}>
-                    <span className="flex-1 min-w-0 flex flex-col">
-                      <span className="text-[17px] font-semibold truncate">{e.exerciseName}</span>
-                      <span className="lb-figure text-[15px] text-(--color-text-secondary)">{done} / {e.sets.length} set{first ? ` · geçen ${formatSetLine(first)}` : ''}</span>
+          )}
+          <div className="flex flex-col gap-2">
+            {exerciseLogs.map((e, index) => {
+              const done = e.sets.filter((_, i) => completedSets[`${e.exerciseId}:${i}`]).length;
+              const isCurrent = current?.ex === index;
+              return (
+                <button key={e.exerciseId}
+                  onClick={() => { const open = e.sets.findIndex((_, i) => !completedSets[`${e.exerciseId}:${i}`]); setFocus({ ex: index, set: open < 0 ? 0 : open }); setScreen('set'); }}
+                  className="px-4 py-3 rounded-2xl bg-(--color-bg-input) flex flex-col gap-1.5 text-left"
+                  style={isCurrent ? { boxShadow: 'inset 0 0 0 1.5px var(--color-text-primary)' } : undefined}>
+                  <span className="w-full flex items-baseline gap-3">
+                    <span className="flex-1 min-w-0 text-[17px] font-semibold truncate">{e.exerciseName}</span>
+                    <span className="lb-figure shrink-0 text-[17px] font-semibold" style={{ color: done === e.sets.length ? 'var(--lb-gain)' : undefined }}>
+                      {done === e.sets.length ? 'Tamam' : isCurrent ? 'Şimdi' : `${done} / ${e.sets.length}`}
                     </span>
-                    <span className="lb-figure text-[18px] font-semibold" style={{ color: done === e.sets.length ? 'var(--lb-gain)' : undefined }}>
-                      {done === e.sets.length ? 'Tamam' : isCurrent ? 'Şimdi' : ''}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            {orderDiffersFromProgram && <p className="mt-3 text-[13px] text-(--color-text-secondary)">Yeni hareket sırası Kaydet ile programa ve sonraki haftalara uygulanır.</p>}
-            <span className="flex-1 min-h-6" />
-            <div className="mt-4 flex flex-col gap-2">
-              <button onClick={() => setDaySettingsOpen(true)} className="h-[52px] rounded-2xl bg-(--color-bg-card) text-[16px] font-medium">Gün ayarları ve antrenman notu</button>
-              <button onClick={handleSave} className="h-14 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[17px] font-semibold">Antrenmanı kaydet ve çık</button>
-            </div>
+                  </span>
+                  {/* Each set as it stands: ticked ones with what was done, the rest with last week's number. */}
+                  <span className="flex flex-wrap gap-1.5">
+                    {e.sets.map((s, i) => {
+                      const ticked = !!completedSets[`${e.exerciseId}:${i}`];
+                      const before = getPreviousSetRef(e.exerciseId, i);
+                      return (
+                        <span key={i} className="lb-figure rounded-lg px-2 py-0.5 text-[15px]"
+                          style={ticked ? { background: 'var(--lb-gain-fill)', color: 'var(--color-text-primary)' } : { background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}>
+                          {ticked ? formatSetLine(s) : before ? `geçen ${formatSetLine(before)}` : 'ilk kayıt'}
+                        </span>
+                      );
+                    })}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        </div>
+          {orderDiffersFromProgram && <p className="mt-3 text-[13px] text-(--color-text-secondary)">Yeni hareket sırası Kaydet ile programa ve sonraki haftalara uygulanır.</p>}
+          <div className="mt-4 flex flex-col gap-2">
+            <button onClick={() => setDaySettingsOpen(true)} className="h-[52px] rounded-2xl bg-(--color-bg-input) text-[16px] font-medium">Gün ayarları ve antrenman notu</button>
+            <button onClick={handleSave} className="h-14 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[17px] font-semibold">Antrenmanı kaydet ve çık</button>
+          </div>
+        </Sheet>
       )}
 
       {/* What belongs to the movement rather than the set. */}

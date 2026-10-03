@@ -49,7 +49,8 @@ function AppContent() {
     >
       {!inWorkout && <Header />}
       <PreviewBar />
-      <main>
+      {/* No tab bar on the workout page, so no room kept for it either. */}
+      <main className={inWorkout ? 'pb-[env(safe-area-inset-bottom)]!' : undefined}>
         {configured && <SheetRenewalNotice />}
         <Routes>
           <Route path="/" element={<Dashboard />} />
