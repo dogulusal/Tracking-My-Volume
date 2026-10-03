@@ -11,9 +11,10 @@ export const initialState: AppState = {
   activePlanId: null,
   weekLogs: [],
   currentWeek: 0,
+  // One open-ended phase: a new person counts weeks; phases are added when
+  // they want them.
   phases: [
-    { id: 'phase-1', name: 'Faz 1', startWeek: 0, endWeek: 14 },
-    { id: 'phase-2', name: 'Faz 2', startWeek: 15, endWeek: null },
+    { id: 'phase-1', name: 'Faz 1', startWeek: 0, endWeek: null },
   ],
 };
 

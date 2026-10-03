@@ -370,8 +370,15 @@ test('new phases preserve earlier program definitions when their first week is e
   assert.equal(programVersionAt(state, 37).programs[0].exercises.length, 0);
 });
 
+// Two phases, the second from week 15: these tests are about phase
+// boundaries, whatever a new person starts with.
+const twoPhaseState = { ...initialState, phases: [
+  { id: 'phase-1', name: 'Faz 1', startWeek: 0, endWeek: 14 },
+  { id: 'phase-2', name: 'Faz 2', startWeek: 15, endWeek: null },
+] };
+
 test('entering a future phase freezes its inherited baseline and activates scheduled program changes', () => {
-  let state = appReducer(initialState, { type: 'ADD_PROGRAM', payload: program });
+  let state = appReducer(twoPhaseState, { type: 'ADD_PROGRAM', payload: program });
   assert.equal(programVersionAt(state, 15).programs[0].id, program.id);
   state = appReducer(state, { type: 'UPDATE_PROGRAM', atWeek: 16, payload: { ...program, name: 'H1 plan' } });
   state = appReducer(state, { type: 'SET_WEEK', payload: 15 });
@@ -384,17 +391,17 @@ test('entering a future phase freezes its inherited baseline and activates sched
 
 test('phase settings close previous ranges when an earlier program-change week is selected', () => {
   const { normalizePhaseBoundaries } = loadTS('src/utils/phases.ts');
-  const original = [...initialState.phases, { id: 'third', name: ' Faz 3 ', startWeek: 35, endWeek: null }];
+  const original = [...twoPhaseState.phases, { id: 'third', name: ' Faz 3 ', startWeek: 35, endWeek: null }];
   const phases = normalizePhaseBoundaries(original);
   assert.equal(phases[1].endWeek, 34);
   assert.equal(phases[2].name, 'Faz 3');
   assert.equal(phases[2].endWeek, null);
-  const state = { ...initialState, currentWeek: 36, weekLogs: [{ id: 'past', weekNumber: 35, notes: 'keep' }] };
+  const state = { ...twoPhaseState, currentWeek: 36, weekLogs: [{ id: 'past', weekNumber: 35, notes: 'keep' }] };
   const result = appReducer(state, { type: 'SET_PHASES', payload: phases });
   assert.equal(result.weekLogs, state.weekLogs);
   assert.equal(result.currentWeek, 36);
   assert.equal(original[1].endWeek, null);
-  assert.throws(() => normalizePhaseBoundaries([...initialState.phases, { id: 'duplicate-start', name: 'Faz 3', startWeek: 15 }]), /aynı haftadan/);
+  assert.throws(() => normalizePhaseBoundaries([...twoPhaseState.phases, { id: 'duplicate-start', name: 'Faz 3', startWeek: 15 }]), /aynı haftadan/);
   assert.throws(() => normalizePhaseBoundaries([{ id: 'first', name: 'Faz', startWeek: -1 }]), /İlk faz/);
   assert.throws(() => normalizePhaseBoundaries([{ id: 'first', name: '', startWeek: 0 }]), /ad ver/);
 });
