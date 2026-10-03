@@ -2,6 +2,17 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Tailwind 4 gives buttons the plain arrow; with a mouse, everything that
+   can be pressed shows the hand, and what is off says so. */
+@layer base {
+  button:not(:disabled), [role="button"], select, summary, label:has(> input[type="checkbox"]) {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
 /* Design A — focus mode: one set at a time, figures big enough to read at
    arm's length between sets. Near-black, no accent; colour only for gain,
    drop and reference. */
