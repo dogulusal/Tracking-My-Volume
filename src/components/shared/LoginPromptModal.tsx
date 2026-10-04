@@ -6,7 +6,7 @@ import { InstallAppButton } from '@/components/shared/InstallAppButton';
  * The first thing a new person sees when the cloud is on: what the app is
  * for, then signing in. The program guide that follows picks up from here.
  */
-export function LoginPromptModal() {
+export function LoginPromptModal({ invited = false }: { invited?: boolean }) {
   const { signInWithGoogle, authError } = useCloudSync();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -28,6 +28,11 @@ export function LoginPromptModal() {
           <p className="mt-3 text-[17px] leading-snug text-(--color-text-secondary)">
             Kayıtların hesabında saklanır; telefon değişse de kaybolmaz.
           </p>
+          {invited && (
+            <p className="mt-5 a-card px-4 py-3 text-[16px] leading-snug">
+              Bir antrenör seni ekibine davet etti. Giriş yapınca davet açılır; kabul edip etmemek sana kalmış.
+            </p>
+          )}
         </div>
         <div className="flex flex-col gap-2">
           <button onClick={() => void handleSignIn()} disabled={isLoading}

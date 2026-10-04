@@ -1,4 +1,5 @@
-import { BrowserRouter, MemoryRouter, Routes, Route, useLocation, useParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, MemoryRouter, Routes, Route, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AppProvider } from '@/context/AppContext';
 import { Header } from '@/components/layout/Header';
 import { BottomNav } from '@/components/layout/BottomNav';
@@ -14,14 +15,14 @@ import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { useCloudSync } from '@/hooks/useCloudSync';
 import { LoginPromptModal } from '@/components/shared/LoginPromptModal';
 import { SheetRenewalNotice, SheetSetupModal } from '@/components/shared/SheetSetupModal';
-import { CoachProvider, useCoach } from '@/coach/store';
+import { CoachProvider, DEMO, useCoach } from '@/coach/store';
 import { CommentsContext } from '@/coach/comments';
 import { AthleteDayEditor } from '@/coach/AthleteProgram';
 import { Athletes } from '@/coach/Athletes';
 import { AthleteDetail } from '@/coach/AthleteDetail';
 import { JoinCoach } from '@/coach/JoinCoach';
 import { MyCoach } from '@/coach/MyCoach';
-import { DEMO, DemoBar } from '@/coach/demo/DemoBar';
+import { DemoBar } from '@/coach/demo/DemoBar';
 
 // A workout page belongs to one day and week: moving to another (e.g. on to
 // the next week) starts it afresh instead of carrying the last one's state.
@@ -29,6 +30,11 @@ function WorkoutRoute() {
   const { programId, weekNumber } = useParams();
   return <WorkoutEntry key={`${programId}:${weekNumber}`} />;
 }
+
+// An invite link opened before signing in: kept through Google's sign-in,
+// which always comes back to the start page, and opened after it.
+const PENDING_INVITE_KEY = 'tmv-bekleyen-davet';
+const inviteCodeIn = (pathname: string) => pathname.match(/^\/katil\/([A-Za-z0-9]{4,16})\/?$/)?.[1] ?? null;
 
 // Inner component — must be inside AppProvider to access context hooks
 function AppContent() {
@@ -41,11 +47,24 @@ function AppContent() {
   const { inbox } = useCoach();
   // The invite answer is full screen too: one question, nothing else to tap.
   const inWorkout = pathname.startsWith('/workout/') || pathname === '/baslangic' || pathname.startsWith('/katil/');
+  const navigate = useNavigate();
+  const pendingCode = configured && !userId ? inviteCodeIn(pathname) : null;
+  useEffect(() => {
+    if (pendingCode) try { localStorage.setItem(PENDING_INVITE_KEY, pendingCode); } catch { /* the link can be opened again */ }
+  }, [pendingCode]);
+  useEffect(() => {
+    if (!userId || !hydrated) return;
+    let code: string | null = null;
+    try { code = localStorage.getItem(PENDING_INVITE_KEY); localStorage.removeItem(PENDING_INVITE_KEY); } catch { /* nothing kept */ }
+    if (code && !pathname.startsWith('/katil/')) navigate(`/katil/${code}`, { replace: true });
+  // Once, on arriving signed in.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, hydrated]);
 
   if (configured && !userId) {
     return syncStatus === 'auth_loading'
       ? <div className="logbook flex min-h-screen items-center justify-center bg-(--color-bg-primary) text-(--color-text-primary)">Oturum kontrol ediliyor…</div>
-      : <LoginPromptModal />;
+      : <LoginPromptModal invited={Boolean(pendingCode)} />;
   }
   if (configured && !hydrated) {
     return <div className="logbook flex min-h-screen items-center justify-center bg-(--color-bg-primary) p-5 text-(--color-text-primary)">

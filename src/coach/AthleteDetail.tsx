@@ -14,7 +14,7 @@ import { AthleteScope } from './AthleteScope';
 import { AthleteProgram } from './AthleteProgram';
 import { commentsOn, dayNotesOn, useComments } from './comments';
 import { DayNoteSheet } from './DayNoteSheet';
-import { Avatar } from './parts';
+import { Avatar, CoachError } from './parts';
 import { agoText, needsAttention } from './summary';
 import { possessive, sinceText, useCoach } from './store';
 
@@ -202,6 +202,7 @@ export function AthleteDetail() {
   const athlete = coach.athletes.find(item => item.id === id);
   const state = athlete ? coach.athleteState(athlete.id) : null;
   const summary = athlete ? coach.summaries[athlete.id] : undefined;
+  if (!coach.ready) return <p className="max-w-xl mx-auto px-5 pt-6 text-[17px] text-(--color-text-secondary)">Yükleniyor…</p>;
   if (!athlete || !state || !summary) return <Navigate to="/sporcular" replace />;
 
   const firstName = athlete.name.split(' ')[0];
@@ -218,6 +219,7 @@ export function AthleteDetail() {
       <p className="mt-2 text-[15px] text-(--color-text-secondary)">
         Son antrenman: {agoText(summary.daysSinceLast)} · {sinceText(athlete.joinedAt)} ekibinde
       </p>
+      <CoachError />
 
       <div className="mt-4 -mx-5 px-5 flex gap-1.5 overflow-x-auto scrollbar-hide" role="tablist">
         {TABS.map(([key, label]) => (

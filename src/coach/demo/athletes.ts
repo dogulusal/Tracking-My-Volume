@@ -215,7 +215,7 @@ function buildState(profile: Profile, today: Date): AppState {
     programs,
     plans: [{
       id: `${profile.id}-plan`, programIds: programs.map(p => p.id), createdAt: created, updatedAt: created,
-      ...(profile.coachPlan ? { name: 'Antrenör programı', coach: DEMO_COACH } : { name: 'Varsayılan Plan' }),
+      ...(profile.coachPlan ? { name: 'Antrenör programı', coach: DEMO_COACH, coachId: DEMO_COACH_ID } : { name: 'Varsayılan Plan' }),
     }],
     activePlanId: `${profile.id}-plan`,
     weekLogs,
@@ -238,4 +238,5 @@ export function demoAthleteState(id: string, today = new Date()): AppState | nul
 
 /** The coach the athlete side of the demo is invited by. */
 export const DEMO_COACH = 'Ahmet Yılmaz';
+export const DEMO_COACH_ID = 'demo-antrenor';
 export const DEMO_INVITE_CODE = 'K7Q2MD';

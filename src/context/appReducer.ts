@@ -1,5 +1,5 @@
 import { configurePhaseTransition, initializeProgramVersions, programVersionAt, saveProgramVersion } from '@/utils/programVersions';
-import type { AppState, AppAction } from '@/types';
+import type { AppState, AppAction, CoachUpdatePayload } from '@/types';
 import { CURRENT_DATA_VERSION } from '@/data/migrations';
 import { normalizeGoogleSettings } from '@/utils/googleSheetsSettings';
 import { syncWeekLogFromProgramEdit } from '@/utils/exerciseSync';
@@ -18,7 +18,69 @@ export const initialState: AppState = {
   ],
 };
 
+/** How many applied coach updates a record remembers; older ones are long settled. */
+const APPLIED_KEPT = 200;
+
+/**
+ * Program changes a coach sent, applied by the person's own app as if they
+ * had made them, from the week they are in now; earlier weeks keep the
+ * program they were trained on.
+ *
+ * Only what a coach may do gets through: set up a plan of their own, add days
+ * to it and change its days. Workouts, the person's own plans and their days
+ * are never touched, whatever the update holds, and the plan in use stays
+ * the one in use (someone with no plan at all trains the coach's). Each
+ * update is applied once, so a second device or a repeated read does nothing.
+ */
+export function applyCoachUpdate(state: AppState, update: CoachUpdatePayload): AppState {
+  if (state.appliedCoachUpdates?.includes(update.id)) return state;
+  const week = state.currentWeek;
+  const scopeOf = (current: AppState) => programVersionAt(current, week);
+  const before = scopeOf(state).activePlanId;
+  const isCoachPlan = (current: AppState, planId: string) =>
+    scopeOf(current).plans.some(plan => plan.id === planId && plan.coachId === update.coachId);
+  // The coach's days: those of their plans, and those this update adds.
+  const owned = new Set(scopeOf(state).plans.filter(plan => plan.coachId === update.coachId).flatMap(plan => plan.programIds));
+  const stamp = <T extends object>(plan: T) => ({ ...plan, coach: update.coachName, coachId: update.coachId });
+
+  let next = state;
+  for (const action of Array.isArray(update.actions) ? update.actions : []) {
+    const scope = scopeOf(next);
+    if (action.type === 'ADD_PLAN') {
+      if (scope.plans.some(plan => plan.id === action.payload.id)) continue;
+      next = appReducer(next, { type: 'ADD_PLAN', atWeek: week, payload: stamp({ ...action.payload, programIds: [] }) });
+    } else if (action.type === 'UPDATE_PLAN') {
+      if (!isCoachPlan(next, action.payload.id)) continue;
+      const programIds = action.payload.programIds.filter(id => owned.has(id));
+      next = appReducer(next, { type: 'UPDATE_PLAN', atWeek: week, payload: stamp({ ...action.payload, programIds }) });
+    } else if (action.type === 'SET_ACTIVE_PLAN') {
+      if (!isCoachPlan(next, action.payload) && action.payload !== before) continue;
+      next = appReducer(next, { type: 'SET_ACTIVE_PLAN', atWeek: week, payload: action.payload });
+    } else if (action.type === 'ADD_PROGRAM') {
+      // A day goes into the plan in use. That is the coach's plan whatever the
+      // coach saw in use: the person may have switched since.
+      const inUse = scope.plans.find(plan => plan.id === scope.activePlanId) ?? scope.plans[0];
+      const target = inUse?.coachId === update.coachId ? inUse : scope.plans.find(plan => plan.coachId === update.coachId);
+      if (!target || scope.programs.some(program => program.id === action.payload.id)) continue;
+      if (target !== inUse) next = appReducer(next, { type: 'SET_ACTIVE_PLAN', atWeek: week, payload: target.id });
+      owned.add(action.payload.id);
+      next = appReducer(next, { type: 'ADD_PROGRAM', atWeek: week, payload: action.payload });
+    } else if (action.type === 'UPDATE_PROGRAM') {
+      // No syncCurrentLog: a coach's change never rewrites a workout already logged.
+      if (!owned.has(action.payload.id)) continue;
+      next = appReducer(next, { type: 'UPDATE_PROGRAM', atWeek: week, payload: action.payload });
+    }
+  }
+
+  const after = scopeOf(next);
+  if (before && after.activePlanId !== before && after.plans.some(plan => plan.id === before)) {
+    next = appReducer(next, { type: 'SET_ACTIVE_PLAN', atWeek: week, payload: before });
+  }
+  return { ...next, appliedCoachUpdates: [...(state.appliedCoachUpdates ?? []), update.id].slice(-APPLIED_KEPT) };
+}
+
 export function appReducer(state: AppState, action: AppAction): AppState {
+  if (action.type === 'APPLY_COACH_UPDATE') return applyCoachUpdate(state, action.payload);
   if (action.type === 'SET_WEEK' || action.type === 'INCREMENT_WEEK') {
     const week = action.type === 'SET_WEEK' ? action.payload : state.currentWeek + 1;
     if (!Number.isInteger(week) || week < 0) return state;

@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BottomSheet } from '@/components/shared/BottomSheet';
-import { INVITE_DAYS, inviteUrl, useCoach } from './store';
+import { DEMO, inviteDaysLeft, inviteUrl, useCoach } from './store';
 
 /** The link a coach sends; whoever opens it and agrees joins the list. */
 export function InviteSheet({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
@@ -10,8 +10,12 @@ export function InviteSheet({ isOpen, onClose }: { isOpen: boolean; onClose: () 
   const [group, setGroup] = useState<string | null>(null);
   const [newGroup, setNewGroup] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const code = coach.invites[group ?? ''];
+  const { ensureInvite } = coach;
+  const invite = coach.invites[group ?? ''];
+  const code = invite?.code;
   const url = code ? inviteUrl(code) : '';
+  // A group's link is made the first time it is shown, and again once it runs out.
+  useEffect(() => { if (isOpen) ensureInvite(group); }, [isOpen, group, ensureInvite]);
   const message = `Antrenmanlarını Tracking My Volume'den takip edeceğim. Linki aç ve onayla: ${url}`;
 
   const copy = () => {
@@ -53,25 +57,28 @@ export function InviteSheet({ isOpen, onClose }: { isOpen: boolean; onClose: () 
       )}
 
       <div className="mt-4 rounded-2xl bg-(--color-bg-input) px-4 py-3">
-        <p className="lb-figure text-[16px] break-all select-all">{url}</p>
-        <p className="mt-1 text-[12px] text-(--color-text-secondary)">{INVITE_DAYS} gün geçerli · birden fazla kişi katılabilir</p>
+        <p className="lb-figure text-[16px] break-all select-all">{url || 'Link hazırlanıyor…'}</p>
+        {url && <p className="mt-1 text-[12px] text-(--color-text-secondary)">{inviteDaysLeft(invite)} gün geçerli · birden fazla kişi katılabilir</p>}
       </div>
+      {coach.error && <p role="alert" className="mt-2 text-[14px]" style={{ color: 'var(--lb-drop)' }}>{coach.error}</p>}
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <button onClick={copy} className="h-12 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[16px] font-semibold">
+        <button onClick={copy} disabled={!url} className="h-12 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[16px] font-semibold disabled:opacity-50">
           {copied ? 'Kopyalandı' : 'Linki kopyala'}
         </button>
-        <a href={`https://wa.me/?text=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer"
-          className="h-12 rounded-2xl bg-(--color-bg-input) text-[16px] font-medium flex items-center justify-center">WhatsApp'ta gönder</a>
+        <a href={url ? `https://wa.me/?text=${encodeURIComponent(message)}` : undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!url}
+          className={`h-12 rounded-2xl bg-(--color-bg-input) text-[16px] font-medium flex items-center justify-center ${url ? '' : 'opacity-50 pointer-events-none'}`}>WhatsApp'ta gönder</a>
       </div>
       <button onClick={() => { coach.renewInvite(group); setCopied(false); }} className="mt-1 h-11 text-[14px] text-(--color-text-secondary) underline">
         Linki yenile (eski link çalışmaz)
       </button>
 
-      <div className="mt-4 pt-4 border-t border-(--color-border)">
-        <p className="text-[13px] text-(--color-text-secondary)">Demo: sporcunun bu linki açınca ne gördüğüne bak.</p>
-        <button onClick={() => { onClose(); navigate(`/katil/${code}`); }}
-          className="mt-2 w-full h-12 rounded-2xl border border-(--color-border) text-[16px] font-medium">Linki sporcu gibi aç</button>
-      </div>
+      {DEMO && (
+        <div className="mt-4 pt-4 border-t border-(--color-border)">
+          <p className="text-[13px] text-(--color-text-secondary)">Demo: sporcunun bu linki açınca ne gördüğüne bak.</p>
+          <button onClick={() => { onClose(); navigate(`/katil/${code}`); }}
+            className="mt-2 w-full h-12 rounded-2xl border border-(--color-border) text-[16px] font-medium">Linki sporcu gibi aç</button>
+        </div>
+      )}
     </BottomSheet>
   );
 }

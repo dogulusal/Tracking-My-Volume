@@ -5,8 +5,8 @@ import { Modal } from '@/components/shared/Modal';
 import { weekName } from '@/utils/phases';
 import type { AppAction, Program } from '@/types';
 import { AthleteScope } from './AthleteScope';
-import { DEMO_COACH } from './demo/athletes';
 import { dative, possessive, useCoach } from './store';
+import { firstName as firstOf } from './text';
 import { activePlanOf, coachPlanOf, ownPlanOf } from './templates';
 
 const sentDate = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
@@ -114,14 +114,16 @@ export function AthleteProgram({ athleteId, firstName }: { athleteId: string; fi
   const [saveName, setSaveName] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [showSent, setShowSent] = useState(false);
+  const [sending, setSending] = useState(false);
   const draft = coach.draftState(athleteId);
-  if (!draft) return null;
+  if (!draft || !coach.me) return null;
+  const me = coach.me;
   const lines = coach.draftLines(athleteId);
   const sent = [...(coach.sent[athleteId] ?? [])].reverse();
-  const mine = coachPlanOf(draft, DEMO_COACH);
+  const mine = coachPlanOf(draft, me.id);
   const own = ownPlanOf(draft);
   const current = coach.athleteState(athleteId);
-  const sentPlan = current ? coachPlanOf(current, DEMO_COACH).plan : null;
+  const sentPlan = current ? coachPlanOf(current, me.id).plan : null;
   const isNew = !sentPlan;
   const inUse = current ? activePlanOf(current).plan : null;
   const usesMine = Boolean(inUse && sentPlan && inUse.id === sentPlan.id);
@@ -169,7 +171,7 @@ export function AthleteProgram({ athleteId, firstName }: { athleteId: string; fi
               </p>
               {/* The card the athlete will get, as their home page shows it. */}
               <div className="mt-2 rounded-2xl bg-(--color-bg-primary) px-4 py-3" style={{ boxShadow: 'inset 0 0 0 1px var(--color-border)' }}>
-                <p className="text-[16px] font-semibold">{isNew ? `${DEMO_COACH} sana bir program kurdu` : `${DEMO_COACH} programını güncelledi`}</p>
+                <p className="text-[16px] font-semibold">{isNew ? `${me.name} sana bir program kurdu` : `${me.name} programını güncelledi`}</p>
                 <ul className="mt-1 grid gap-0.5 text-[14px] leading-snug">{lines.map(line => <li key={line}>{line}</li>)}</ul>
                 {isNew && own.plan && (
                   <div aria-hidden="true" className="mt-2 flex gap-1.5 text-[13px]">
@@ -179,8 +181,12 @@ export function AthleteProgram({ athleteId, firstName }: { athleteId: string; fi
                 )}
               </div>
               <div className="mt-3 flex gap-2">
-                <button onClick={() => { coach.sendDraft(athleteId); setJustSent(true); }}
-                  className="flex-1 h-12 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[16px] font-semibold">{dative(firstName)} gönder</button>
+                <button disabled={sending} onClick={() => {
+                  setSending(true);
+                  void coach.sendDraft(athleteId).then(ok => { setSending(false); setJustSent(ok); });
+                }} className="flex-1 h-12 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[16px] font-semibold disabled:opacity-60">
+                  {sending ? 'Gönderiliyor…' : `${dative(firstName)} gönder`}
+                </button>
                 <button onClick={() => coach.discardDraft(athleteId)} className="h-12 px-4 rounded-2xl bg-(--color-bg-input) text-[16px] font-medium">Vazgeç</button>
               </div>
               <p className="mt-2 text-[13px] leading-snug text-(--color-text-secondary)">
@@ -227,7 +233,10 @@ export function AthleteProgram({ athleteId, firstName }: { athleteId: string; fi
                 <button onClick={() => { setSaveName(mine.plan!.name === 'Antrenör programı' ? `${mine.days.length} günlük program` : mine.plan!.name); setSaved(false); }}
                   className="mt-2 h-11 px-4 rounded-full bg-(--color-bg-card) text-[15px] font-medium">{saved ? 'Kaydedildi · bir daha kaydet' : 'Kaydet'}</button>
               ) : (
-                <form className="mt-2 flex gap-2" onSubmit={event => { event.preventDefault(); coach.saveTemplate(athleteId, saveName); setSaveName(null); setSaved(true); }}>
+                <form className="mt-2 flex gap-2" onSubmit={event => {
+                  event.preventDefault();
+                  void coach.saveTemplate(athleteId, saveName).then(ok => { if (ok) { setSaveName(null); setSaved(true); } });
+                }}>
                   <input id="template-name" autoFocus value={saveName} onChange={event => setSaveName(event.target.value)} aria-label="Kaydedilecek adı"
                     className="flex-1 min-w-0 h-11 px-3 rounded-xl bg-(--color-bg-card) text-[16px] outline-none" />
                   <button type="submit" disabled={!saveName.trim()} className="h-11 px-4 rounded-xl bg-(--color-text-primary) text-(--color-bg-primary) font-semibold disabled:opacity-40">Kaydet</button>
@@ -268,8 +277,9 @@ export function AthleteDayEditor() {
   const dispatch = useCallback((action: AppAction) => draftDispatch(id, action), [draftDispatch, id]);
   const athlete = coach.athletes.find(item => item.id === id);
   const state = coach.draftState(id);
-  if (!athlete || !state || !coachPlanOf(state, DEMO_COACH).plan) return <Navigate to={`/sporcular/${id}?tab=program`} replace />;
-  const firstName = athlete.name.split(' ')[0];
+  if (!coach.ready) return null;
+  if (!athlete || !state || !coach.me || !coachPlanOf(state, coach.me.id).plan) return <Navigate to={`/sporcular/${id}?tab=program`} replace />;
+  const firstName = firstOf(athlete.name);
   return (
     <AthleteScope state={state} dispatch={dispatch}>
       <ProgramEditor key={programId ?? 'yeni'} programId={programId ?? null}

@@ -11,6 +11,9 @@ export interface ProgramTemplate {
 
 type PlanDays = { plan: Plan | null; days: Program[] };
 
+/** A coach as plans and updates name them: the account, and the name shown. */
+export interface CoachRef { id: string; name: string }
+
 const daysOf = (state: AppState, plan: Plan | undefined | null): PlanDays => {
   if (!plan) return { plan: null, days: [] };
   const { programs } = programVersionAt(state, state.currentWeek);
@@ -27,15 +30,16 @@ export function activePlanOf(state: AppState): PlanDays {
  * The plan this coach set up for the person, trained or not. The person's
  * own plans have no coach on them and are never the coach's to change.
  */
-export function coachPlanOf(state: AppState, coach: string): PlanDays {
-  return daysOf(state, programVersionAt(state, state.currentWeek).plans.find(plan => plan.coach === coach));
+export function coachPlanOf(state: AppState, coachId: string): PlanDays {
+  return daysOf(state, programVersionAt(state, state.currentWeek).plans.find(plan => plan.coachId === coachId));
 }
 
 /** The person's own plan: the one in use when it is theirs, else the first of theirs. */
 export function ownPlanOf(state: AppState): PlanDays {
   const scope = programVersionAt(state, state.currentWeek);
   const active = scope.plans.find(p => p.id === scope.activePlanId);
-  return daysOf(state, active && !active.coach ? active : scope.plans.find(p => !p.coach));
+  const own = (plan: Plan) => !plan.coachId && !plan.coach;
+  return daysOf(state, active && own(active) ? active : scope.plans.find(own));
 }
 
 /** A plan's days, as a program to save. */
@@ -58,7 +62,7 @@ export function templateFrom(state: AppState, planId: string, name: string, id: 
  * day is added to whichever plan is in use, so the new plan is in use only
  * while its days go in. Someone with no plan at all trains the new one.
  */
-export function newPlanActions(state: AppState, coach: string, template: ProgramTemplate | null, newId: () => string, now: string): AppAction[] {
+export function newPlanActions(state: AppState, coach: CoachRef, template: ProgramTemplate | null, newId: () => string, now: string): AppAction[] {
   const week = state.currentWeek;
   const previous = programVersionAt(state, week).activePlanId;
   const id = `plan_${newId()}`;
@@ -70,7 +74,7 @@ export function newPlanActions(state: AppState, coach: string, template: Program
     },
   }));
   return [
-    { type: 'ADD_PLAN', atWeek: week, payload: { id, name: template?.name ?? 'Antrenör programı', programIds: [], coach, createdAt: now, updatedAt: now } },
+    { type: 'ADD_PLAN', atWeek: week, payload: { id, name: template?.name ?? 'Antrenör programı', programIds: [], coach: coach.name, coachId: coach.id, createdAt: now, updatedAt: now } },
     { type: 'SET_ACTIVE_PLAN', atWeek: week, payload: id },
     ...days,
     ...(previous ? [{ type: 'SET_ACTIVE_PLAN', atWeek: week, payload: previous } as AppAction] : []),

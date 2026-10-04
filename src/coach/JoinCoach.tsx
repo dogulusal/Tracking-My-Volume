@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '@/components/shared/Icon';
-import { useCoach } from './store';
+import { useCoach, type InviteInfo } from './store';
 
 const SEES = [
   'Programların ve antrenman günlerin',
@@ -22,11 +23,42 @@ const DOES_NOT_SEE = ['E-posta adresin ve hesap bilgilerin', 'Google Sheet dosya
 export function JoinCoach() {
   const { code = '' } = useParams();
   const coach = useCoach();
+  const { lookupInvite } = coach;
   const navigate = useNavigate();
-  const invite = coach.inviteFor(code);
-  const already = invite && coach.coaches.some(item => item.name === invite.coach);
+  // undefined while asking the cloud, null when the link does not work.
+  const [invite, setInvite] = useState<InviteInfo | null | undefined>(undefined);
+  const [joining, setJoining] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => {
+    let current = true;
+    setInvite(undefined);
+    void lookupInvite(code).then(found => { if (current) setInvite(found); });
+    return () => { current = false; };
+  }, [code, lookupInvite]);
+  const already = invite && coach.coaches.some(item => item.id === invite.coachId);
+  const own = invite && coach.me?.id === invite.coachId;
 
   const shell = 'max-w-xl mx-auto min-h-[calc(100dvh-var(--demo-bar,0px))] flex flex-col px-5 pt-[calc(env(safe-area-inset-top)+24px)] pb-[calc(env(safe-area-inset-bottom)+20px)]';
+
+  if (invite === undefined) {
+    return (
+      <div className={shell}>
+        <p className="text-[15px] text-(--color-text-secondary)">Antrenör daveti</p>
+        <p className="mt-3 text-[17px]">Davet açılıyor…</p>
+      </div>
+    );
+  }
+
+  if (own) {
+    return (
+      <div className={shell}>
+        <p className="text-[15px] text-(--color-text-secondary)">Antrenör daveti</p>
+        <h1 className="a-display text-[44px] mt-1 leading-[0.95]">Bu senin linkin</h1>
+        <p className="mt-3 text-[17px] leading-snug">Bu linki ekibine katılmasını istediğin kişiye gönder. O açıp onaylayınca Antrenör sayfanda görünür.</p>
+        <Link to="/sporcular" className="mt-auto h-14 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[18px] font-semibold flex items-center justify-center">Antrenör sayfası</Link>
+      </div>
+    );
+  }
 
   if (!invite || already) {
     return (
@@ -86,9 +118,17 @@ export function JoinCoach() {
       </p>
 
       <div className="mt-auto pt-6 grid gap-1">
-        <button onClick={() => { coach.acceptInvite(code); navigate('/antrenorum', { replace: true, state: { joined: invite.coach } }); }}
-          className="h-14 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[18px] font-semibold">
-          Kabul et
+        {problem && <p role="alert" className="mb-2 text-[15px] leading-snug" style={{ color: 'var(--lb-drop)' }}>{problem}</p>}
+        <button disabled={joining} onClick={() => {
+          setJoining(true);
+          setProblem(null);
+          void coach.acceptInvite(code).then(result => {
+            setJoining(false);
+            if (result.ok) navigate('/antrenorum', { replace: true, state: { joined: result.coach } });
+            else setProblem(result.message);
+          });
+        }} className="h-14 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[18px] font-semibold disabled:opacity-60">
+          {joining ? 'Bağlanıyor…' : 'Kabul et'}
         </button>
         <button onClick={() => navigate('/', { replace: true })} className="h-12 text-[16px] text-(--color-text-secondary)">Şimdi değil</button>
       </div>

@@ -10,9 +10,10 @@ export interface Plan {
   id: string;
   name: string;
   programIds: string[];
-  // The coach who manages this plan; absent on the person's own plans, which
-  // a coach can see but not change.
+  // The coach who manages this plan, by name and by account; absent on the
+  // person's own plans, which a coach can see but not change.
   coach?: string;
+  coachId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -132,6 +133,17 @@ export interface AppState {
   // and backups keep round-tripping unchanged.
   statusColors?: Partial<Record<ExerciseStatus, { dark: string; light: string }>>;
   cellColorOverrides?: Record<string, ExerciseStatus>;
+  // Program updates from a coach already applied here, by id: each one is
+  // applied once, whichever device gets it first.
+  appliedCoachUpdates?: string[];
+}
+
+/** Program changes a coach sent, as the person's own app applies them. */
+export interface CoachUpdatePayload {
+  id: string;
+  coachId: string;
+  coachName: string;
+  actions: AppAction[];
 }
 
 // ─── Reducer Actions ──────────────────────────────────
@@ -159,6 +171,7 @@ export type AppAction =
   | { type: 'SET_MUSCLE_GROUP'; payload: { key: string; group: string | null } }
   | { type: 'SET_EXERCISE_SETTINGS'; payload: { key: string; settings: ExerciseSettings } }
   | { type: 'SET_HIDE_REMOVED_EXERCISES'; payload: boolean }
+  | { type: 'APPLY_COACH_UPDATE'; payload: CoachUpdatePayload }
   | { type: 'IMPORT_DATA'; payload: AppState }
   | { type: 'RESET_DATA' };
 
@@ -184,6 +197,7 @@ export interface ExportData {
   hideRemovedExercises?: boolean;
   statusColors?: AppState['statusColors'];
   cellColorOverrides?: AppState['cellColorOverrides'];
+  appliedCoachUpdates?: string[];
 }
 
 /** Non-secret preferences only. Google credentials never enter synced state. */

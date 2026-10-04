@@ -45,7 +45,7 @@ export function SheetSetupModal({ children }: { children: ReactNode }) {
     status: connection?.status ?? null,
     skipped,
     savedWorkouts: (ctx?.state.weekLogs ?? []).filter(log => !log.isHoliday && log.exercises.length > 0).length,
-    inWorkout: pathname.startsWith('/workout/') || pathname === '/baslangic',
+    inWorkout: pathname.startsWith('/workout/') || pathname === '/baslangic' || pathname.startsWith('/katil/'),
   });
   const skip = () => {
     if (!userId) return;

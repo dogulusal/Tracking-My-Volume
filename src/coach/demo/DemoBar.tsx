@@ -4,9 +4,6 @@ import { makeSampleState } from './ownSample';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCoach } from '@/coach/store';
 
-/** Set only when building the coach-mode demo; the real app never has it. */
-export const DEMO = import.meta.env.VITE_DEMO === 'antrenor';
-
 /**
  * Says what this is and lets the viewer switch sides: the coach's list, or
  * the athlete who opens the invite link.
@@ -50,7 +47,7 @@ export function DemoBar() {
         ) : (
           <div className="flex flex-wrap items-center gap-x-4">
             <button className={`${link} ${athleteSide ? '' : 'font-semibold'}`} onClick={() => navigate('/sporcular')}>Antrenör gözüyle</button>
-            <button className={`${link} ${athleteSide ? 'font-semibold' : ''}`} onClick={() => navigate(`/katil/${coach.invites['']}`)}>Sporcu gözüyle: davet linki</button>
+            <button className={`${link} ${athleteSide ? 'font-semibold' : ''}`} onClick={() => navigate(`/katil/${coach.invites['']?.code ?? ''}`)}>Sporcu gözüyle: davet linki</button>
             <button className={link} onClick={() => setResetting(true)}>Sıfırla</button>
           </div>
         )}

@@ -1,5 +1,6 @@
 import { Link, Navigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useContext, useState } from 'react';
+import { AppContext } from '@/context/AppContext';
 import { useWeekOverview, type WeekDay } from '@/hooks/useWeekOverview';
 import { Modal } from '@/components/shared/Modal';
 import { formatSet } from '@/utils/formatters';
@@ -42,7 +43,10 @@ export function Dashboard() {
   const [confirmNewWeek, setConfirmNewWeek] = useState(false);
   const [showAllStalled, setShowAllStalled] = useState(false);
   const coach = useCoach();
-  const coachUpdate = coach.inbox.updates.find(update => !update.seen);
+  const ctx = useContext(AppContext);
+  // Shown once it is in the record, so the card never announces what is not there yet.
+  const applied = ctx?.state.appliedCoachUpdates;
+  const coachUpdate = coach.inbox.updates.find(update => !update.seen && (applied ?? []).includes(update.id));
   const {
     activePlan, activePlanPrograms, programs, weekLogs, currentWeek, incrementWeek,
     weekLabel, weekStats, streak, programStatuses, stalled, nextWorkout, nextTargets,

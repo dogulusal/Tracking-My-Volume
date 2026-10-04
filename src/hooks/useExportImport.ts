@@ -37,6 +37,7 @@ export function useExportImport() {
     hideRemovedExercises: state.hideRemovedExercises,
     statusColors: state.statusColors,
     cellColorOverrides: state.cellColorOverrides,
+    appliedCoachUpdates: state.appliedCoachUpdates,
   });
 
   const downloadExport = (exportData: ExportData, filename: string) => {

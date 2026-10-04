@@ -1,7 +1,7 @@
 import type { AppState } from '@/types';
 import { appReducer } from '@/context/appReducer';
 import { describeProgramChanges } from '../programChanges';
-import { activePlanOf, coachPlanOf, newPlanActions } from '../templates';
+import { activePlanOf, coachPlanOf, newPlanActions, type CoachRef } from '../templates';
 import type { CoachComment } from '../comments';
 import { DEMO_TEMPLATES } from './athletes';
 
@@ -13,12 +13,12 @@ const newId = () => `demo${Date.now().toString(36)}${++counter}`;
  * invite. A program set up for them beside their own plan (theirs stays in
  * use until they choose), and a comment on their latest workout.
  */
-export function demoCoachMessages(own: AppState, coach: string) {
+export function demoCoachMessages(own: AppState, coach: CoachRef) {
   const now = new Date().toISOString();
   const template = DEMO_TEMPLATES.find(item => item.id === 'tum-vucut') ?? DEMO_TEMPLATES[0];
   const actions = newPlanActions(own, coach, template, newId, now);
   const after = actions.reduce(appReducer, own);
-  const plan = coachPlanOf(after, coach).plan!;
+  const plan = coachPlanOf(after, coach.id).plan!;
   const lines = [`Yeni program: ${plan.name}`, ...describeProgramChanges(own, after, plan.id)];
 
   const latest = own.weekLogs
@@ -29,7 +29,7 @@ export function demoCoachMessages(own: AppState, coach: string) {
     programId: latest.programId, weekNumber: latest.weekNumber,
     exerciseId: target.exerciseId, exerciseName: target.exerciseName,
     text: 'Son setlerde form iyiydi. Bu hafta ilk sette 2.5 kg ekle; tekrar 6\'nın altına düşerse geri al.',
-    at: now, author: coach,
+    at: now, author: coach.name,
   }] : [];
 
   // A note on the next workout of their own plan this week, where they will start.
@@ -37,7 +37,7 @@ export function demoCoachMessages(own: AppState, coach: string) {
   const next = activePlanOf(own).days.find(day => !own.weekLogs.some(log => log.programId === day.id && log.weekNumber === week && log.exercises.length > 0));
   if (next) comments.push({
     programId: next.id, weekNumber: week, exerciseId: '', exerciseName: '', dayName: next.name,
-    text: 'Bugün son setleri tükenişe götür; setler arası 2 dakika dinlen.', at: now, author: coach,
+    text: 'Bugün son setleri tükenişe götür; setler arası 2 dakika dinlen.', at: now, author: coach.name,
   });
 
   return { update: { at: now, actions, lines, planId: plan.id, planName: plan.name, isNew: true }, comments };

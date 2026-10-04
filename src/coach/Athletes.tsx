@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { agoText, needsAttention, standingOf, type AthleteSummary, type Standing } from './summary';
 import { InviteSheet } from './InviteSheet';
-import { Avatar, WeekMarks } from './parts';
+import { Avatar, CoachError, WeekMarks } from './parts';
 import { useCoach, type Athlete } from './store';
 
 type Row = { athlete: Athlete; summary: AthleteSummary; reason: string | null };
@@ -79,8 +79,13 @@ export function Athletes() {
           </button>
         )}
       </div>
+      <CoachError />
 
-      {rows.length === 0 ? (
+      {!coach.available ? (
+        <p className="mt-6 text-[17px] leading-snug">Antrenör sayfası hesabınla çalışır: ekibin ve davetlerin bulutta durur. Önce Google ile giriş yap.</p>
+      ) : !coach.ready ? (
+        <p className="mt-6 text-[17px] text-(--color-text-secondary)">Ekibin yükleniyor…</p>
+      ) : rows.length === 0 ? (
         <section className="mt-6">
           <p className="text-[17px] leading-snug">
             Ekibine katılmasını istediğin kişilere bir davet linki gönder. Onaylayanların antrenmanlarını burada görürsün: kim antrenman yaptı, kim aksadı, kimin hareketi yerinde sayıyor.
