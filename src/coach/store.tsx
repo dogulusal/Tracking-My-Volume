@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { AppState } from '@/types';
 import { DEMO_COACH, demoAthletes, demoAthleteState, type DemoAthlete } from './demo/athletes';
+import { needsAttention, summarizeAthlete, type AthleteSummary } from './summary';
 
 // Demo: everything here lives in this browser and starts from made-up
 // athletes. Live, the same shape comes from the cloud: the coach's links,
@@ -17,6 +18,8 @@ interface CoachData {
   /** The current invite code per group ('' = no group). */
   invites: Record<string, string>;
   coaches: MyCoach[];
+  /** The coach's own note on each athlete; the athlete never sees it. */
+  notes: Record<string, string>;
 }
 
 const STORAGE_KEY = 'tmv-antrenor-demo-v1';
@@ -28,12 +31,16 @@ const initialData = (): CoachData => ({
   groups: ['Sabah grubu', 'Online'],
   invites: { '': 'K7Q2MD', 'Sabah grubu': 'S4BH9R', Online: 'N8LV3T' },
   coaches: [],
+  notes: {
+    mert: 'Omuz sakatlığı: bench ve shoulder press hafif kalsın.',
+    can: 'Hedef: yılbaşına kadar bench 80 kg.',
+  },
 });
 
 function load(): CoachData {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as CoachData | null;
-    if (saved && Array.isArray(saved.athletes)) return saved;
+    if (saved && Array.isArray(saved.athletes)) return { ...saved, notes: saved.notes ?? {} };
   } catch { /* fall back to the starting data */ }
   return initialData();
 }
@@ -46,7 +53,13 @@ export const INVITE_DAYS = 7;
 export const inviteUrl = (code: string) => `https://dogulusal.github.io/Tracking-My-Volume/katil/${code}`;
 
 interface CoachValue extends CoachData {
+  /** The signed-in coach's first name, for the greeting. */
+  coachName: string;
   isCoach: boolean;
+  summaries: Record<string, AthleteSummary>;
+  /** Athletes the list puts at the top: a week without training, or no record yet. */
+  attentionCount: number;
+  setNote: (athleteId: string, text: string) => void;
   athleteState: (id: string) => AppState | null;
   /** The invite a code belongs to, or null for an unknown or renewed link. */
   inviteFor: (code: string) => { coach: string; group: string | null } | null;
@@ -72,9 +85,21 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     return entry ? { coach: DEMO_COACH, group: entry[0] || null } : null;
   }, [data.invites]);
 
+  const summaries = useMemo(() => {
+    const now = today();
+    return Object.fromEntries(data.athletes.flatMap(athlete => {
+      const state = demoAthleteState(athlete.id, now);
+      return state ? [[athlete.id, summarizeAthlete(state, now)]] : [];
+    })) as Record<string, AthleteSummary>;
+  }, [data.athletes]);
+
   const value = useMemo<CoachValue>(() => ({
     ...data,
+    coachName: DEMO_COACH.split(' ')[0],
     isCoach: data.athletes.length > 0,
+    summaries,
+    attentionCount: Object.values(summaries).filter(summary => needsAttention(summary)).length,
+    setNote: (athleteId, text) => setData(d => ({ ...d, notes: { ...d.notes, [athleteId]: text.trim() } })),
     athleteState: id => demoAthleteState(id, today()) ?? null,
     inviteFor,
     renewInvite: group => setData(d => ({ ...d, invites: { ...d.invites, [group ?? '']: newCode() } })),
@@ -91,7 +116,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     },
     leaveCoach: name => setData(d => ({ ...d, coaches: d.coaches.filter(c => c.name !== name) })),
     reset: () => setData(initialData()),
-  }), [data, inviteFor]);
+  }), [data, inviteFor, summaries]);
 
   return <CoachContext.Provider value={value}>{children}</CoachContext.Provider>;
 }
