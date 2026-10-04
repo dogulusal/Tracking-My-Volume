@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation, useParams } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter, Routes, Route, useLocation, useParams } from 'react-router-dom';
 import { AppProvider } from '@/context/AppContext';
 import { Header } from '@/components/layout/Header';
 import { BottomNav } from '@/components/layout/BottomNav';
@@ -14,6 +14,12 @@ import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { useCloudSync } from '@/hooks/useCloudSync';
 import { LoginPromptModal } from '@/components/shared/LoginPromptModal';
 import { SheetRenewalNotice, SheetSetupModal } from '@/components/shared/SheetSetupModal';
+import { CoachProvider } from '@/coach/store';
+import { Athletes } from '@/coach/Athletes';
+import { AthleteDetail } from '@/coach/AthleteDetail';
+import { JoinCoach } from '@/coach/JoinCoach';
+import { MyCoach } from '@/coach/MyCoach';
+import { DEMO, DemoBar } from '@/coach/demo/DemoBar';
 
 // A workout page belongs to one day and week: moving to another (e.g. on to
 // the next week) starts it afresh instead of carrying the last one's state.
@@ -28,7 +34,8 @@ function AppContent() {
   const { configured, syncStatus, userId, hydrated, authError, refreshFromCloud, signOut } = useCloudSync();
   // The workout page is full screen: its own bar, no tabs.
   const { pathname } = useLocation();
-  const inWorkout = pathname.startsWith('/workout/') || pathname === '/baslangic';
+  // The invite answer is full screen too: one question, nothing else to tap.
+  const inWorkout = pathname.startsWith('/workout/') || pathname === '/baslangic' || pathname.startsWith('/katil/');
 
   if (configured && !userId) {
     return syncStatus === 'auth_loading'
@@ -55,6 +62,7 @@ function AppContent() {
         isMobileDevice ? 'mobile-device-ui' : ''
       }`}
     >
+      {DEMO && !pathname.startsWith('/workout/') && <DemoBar />}
       {!inWorkout && <Header />}
       {/* No tab bar on the workout page, so no room kept for it either. */}
       <main className={inWorkout ? 'pb-[env(safe-area-inset-bottom)]!' : undefined}>
@@ -69,6 +77,10 @@ function AppContent() {
           <Route path="/charts" element={<Charts />} />
           <Route path="/export" element={<Export />} />
           <Route path="/baslangic" element={<Onboarding />} />
+          <Route path="/sporcular" element={<Athletes />} />
+          <Route path="/sporcular/:id" element={<AthleteDetail />} />
+          <Route path="/katil/:code" element={<JoinCoach />} />
+          <Route path="/antrenorum" element={<MyCoach />} />
         </Routes>
       </main>
       {!inWorkout && <BottomNav />}
@@ -80,11 +92,21 @@ function AppContent() {
 export default function App() {
   return (
     <AppProvider>
-      {/* basename must match vite's `base` — on GitHub Pages the app is served
-          from /Tracking-My-Volume/, so without it no route ever matches. */}
-      <BrowserRouter basename={import.meta.env.BASE_URL}>
-        <AppContent />
-      </BrowserRouter>
+      <CoachProvider>
+        {DEMO ? (
+          // The demo runs as a page inside claude.ai, whose address it cannot
+          // own: routes live in memory and it opens on the coach's list.
+          <MemoryRouter initialEntries={['/sporcular']}>
+            <AppContent />
+          </MemoryRouter>
+        ) : (
+          // basename must match vite's `base` — on GitHub Pages the app is served
+          // from /Tracking-My-Volume/, so without it no route ever matches.
+          <BrowserRouter basename={import.meta.env.BASE_URL}>
+            <AppContent />
+          </BrowserRouter>
+        )}
+      </CoachProvider>
     </AppProvider>
   );
 }

@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import { initTheme } from './utils/theme';
+import { prepareDemo } from './coach/demo/boot';
 // Bundled with the app, not fetched from Google: the gym floor often has no
 // signal, and the figures are set in the condensed face.
 import '@fontsource/barlow/400.css';
@@ -12,10 +13,11 @@ import '@fontsource/barlow-condensed/600.css';
 import '@fontsource/barlow-condensed/700.css';
 import './styles/index.css';
 
+if (import.meta.env.VITE_DEMO === 'antrenor') prepareDemo();
 initTheme();
 
 // Production only: in dev the service worker would sit between Vite and HMR.
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+if (import.meta.env.PROD && !import.meta.env.VITE_DEMO && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL })
