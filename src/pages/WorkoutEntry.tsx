@@ -17,7 +17,7 @@ import { movementSessions, sessionsBefore, type MovementSession } from '@/utils/
 import { STALL_WEEKS, bestSet, nextTarget, previousRecord, progressionRule, stallOf, type ProgressionRule, type Stall, type Target } from '@/utils/progression';
 import { weekName } from '@/utils/phases';
 import type { SetLog, Intensity, ExerciseLog } from '@/types';
-import { useComments } from '@/coach/comments';
+import { dayNotesOn, useComments } from '@/coach/comments';
 
 const INTENSITY_OPTIONS: { value: Intensity; label: string }[] = [
   { value: 'failure', label: 'F' },
@@ -91,6 +91,8 @@ export function WorkoutEntry() {
 
   const weekNumber = Number(weekParam) || 0;
   const coachComments = useComments();
+  // The coach's notes on this workout as a whole, shown as it starts.
+  const coachDayNotes = programId ? dayNotesOn(coachComments.list, programId, weekNumber) : [];
   const ctx = useContext(AppContext);
   const phase = ctx?.state.phases.find(p => weekNumber >= p.startWeek && (p.endWeek === null || weekNumber <= p.endWeek));
   const program = getProgramById(programId || '');
@@ -1027,13 +1029,16 @@ export function WorkoutEntry() {
                 {showFirstHint && <button onClick={dismissFirstHint} className="shrink-0 h-11 px-3 rounded-xl text-[14px] font-semibold" style={{ color: 'var(--lb-ref)' }}>Anladım</button>}
               </div>
             )}
-            {(info?.target || pinned || info?.lastNote || coachComment || (doneCount === 0 && previousNoteLog?.notes?.trim())) && (
+            {(info?.target || pinned || info?.lastNote || coachComment || (doneCount === 0 && (previousNoteLog?.notes?.trim() || coachDayNotes.length > 0))) && (
               <div className="mt-1.5 space-y-0.5 text-[14px] text-(--color-text-secondary)">
                 {info?.target && (
                   <p>Hedef <span className="lb-figure text-[17px] font-semibold text-(--color-text-primary)">{info.target.reps !== null ? `${info.target.weight} × ${info.target.reps}` : `${info.target.weight} kg`}</span>
                     {' · '}{info.target.reps !== null ? `geçen ${formatSet(info.target.from)}` : `${info.target.from.reps} tekrara ulaştın`}</p>
                 )}
                 {pinned && <p className="truncate">Sabit: <span className="text-(--color-text-primary)">{pinned}</span></p>}
+                {doneCount === 0 && coachDayNotes.map(note => (
+                  <p key={note.id} className="line-clamp-3">Antrenörün notu ({note.author.split(' ')[0]}): <span className="text-(--color-text-primary)">{note.text}</span></p>
+                ))}
                 {coachComment && <p className="line-clamp-2">Antrenör ({coachComment.author.split(' ')[0]}): <span className="text-(--color-text-primary)">{coachComment.text}</span></p>}
                 {info?.lastNote && <p className="truncate">Geçen sefer ({[programName(info.lastNote.log.programId), nameOfWeek(info.lastNote.log.weekNumber)].filter(Boolean).join(' · ')}): <span className="text-(--color-text-primary)">{info.lastNote.exercise.note!.trim()}</span></p>}
                 {doneCount === 0 && previousNoteLog?.notes?.trim() && <p className="truncate">Geçen gün notu: <span className="text-(--color-text-primary)">{previousNoteLog.notes.trim()}</span></p>}
@@ -1203,6 +1208,12 @@ export function WorkoutEntry() {
       {screen === 'list' && (
         <Sheet title="Hareketler" onClose={() => setScreen('set')}>
           <p className="-mt-1 mb-3 text-[14px] text-(--color-text-secondary)">Makine doluysa başka bir harekete geç; sıra seni bağlamaz.</p>
+          {coachDayNotes.map(note => (
+            <div key={note.id} className="rounded-2xl bg-(--color-bg-input) px-4 py-3 mb-2">
+              <p className="text-[13px] text-(--color-text-secondary)">Antrenörün notu · {note.author}</p>
+              <p className="mt-0.5 text-[15px] whitespace-pre-line">{note.text}</p>
+            </div>
+          ))}
           {previousNoteLog?.notes?.trim() && (
             <div className="rounded-2xl bg-(--color-bg-input) px-4 py-3 mb-2">
               <p className="text-[13px] text-(--color-text-secondary)">Geçen {program.name} notu · {nameOfWeek(previousNoteLog.weekNumber)}</p>

@@ -8,7 +8,8 @@ import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { WorkoutDetailModal } from '@/components/shared/WorkoutDetailModal';
 import { AppContext } from '@/context/AppContext';
 import { useReadOnly } from '@/context/ReadOnly';
-import { commentsOn, useComments } from '@/coach/comments';
+import { commentsOn, dayNotesOn, useComments } from '@/coach/comments';
+import { DayNoteSheet } from '@/coach/DayNoteSheet';
 import { buildPhaseGrid, statusFill, type GridRow } from '../../supabase/functions/_shared/historyGrid.mjs';
 import { currentPhaseIndex, startedPhases } from '@/utils/phases';
 import type { ExerciseLog, SetLog } from '@/types';
@@ -19,6 +20,7 @@ const HISTORY_STATE_KEY = 'history-page-state-v1';
 export function History({ embedded = false }: { embedded?: boolean } = {}) {
   const readOnly = useReadOnly();
   const comments = useComments();
+  const [noteWeek, setNoteWeek] = useState<number | null>(null);
   const [showPhaseSettings, setShowPhaseSettings] = useState(false);
   const navigate = useNavigate();
   const { weekLogs, currentWeek, saveWorkout } = useWeekLogs();
@@ -266,13 +268,18 @@ export function History({ embedded = false }: { embedded?: boolean } = {}) {
                 <tr>
                   <td colSpan={2} className="sticky left-0 z-10 px-3 py-2 text-left align-middle text-[12px]"
                     style={{ background: palette.note, color: palette.noteText, boxShadow: frozenEdge }}>Haftalık notlar</td>
-                  {program.notes.map((note, index) => (
-                    <td key={weeks[index]} onClick={readOnly ? undefined : () => openWeek(weeks[index])}
-                      className={`${readOnly ? '' : 'cursor-pointer '}px-2 py-2 text-left align-middle text-[12px] whitespace-pre-line break-words`}
-                      style={{ background: palette.note, color: palette.noteText }}>
-                      {note}
-                    </td>
-                  ))}
+                  {program.notes.map((note, index) => {
+                    const coachNotes = dayNotesOn(comments.list, selectedProgramId, weeks[index]);
+                    const open = readOnly ? (comments.add ? () => setNoteWeek(weeks[index]) : undefined) : () => openWeek(weeks[index]);
+                    return (
+                      <td key={weeks[index]} onClick={open}
+                        className={`${open ? 'cursor-pointer ' : ''}px-2 py-2 text-left align-middle text-[12px] whitespace-pre-line break-words`}
+                        style={{ background: palette.note, color: palette.noteText }}>
+                        {note}
+                        {coachNotes.map(item => <span key={item.id} className="block mt-1">Antrenör: {item.text}</span>)}
+                      </td>
+                    );
+                  })}
                 </tr>
               </tbody>
             </table>
@@ -281,7 +288,9 @@ export function History({ embedded = false }: { embedded?: boolean } = {}) {
       )}
       <p className="mt-2 px-1 text-[13px] text-(--color-text-secondary)">75 x 7 +1: 75 kg, 7 tekrar, 1 tekrar daha yapabilirdin · F: tükendin.</p>
       <p className="mt-1 px-1 text-[13px] text-(--color-text-secondary)">
-        {readOnly ? 'Hücreye dokun: setleri ve notları gör.' : 'Hücreye dokun: setleri gör ve düzelt. Hafta başlığına dokun: o haftanın antrenmanını aç.'}
+        {readOnly
+          ? `Hücreye dokun: setleri gör, yorum yaz.${comments.add ? ' Haftalık notlar satırına dokun: o antrenmana not bırak.' : ''}`
+          : 'Hücreye dokun: setleri gör ve düzelt. Hafta başlığına dokun: o haftanın antrenmanını aç.'}
       </p>
 
       {removedRows.length > 0 && !readOnly && (
@@ -301,6 +310,15 @@ export function History({ embedded = false }: { embedded?: boolean } = {}) {
               : 'Çıkarılan hareketler soluk ve çıkarıldığı haftayla gösteriliyor.'} Sheet de aynısını yazar.
           </p>
         </div>
+      )}
+
+      {noteWeek !== null && program && (
+        <DayNoteSheet
+          title={`${program.name} · H${getDisplayWeek(noteWeek)}`}
+          athleteNote={getWeekLog(noteWeek)?.notes}
+          notes={dayNotesOn(comments.list, selectedProgramId, noteWeek)}
+          onAdd={comments.add ? text => comments.add!({ programId: selectedProgramId, weekNumber: noteWeek, exerciseId: '', exerciseName: '', dayName: program.name, text }) : undefined}
+          onClose={() => setNoteWeek(null)} />
       )}
 
       {/* Workout Detail Modal */}

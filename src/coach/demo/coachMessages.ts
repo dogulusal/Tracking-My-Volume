@@ -1,7 +1,7 @@
 import type { AppState } from '@/types';
 import { appReducer } from '@/context/appReducer';
 import { describeProgramChanges } from '../programChanges';
-import { coachPlanOf, newPlanActions } from '../templates';
+import { activePlanOf, coachPlanOf, newPlanActions } from '../templates';
 import type { CoachComment } from '../comments';
 import { DEMO_TEMPLATES } from './athletes';
 
@@ -31,6 +31,14 @@ export function demoCoachMessages(own: AppState, coach: string) {
     text: 'Son setlerde form iyiydi. Bu hafta ilk sette 2.5 kg ekle; tekrar 6\'nın altına düşerse geri al.',
     at: now, author: coach,
   }] : [];
+
+  // A note on the next workout of their own plan this week, where they will start.
+  const week = own.currentWeek;
+  const next = activePlanOf(own).days.find(day => !own.weekLogs.some(log => log.programId === day.id && log.weekNumber === week && log.exercises.length > 0));
+  if (next) comments.push({
+    programId: next.id, weekNumber: week, exerciseId: '', exerciseName: '', dayName: next.name,
+    text: 'Bugün son setleri tükenişe götür; setler arası 2 dakika dinlen.', at: now, author: coach,
+  });
 
   return { update: { at: now, actions, lines, planId: plan.id, planName: plan.name, isNew: true }, comments };
 }

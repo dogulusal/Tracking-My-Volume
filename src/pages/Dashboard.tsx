@@ -6,6 +6,7 @@ import { formatSet } from '@/utils/formatters';
 import { STALL_WEEKS } from '@/utils/progression';
 import { staleWeekAge } from '@/utils/weekAdvance';
 import { possessive, useCoach } from '@/coach/store';
+import { dayNotesOn } from '@/coach/comments';
 
 const nf = new Intl.NumberFormat('tr-TR');
 const weekdayFormat = new Intl.DateTimeFormat('tr-TR', { weekday: 'long' });
@@ -80,6 +81,13 @@ export function Dashboard() {
       <h1 className="a-display text-[clamp(56px,22vw,92px)] tracking-[-0.01em] mt-0.5">
         {nextWorkout ? nextWorkout.program.name : weekDone ? 'Tamam' : 'Plan boş'}
       </h1>
+      {/* The coach's note on the workout up next, where the day is planned. */}
+      {nextWorkout && dayNotesOn(coach.inbox.comments, nextWorkout.program.id, currentWeek).map(note => (
+        <p key={note.id} className="mt-3 a-card px-4 py-3 text-[15px] leading-snug">
+          <span className="block text-[13px] text-(--color-text-secondary)">Antrenörün notu · {note.author}</span>
+          {note.text}
+        </p>
+      ))}
       {nextWorkout && (
         <p className="mt-2 text-[15px] text-(--color-text-secondary)">
           {nextTargets.length

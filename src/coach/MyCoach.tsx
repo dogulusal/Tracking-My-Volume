@@ -46,7 +46,10 @@ export function MyCoach() {
           <h2 className="a-display text-[30px]">Antrenöründen</h2>
           <ul className="mt-1">
             {[
-              ...coach.inbox.comments.map(comment => ({ key: comment.id, at: comment.at, head: `${comment.author} · ${comment.exerciseName} yorumu`, body: [comment.text] })),
+              ...coach.inbox.comments.map(comment => ({
+                key: comment.id, at: comment.at, body: [comment.text],
+                head: comment.exerciseId ? `${comment.author} · ${comment.exerciseName} yorumu` : `${comment.author} · ${comment.dayName ?? 'antrenman'} notu`,
+              })),
               ...coach.inbox.updates.map(update => ({ key: update.id, at: update.at, head: `${update.coach} · program güncellemesi`, body: update.lines })),
             ].sort((a, b) => b.at.localeCompare(a.at)).map(item => (
               <li key={item.key} className="py-3 border-b border-(--color-bg-card) last:border-b-0">
@@ -55,7 +58,7 @@ export function MyCoach() {
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-[13px] text-(--color-text-secondary)">Yorumlar o hareketi yaparken antrenman ekranında ve Geçmiş'te de görünür.</p>
+          <p className="mt-2 text-[13px] text-(--color-text-secondary)">Yorumlar o hareketi yaparken, notlar o antrenmana başlarken görünür; ikisi de Geçmiş'te durur.</p>
         </section>
       )}
 
