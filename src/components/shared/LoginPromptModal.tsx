@@ -18,7 +18,7 @@ export function LoginPromptModal({ invited = false }: { invited?: boolean }) {
 
   return (
     <div className="min-h-[100dvh] bg-(--color-bg-primary) text-(--color-text-primary)">
-      <div className="min-h-[100dvh] max-w-xl mx-auto flex flex-col px-5 pt-[calc(24px+env(safe-area-inset-top))] pb-[calc(20px+env(safe-area-inset-bottom))]">
+      <main className="min-h-[100dvh] max-w-xl mx-auto flex flex-col px-5 pt-[calc(24px+env(safe-area-inset-top))] pb-[calc(20px+env(safe-area-inset-bottom))]">
         <div className="flex-1 flex flex-col justify-center">
           <p className="text-[15px] text-(--color-text-secondary)">Volume</p>
           <h1 className="a-display text-[clamp(56px,19vw,84px)] leading-[0.95] mt-2">Geçen haftayı geç.</h1>
@@ -47,7 +47,7 @@ export function LoginPromptModal({ invited = false }: { invited?: boolean }) {
           {' · '}
           <a className="underline underline-offset-2 inline-flex min-h-11 items-center" href={`${import.meta.env.BASE_URL}privacy.html`}>Gizlilik politikası</a>
         </p>
-      </div>
+      </main>
     </div>
   );
 }

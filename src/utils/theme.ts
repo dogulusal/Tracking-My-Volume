@@ -7,6 +7,14 @@ import { initColorTheme, applyColorTheme, getStoredColorTheme } from './colorThe
 
 const THEME_KEY = 'theme-preference';
 
+// The browser's own bar (Android's status bar, Safari's tab bar) takes the
+// page's ground; index.html only knows the dark one. Same values as
+// --color-bg-primary in index.css.
+function syncThemeColor(): void {
+  const color = document.documentElement.classList.contains('dark') ? '#0b0b0c' : '#f3f4f5';
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
+}
+
 export function initTheme(): void {
   const saved = localStorage.getItem(THEME_KEY);
   if (saved === 'light') {
@@ -25,6 +33,7 @@ export function initTheme(): void {
   }
   // Apply color theme after dark/light is set
   initColorTheme();
+  syncThemeColor();
 }
 
 export function toggleTheme(): void {
@@ -38,6 +47,7 @@ export function toggleTheme(): void {
   }
   // Re-apply color theme for the new light/dark mode
   applyColorTheme(getStoredColorTheme());
+  syncThemeColor();
 }
 
 export function isDarkMode(): boolean {
