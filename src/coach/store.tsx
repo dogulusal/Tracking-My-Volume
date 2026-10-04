@@ -43,8 +43,6 @@ interface CoachData {
   /** The current invite code per group ('' = no group). */
   invites: Record<string, string>;
   coaches: MyCoach[];
-  /** The coach's own note on each athlete; the athlete never sees it. */
-  notes: Record<string, string>;
   /** Coach side, per athlete: comments written, program edits not sent yet, updates sent. */
   comments: Record<string, CoachComment[]>;
   drafts: Record<string, AppAction[]>;
@@ -65,10 +63,6 @@ const initialData = (): CoachData => ({
   groups: ['Sabah grubu', 'Online'],
   invites: { '': 'K7Q2MD', 'Sabah grubu': 'S4BH9R', Online: 'N8LV3T' },
   coaches: [],
-  notes: {
-    mert: 'Omuz sakatlığı: bench ve shoulder press hafif kalsın.',
-    can: 'Hedef: yılbaşına kadar bench 80 kg.',
-  },
   comments: {},
   drafts: {},
   sent: {},
@@ -99,7 +93,6 @@ interface CoachValue extends CoachData {
   summaries: Record<string, AthleteSummary>;
   /** Athletes on a break or not started yet: the number on the Antrenör tab. */
   attentionCount: number;
-  setNote: (athleteId: string, text: string) => void;
   /** The athlete's record with every update sent so far applied. */
   athleteState: (id: string) => AppState | null;
   /** The same, with the coach's unsent program edits on top. */
@@ -167,7 +160,6 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     isCoach: data.athletes.length > 0,
     summaries,
     attentionCount: Object.values(summaries).filter(summary => needsAttention(summary)).length,
-    setNote: (athleteId, text) => setData(d => ({ ...d, notes: { ...d.notes, [athleteId]: text.trim() } })),
     athleteState: id => states[id] ?? null,
     draftState: id => drafted[id] ?? null,
     draftDispatch: (athleteId, action) => {

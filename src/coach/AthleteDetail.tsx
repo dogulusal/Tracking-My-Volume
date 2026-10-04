@@ -181,7 +181,6 @@ export function AthleteDetail() {
   const tab: Tab = TABS.find(([key]) => key === params.get('tab'))?.[0] ?? 'week';
   const setTab = (next: Tab) => setParams(next === 'week' ? {} : { tab: next }, { replace: true });
   const [removing, setRemoving] = useState(false);
-  const [noteDraft, setNoteDraft] = useState<string | null>(null);
   // Opened from a long list: start at the athlete's name, not where the list was.
   useLayoutEffect(() => { window.scrollTo(0, 0); }, [id]);
   const athlete = coach.athletes.find(item => item.id === id);
@@ -189,7 +188,6 @@ export function AthleteDetail() {
   const summary = athlete ? coach.summaries[athlete.id] : undefined;
   if (!athlete || !state || !summary) return <Navigate to="/sporcular" replace />;
 
-  const note = coach.notes[athlete.id] ?? '';
   const firstName = athlete.name.split(' ')[0];
   const chip = (active: boolean) =>
     `shrink-0 h-11 px-4 rounded-full text-[15px] whitespace-nowrap ${active ? 'bg-(--color-text-primary) text-(--color-bg-primary) font-semibold' : 'bg-(--color-bg-card) text-(--color-text-secondary)'}`;
@@ -204,30 +202,6 @@ export function AthleteDetail() {
       <p className="mt-2 text-[15px] text-(--color-text-secondary)">
         Son antrenman: {agoText(summary.daysSinceLast)} · {sinceText(athlete.joinedAt)} ekibinde
       </p>
-
-      {/* The coach's own note: a goal, an injury to watch. Never shown to the athlete. */}
-      {noteDraft !== null ? (
-        <form className="mt-3" onSubmit={event => { event.preventDefault(); coach.setNote(athlete.id, noteDraft); setNoteDraft(null); }}>
-          <label htmlFor="coach-note" className="text-[13px] text-(--color-text-secondary)">Notun · yalnız sen görürsün</label>
-          <textarea id="coach-note" autoFocus rows={3} value={noteDraft} onChange={event => setNoteDraft(event.target.value)}
-            placeholder="Ör. hedef: bench 80 kg · omzuna dikkat"
-            className="mt-1 w-full px-3 py-2 rounded-2xl bg-(--color-bg-card) text-[16px] leading-snug outline-none resize-y" />
-          <div className="mt-1 flex gap-2">
-            <button type="submit" className="h-11 px-5 rounded-full bg-(--color-text-primary) text-(--color-bg-primary) text-[15px] font-semibold">Kaydet</button>
-            <button type="button" onClick={() => setNoteDraft(null)} className="h-11 px-4 rounded-full text-[15px] text-(--color-text-secondary)">Vazgeç</button>
-          </div>
-        </form>
-      ) : (
-        <button onClick={() => setNoteDraft(note)} className="mt-3 w-full text-left a-card px-4 py-3">
-          <span className="flex items-baseline justify-between gap-3">
-            <span className="text-[13px] font-semibold">Notun</span>
-            <span className="text-[13px] text-(--color-text-secondary)">yalnız sen görürsün · {note ? 'düzenle' : 'yaz'}</span>
-          </span>
-          {note
-            ? <span className="block mt-1 text-[16px] leading-snug">{note}</span>
-            : <span className="block mt-1 text-[15px] leading-snug text-(--color-text-secondary)">Hedefi, sakatlığı, dikkat edeceğin şeyi yaz. Listede adının altında da görünür.</span>}
-        </button>
-      )}
 
       <div className="mt-4 -mx-5 px-5 flex gap-1.5 overflow-x-auto scrollbar-hide" role="tablist">
         {TABS.map(([key, label]) => (

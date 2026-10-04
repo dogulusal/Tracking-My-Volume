@@ -5,13 +5,13 @@ import { InviteSheet } from './InviteSheet';
 import { Avatar, WeekMarks } from './parts';
 import { useCoach, type Athlete } from './store';
 
-type Row = { athlete: Athlete; summary: AthleteSummary; reason: string | null; note: string };
+type Row = { athlete: Athlete; summary: AthleteSummary; reason: string | null };
 
 // Longest without training first; someone with no record at all before them.
 const byQuiet = (a: Row, b: Row) => (b.summary.daysSinceLast ?? Infinity) - (a.summary.daysSinceLast ?? Infinity);
 
 function AthleteRow({ row }: { row: Row }) {
-  const { athlete, summary, reason, note } = row;
+  const { athlete, summary, reason } = row;
   return (
     <li>
       <Link to={`/sporcular/${athlete.id}`} className="lb-press a-card flex gap-3 px-3.5 py-3">
@@ -40,7 +40,6 @@ function AthleteRow({ row }: { row: Row }) {
               {summary.stalled > 0 && ` · ${summary.stalled} yerinde sayıyor`}
             </p>
           )}
-          {note && <p className="mt-1.5 text-[13px] leading-snug text-(--color-text-secondary) line-clamp-1">Notun: {note}</p>}
         </div>
       </Link>
     </li>
@@ -55,8 +54,8 @@ export function Athletes() {
 
   const rows = useMemo(() => coach.athletes.flatMap(athlete => {
     const summary = coach.summaries[athlete.id];
-    return summary ? [{ athlete, summary, reason: needsAttention(summary), note: coach.notes[athlete.id] ?? '' }] : [];
-  }), [coach.athletes, coach.summaries, coach.notes]);
+    return summary ? [{ athlete, summary, reason: needsAttention(summary) }] : [];
+  }), [coach.athletes, coach.summaries]);
 
   const shown = filter === null ? rows : rows.filter(row => row.athlete.group === filter);
   const inStanding = (rowsToSplit: Row[], standing: Standing) =>
