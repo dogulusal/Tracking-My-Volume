@@ -38,7 +38,7 @@ function PlanSelectModal({
               style={plan.id === activePlanId ? { boxShadow: 'inset 0 0 0 1.5px var(--color-text-primary)' } : undefined}>
               <span className="flex flex-col">
                 <span className="text-[17px] font-semibold">{plan.name}</span>
-                <span className="text-[14px] text-(--color-text-secondary)">{plan.programIds.length} gün</span>
+                <span className="text-[14px] text-(--color-text-secondary)">{plan.programIds.length} gün{plan.coach ? ` · antrenörün: ${plan.coach}` : ' · kendi planın'}</span>
               </span>
               {plan.id === activePlanId && <span className="text-[14px] font-semibold">Aktif</span>}
             </button>
@@ -132,6 +132,10 @@ export function ProgramSelect() {
         <div className="min-w-0">
           <h1 className="a-display text-[48px]">Programlar</h1>
           <p className="mt-1 text-[15px] text-(--color-text-secondary)">{activePlan?.name ?? 'Plan yok'} · {activePlanPrograms.length} antrenman günü</p>
+          {/* A coach's plan says so; the person's own plans are theirs alone. */}
+          {activePlan?.coach && (
+            <p className="mt-0.5 text-[14px] text-(--color-text-secondary)">Antrenörün hazırladı: <span className="text-(--color-text-primary)">{activePlan.coach}</span>. Kendi programını yapmak istersen yeni plan oluştur; antrenörün onu değiştiremez.</p>
+          )}
         </div>
         {plans.length > 1 && (
           <button onClick={() => setShowPlanModal(true)} className="shrink-0 h-11 px-4 rounded-full bg-(--color-bg-card) text-[15px] font-medium">Plan değiştir</button>

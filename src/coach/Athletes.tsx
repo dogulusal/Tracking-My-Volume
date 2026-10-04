@@ -102,6 +102,10 @@ export function Athletes() {
             )}
           </p>
 
+          <Link to="/sporcular/kutuphane" className="mt-4 inline-flex items-center h-11 px-4 rounded-full bg-(--color-bg-card) text-[15px] font-medium">
+            Program kütüphanesi · {coach.library.length}
+          </Link>
+
           {groups.length > 0 && (
             <div className="mt-5 -mx-5 px-5 flex gap-1.5 overflow-x-auto scrollbar-hide">
               <button onClick={() => setFilter(null)} aria-pressed={filter === null} className={chip(filter === null)}>Tümü {rows.length}</button>

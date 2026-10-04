@@ -5,7 +5,7 @@ import { Modal } from '@/components/shared/Modal';
 import { formatSet } from '@/utils/formatters';
 import { STALL_WEEKS } from '@/utils/progression';
 import { staleWeekAge } from '@/utils/weekAdvance';
-import { useCoach } from '@/coach/store';
+import { possessive, useCoach } from '@/coach/store';
 
 const nf = new Intl.NumberFormat('tr-TR');
 const weekdayFormat = new Intl.DateTimeFormat('tr-TR', { weekday: 'long' });
@@ -43,7 +43,7 @@ export function Dashboard() {
   const coach = useCoach();
   const coachUpdate = coach.inbox.updates.find(update => !update.seen);
   const {
-    activePlanPrograms, programs, weekLogs, currentWeek, incrementWeek,
+    activePlan, activePlanPrograms, programs, weekLogs, currentWeek, incrementWeek,
     weekLabel, weekStats, streak, programStatuses, stalled, nextWorkout, nextTargets,
   } = useWeekOverview();
   // The week moves on only when told; a week whose first workout was days
@@ -73,7 +73,7 @@ export function Dashboard() {
       <div>
       <p className="text-[15px] text-(--color-text-secondary)">{dateLine}</p>
       <p className="mt-2 text-[15px] text-(--color-text-secondary)">
-        {weekLabel} · {nextWorkout ? (nextWorkout.hasDraft ? 'yarım kalan' : 'sıradaki') : 'hafta bitti'}
+        {weekLabel} · {nextWorkout ? (nextWorkout.hasDraft ? 'yarım kalan' : 'sıradaki') : 'hafta bitti'}{activePlan?.coach ? ` · ${possessive(activePlan.coach.split(' ')[0])} planı` : ''}
       </p>
       <h1 className="a-display text-[clamp(56px,22vw,92px)] tracking-[-0.01em] mt-0.5">
         {nextWorkout ? nextWorkout.program.name : weekDone ? 'Tamam' : 'Plan boş'}

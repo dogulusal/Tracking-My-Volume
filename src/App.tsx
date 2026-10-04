@@ -17,6 +17,7 @@ import { SheetRenewalNotice, SheetSetupModal } from '@/components/shared/SheetSe
 import { CoachProvider, useCoach } from '@/coach/store';
 import { CommentsContext } from '@/coach/comments';
 import { AthleteDayEditor } from '@/coach/AthleteProgram';
+import { Library } from '@/coach/Library';
 import { Athletes } from '@/coach/Athletes';
 import { AthleteDetail } from '@/coach/AthleteDetail';
 import { JoinCoach } from '@/coach/JoinCoach';
@@ -86,6 +87,7 @@ function AppContent() {
           <Route path="/sporcular" element={<Athletes />} />
           <Route path="/sporcular/:id" element={<AthleteDetail />} />
           <Route path="/katil/:code" element={<JoinCoach />} />
+          <Route path="/sporcular/kutuphane" element={<Library />} />
           <Route path="/sporcular/:id/gun" element={<AthleteDayEditor />} />
           <Route path="/sporcular/:id/gun/:programId" element={<AthleteDayEditor />} />
           <Route path="/antrenorum" element={<MyCoach />} />
