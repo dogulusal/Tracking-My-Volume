@@ -35,7 +35,6 @@ export function Header() {
     { to: '/history', label: 'Geçmiş' },
     { to: '/charts', label: 'Grafikler' },
     ...(isCoach ? [{ to: '/sporcular', label: 'Antrenör' }] : []),
-    { to: '/export', label: 'Yedek' },
   ];
 
   const account = !configured ? 'Bulut kapalı' : userEmail ?? 'Giriş yap';
