@@ -31,7 +31,7 @@ export function InviteSheet({ isOpen, onClose }: { isOpen: boolean; onClose: () 
     `shrink-0 h-11 px-4 rounded-full text-[15px] whitespace-nowrap ${active ? 'bg-(--color-text-primary) text-(--color-bg-primary) font-semibold' : 'bg-(--color-bg-input)'}`;
 
   return (
-    <BottomSheet isOpen={isOpen} onClose={onClose} title="Sporcu davet et">
+    <BottomSheet isOpen={isOpen} onClose={onClose} title="Ekibine davet et">
       <p className="text-[15px] leading-snug text-(--color-text-secondary)">
         Linki açan kişi onay verirse antrenmanlarını görürsün. Kayıtlarını değiştiremezsin; bağı o da sen de istediğin zaman koparabilirsiniz.
       </p>

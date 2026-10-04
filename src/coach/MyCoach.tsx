@@ -42,10 +42,10 @@ export function MyCoach() {
       <section className="mt-12">
         <h2 className="a-display text-[30px]">Antrenör müsün?</h2>
         <p className="mt-1 text-[16px] leading-snug text-(--color-text-secondary)">
-          Sporcularını davet et; kim antrenman yaptı, kim aksadı, kimin hareketi yerinde sayıyor, tek listede gör.
+          Ekibini kur; kim antrenman yaptı, kim aksadı, kimin hareketi yerinde sayıyor, tek listede gör.
         </p>
         <Link to="/sporcular" className="mt-4 flex items-center justify-center h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">
-          Sporcularım
+          Ekibim
         </Link>
       </section>
 

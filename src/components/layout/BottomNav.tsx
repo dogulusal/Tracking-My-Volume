@@ -40,13 +40,13 @@ export function BottomNav() {
             <span className="relative">
               <Icon name="people" className="w-[22px] h-[22px]" />
               {attentionCount > 0 && (
-                <span aria-label={`${attentionCount} sporcu seni bekliyor`}
+                <span aria-label={`${attentionCount} kişi seni bekliyor`}
                   className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-semibold leading-[18px] text-center bg-(--lb-drop) text-(--color-bg-primary)">
                   {attentionCount}
                 </span>
               )}
             </span>
-            <span className={`text-[12px] leading-none ${athletesActive ? 'font-semibold' : ''}`}>Sporcular</span>
+            <span className={`text-[12px] leading-none ${athletesActive ? 'font-semibold' : ''}`}>Ekibim</span>
           </Link>
         ) : (
           // Leaves the app, so it never shows as the current tab.

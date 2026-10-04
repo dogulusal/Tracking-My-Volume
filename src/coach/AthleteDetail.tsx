@@ -133,13 +133,13 @@ export function AthleteDetail() {
 
   return (
     <div className="max-w-xl lg:max-w-5xl mx-auto px-5 pt-1 pb-8">
-      <Link to="/sporcular" className="inline-flex items-center h-11 -ml-1 px-1 text-[15px] text-(--color-text-secondary)">‹ Sporcularım</Link>
+      <Link to="/sporcular" className="inline-flex items-center h-11 -ml-1 px-1 text-[15px] text-(--color-text-secondary)">‹ Ekibim</Link>
       <div className="flex items-center gap-3">
         <Avatar name={athlete.name} size={52} alert={Boolean(needsAttention(summary))} />
         <h1 className="min-w-0 a-display text-[clamp(38px,12vw,72px)] tracking-[-0.01em] leading-[0.95]">{athlete.name}</h1>
       </div>
       <p className="mt-2 text-[15px] text-(--color-text-secondary)">
-        Son antrenman: {agoText(summary.daysSinceLast)} · {sinceText(athlete.joinedAt)} listende
+        Son antrenman: {agoText(summary.daysSinceLast)} · {sinceText(athlete.joinedAt)} ekibinde
       </p>
 
       {/* The coach's own note: a goal, an injury to watch. Never shown to the athlete. */}
@@ -185,12 +185,12 @@ export function AthleteDetail() {
           ))}
         </div>
         <button onClick={() => setRemoving(true)} className="mt-5 h-11 px-4 rounded-full text-[15px] font-medium" style={{ color: 'var(--lb-drop)', boxShadow: 'inset 0 0 0 1px var(--lb-drop)' }}>
-          Listeden çıkar
+          Ekipten çıkar
         </button>
       </section>
 
       <Modal isOpen={removing} onClose={() => setRemoving(false)} confirmVariant="danger" confirmText="Çıkar"
-        title={`${athlete.name} listeden çıkarılsın mı?`}
+        title={`${athlete.name} ekipten çıkarılsın mı?`}
         message={`Artık ${possessive(firstName)} antrenmanlarını göremezsin. Kayıtları silinmez, kendi uygulamasında durur. Yeniden görmek için yeni bir davet gerekir.`}
         onConfirm={() => { coach.removeAthlete(athlete.id); setRemoving(false); navigate('/sporcular', { replace: true }); }} />
     </div>

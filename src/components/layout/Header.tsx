@@ -34,7 +34,7 @@ export function Header() {
     { to: '/programs', label: 'Programlar' },
     { to: '/history', label: 'Geçmiş' },
     { to: '/charts', label: 'Grafikler' },
-    ...(isCoach ? [{ to: '/sporcular', label: 'Sporcular' }] : []),
+    ...(isCoach ? [{ to: '/sporcular', label: 'Ekibim' }] : []),
     { to: '/export', label: 'Yedek' },
   ];
 
@@ -52,7 +52,7 @@ export function Header() {
                   className={`px-3 py-2 rounded-lg text-[15px] ${location.pathname === link.to || (link.to === '/sporcular' && location.pathname.startsWith('/sporcular')) ? 'font-semibold' : 'text-(--color-text-secondary)'}`}>
                   {link.label}
                   {link.to === '/sporcular' && attentionCount > 0 && (
-                    <span aria-label={`, ${attentionCount} sporcu seni bekliyor`}
+                    <span aria-label={`, ${attentionCount} kişi seni bekliyor`}
                       className="ml-1.5 inline-block min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-semibold leading-[18px] text-center align-[2px] bg-(--lb-drop) text-(--color-bg-primary)">
                       {attentionCount}
                     </span>
@@ -83,7 +83,7 @@ export function Header() {
                   <Icon name={dark ? 'sun' : 'moon'} className="w-5 h-5 text-(--color-text-secondary)" />
                 </button>
                 <Link to="/antrenorum" onClick={() => setSettingsOpen(false)} className="px-3 min-h-12 rounded-xl text-[16px] flex items-center">Antrenörüm</Link>
-                {/* On the phone the coach's tab bar has Sporcular where the Sheet was. */}
+                {/* On the phone the coach's tab bar has Ekibim where the Sheet was. */}
                 {isCoach && isMobile && (
                   <SheetLink className="px-3 min-h-12 rounded-xl text-left text-[16px]">Google Sheet</SheetLink>
                 )}
