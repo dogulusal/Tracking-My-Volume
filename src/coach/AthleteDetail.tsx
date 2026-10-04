@@ -1,21 +1,26 @@
 import { useContext, useLayoutEffect, useState } from 'react';
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AppContext } from '@/context/AppContext';
 import { History } from '@/pages/History';
 import { Charts } from '@/pages/Charts';
 import { Modal } from '@/components/shared/Modal';
+import { WorkoutDetailModal } from '@/components/shared/WorkoutDetailModal';
 import { useWeekOverview, type WeekDay } from '@/hooks/useWeekOverview';
 import { formatSet } from '@/utils/formatters';
 import { weekName } from '@/utils/phases';
-import { STALL_WEEKS } from '@/utils/progression';
+import { STALL_WEEKS, bestSet } from '@/utils/progression';
+import type { ExerciseLog, WeekLog } from '@/types';
 import { AthleteScope } from './AthleteScope';
+import { AthleteProgram } from './AthleteProgram';
+import { commentsOn, useComments } from './comments';
 import { Avatar } from './parts';
 import { agoText, needsAttention } from './summary';
 import { possessive, sinceText, useCoach } from './store';
 
 const nf = new Intl.NumberFormat('tr-TR');
 const dayMonth = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long' });
-type Tab = 'week' | 'history' | 'charts';
+type Tab = 'week' | 'program' | 'history' | 'charts';
+const TABS: [Tab, string][] = [['week', 'Bu hafta'], ['program', 'Program'], ['history', 'Geçmiş'], ['charts', 'Grafikler']];
 
 // The athlete's day tiles as on their home page, without the link into the workout.
 function DayTile({ day }: { day: WeekDay }) {
@@ -35,6 +40,55 @@ function DayTile({ day }: { day: WeekDay }) {
   );
 }
 
+/**
+ * The athlete's latest workout, one line per movement: the quickest place for
+ * the coach to answer it. A tap opens the sets and the comment box.
+ */
+function LastWorkout({ log, programName, weekText }: { log: WeekLog; programName: string; weekText: string }) {
+  const comments = useComments();
+  const [open, setOpen] = useState<ExerciseLog | null>(null);
+  const trained = log.exercises.filter(exercise => exercise.sets.length > 0);
+  return (
+    <section className="mt-7">
+      <h2 className="a-display text-[28px]">Son antrenmanı</h2>
+      <p className="mt-1 text-[13px] text-(--color-text-secondary)">
+        {dayMonth.format(new Date(`${log.date.slice(0, 10)}T12:00:00`))} · {programName} · {weekText} · harekete dokun, yorum yaz
+      </p>
+      <ul className="mt-2">
+        {trained.map(exercise => {
+          const best = bestSet(exercise.sets);
+          const count = commentsOn(comments.list, log.programId, log.weekNumber, exercise.exerciseId).length;
+          return (
+            <li key={exercise.exerciseId}>
+              <button onClick={() => setOpen(exercise)} className="lb-press w-full flex items-baseline gap-3 py-2.5 border-b border-(--color-bg-card) text-left">
+                <span className="flex-1 min-w-0 text-[16px] truncate">{exercise.exerciseName}</span>
+                {count > 0 && <span className="shrink-0 text-[12px] text-(--color-text-secondary)">yorumlandı</span>}
+                <span className="lb-figure shrink-0 text-[18px] font-semibold">{best ? formatSet(best) : '—'}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <WorkoutDetailModal
+        isOpen={open !== null}
+        onClose={() => setOpen(null)}
+        exerciseName={open?.exerciseName ?? ''}
+        exerciseId={open?.exerciseId ?? ''}
+        weekNumber={0}
+        title={open ? `${open.exerciseName} · ${weekText}` : undefined}
+        currentSets={open?.sets ?? []}
+        exerciseNote={open?.note}
+        weekNotes={log.notes}
+        isEmpty={false}
+        coachComments={open ? commentsOn(comments.list, log.programId, log.weekNumber, open.exerciseId) : []}
+        onComment={open && comments.add ? text => comments.add!({
+          programId: log.programId, weekNumber: log.weekNumber, exerciseId: open.exerciseId, exerciseName: open.exerciseName, text,
+        }) : undefined}
+      />
+    </section>
+  );
+}
+
 /** What the athlete's home page says about this week, plus their latest notes. */
 function AthleteWeek({ firstName }: { firstName: string }) {
   const ctx = useContext(AppContext);
@@ -44,6 +98,9 @@ function AthleteWeek({ firstName }: { firstName: string }) {
   }
   const phases = ctx.state.phases;
   const programName = (id: string) => programs.find(program => program.id === id)?.name ?? '';
+  const lastLog = weekLogs
+    .filter(log => !log.isHoliday && log.exercises.some(exercise => exercise.sets.length > 0))
+    .sort((a, b) => b.weekNumber - a.weekNumber || b.date.localeCompare(a.date))[0];
   // Notes the athlete left, newest first: on the workout and on single movements.
   const notes = [...weekLogs]
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -61,6 +118,8 @@ function AthleteWeek({ firstName }: { firstName: string }) {
           {programStatuses.map(day => <DayTile key={day.program.id} day={day} />)}
         </div>
         <p className="mt-1.5 text-[12px] text-(--color-text-secondary)">Yeşil rakam: geçen haftayı geçtiği hareket sayısı</p>
+
+        {lastLog && <LastWorkout log={lastLog} programName={programName(lastLog.programId)} weekText={weekName(phases, lastLog.weekNumber, currentWeek)} />}
 
         <section className="mt-7">
           <h2 className="a-display text-[28px]">{possessive(firstName)} notları</h2>
@@ -110,12 +169,17 @@ function AthleteWeek({ firstName }: { firstName: string }) {
   );
 }
 
-/** One athlete, read-only: their week, their History grid and their charts. */
+/**
+ * One athlete: their week, program, History grid and charts. Records are
+ * read-only; the coach answers with comments and program changes.
+ */
 export function AthleteDetail() {
   const { id = '' } = useParams();
   const coach = useCoach();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>('week');
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = TABS.find(([key]) => key === params.get('tab'))?.[0] ?? 'week';
+  const setTab = (next: Tab) => setParams(next === 'week' ? {} : { tab: next }, { replace: true });
   const [removing, setRemoving] = useState(false);
   const [noteDraft, setNoteDraft] = useState<string | null>(null);
   // Opened from a long list: start at the athlete's name, not where the list was.
@@ -127,7 +191,6 @@ export function AthleteDetail() {
 
   const note = coach.notes[athlete.id] ?? '';
   const firstName = athlete.name.split(' ')[0];
-  const tabs: [Tab, string][] = [['week', 'Bu hafta'], ['history', 'Geçmiş'], ['charts', 'Grafikler']];
   const chip = (active: boolean) =>
     `shrink-0 h-11 px-4 rounded-full text-[15px] whitespace-nowrap ${active ? 'bg-(--color-text-primary) text-(--color-bg-primary) font-semibold' : 'bg-(--color-bg-card) text-(--color-text-secondary)'}`;
 
@@ -164,14 +227,19 @@ export function AthleteDetail() {
       )}
 
       <div className="mt-4 -mx-5 px-5 flex gap-1.5 overflow-x-auto scrollbar-hide" role="tablist">
-        {tabs.map(([key, label]) => (
+        {TABS.map(([key, label]) => (
           <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)} className={chip(tab === key)}>{label}</button>
         ))}
       </div>
-      <p className="mt-2 text-[12px] text-(--color-text-secondary)">Salt okunur: {possessive(firstName)} ekranlarını görüyorsun, kayıtlarını değiştiremezsin.</p>
+      {tab !== 'program' && (
+        <p className="mt-2 text-[12px] text-(--color-text-secondary)">
+          {possessive(firstName)} ekranları; kayıtlarını değiştiremezsin.{tab !== 'charts' && ' Bir harekete dokunup yorum yazabilirsin.'}
+        </p>
+      )}
 
-      <AthleteScope state={state}>
+      <AthleteScope state={state} comments={{ list: coach.comments[athlete.id] ?? [], add: comment => coach.addComment(athlete.id, comment) }}>
         {tab === 'week' && <AthleteWeek firstName={firstName} />}
+        {tab === 'program' && <AthleteProgram athleteId={athlete.id} firstName={firstName} />}
         {tab === 'history' && <div className="mt-3 -mx-1"><History embedded /></div>}
         {tab === 'charts' && <div className="mt-3"><Charts embedded /></div>}
       </AthleteScope>

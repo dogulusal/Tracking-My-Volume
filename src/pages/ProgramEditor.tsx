@@ -17,14 +17,20 @@ function generateId(name: string): string {
     .replace(/^_|_$/g, '') + '_' + Date.now().toString(36);
 }
 
-export function ProgramEditor() {
-  const { id } = useParams();
+/**
+ * `programId` and `exit` let another page reuse the editor: a coach editing
+ * an athlete's day comes back to the athlete's page, not to Programlar.
+ */
+export function ProgramEditor({ programId, exit }: { programId?: string | null; exit?: { to: string; label: string } } = {}) {
+  const routeParams = useParams();
+  const id = programId === undefined ? routeParams.id : programId ?? undefined;
   const navigate = useNavigate();
   const ctx = useContext(AppContext)!;
   const [params] = useSearchParams();
   const requestedWeek = Number(params.get('week'));
   const week = params.has('week') && Number.isInteger(requestedWeek) && requestedWeek >= 0 ? requestedWeek : ctx.state.currentWeek;
   const phase = phaseAt(ctx.state, week);
+  const exitTo = exit?.to ?? `/programs?week=${week}`;
   const { programs, addProgram, updateProgram } = usePrograms(week);
 
   const existingProgram = id ? programs.find(p => p.id === id) : undefined;
@@ -96,7 +102,7 @@ export function ProgramEditor() {
     } else {
       addProgram({ name, order, exercises: finalExercises });
     }
-    navigate(`/programs?week=${week}`);
+    navigate(exitTo);
   };
 
   // Names to suggest while typing: the person's own movements, then common ones.
@@ -108,9 +114,9 @@ export function ProgramEditor() {
 
   return (
     <div className="max-w-2xl mx-auto px-5 pt-2 pb-8">
-      <button onClick={() => navigate(`/programs?week=${week}`)} className="-ml-1 h-11 flex items-center gap-1 text-[16px] text-(--color-text-secondary)">
+      <button onClick={() => navigate(exitTo)} className="-ml-1 h-11 flex items-center gap-1 text-[16px] text-(--color-text-secondary)">
         <svg aria-hidden="true" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
-        Programlar
+        {exit?.label ?? 'Programlar'}
       </button>
       <h1 className="a-display text-[44px] mt-1">{existingProgram ? 'Günü düzenle' : 'Yeni gün'}</h1>
       <p className="mt-1 text-[13px] leading-snug text-(--color-text-secondary)">{onlyFirstPhase(ctx.state.phases, ctx.state.currentWeek)
@@ -172,7 +178,7 @@ export function ProgramEditor() {
       <div className="mt-8 flex flex-col gap-2">
         <button onClick={handleSave} disabled={!name.trim()}
           className="h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold disabled:opacity-40">Kaydet</button>
-        <button onClick={() => navigate(`/programs?week=${week}`)} className="h-12 rounded-2xl text-[16px] text-(--color-text-secondary)">Vazgeç</button>
+        <button onClick={() => navigate(exitTo)} className="h-12 rounded-2xl text-[16px] text-(--color-text-secondary)">Vazgeç</button>
       </div>
     </div>
   );

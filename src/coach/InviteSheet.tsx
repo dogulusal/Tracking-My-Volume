@@ -33,7 +33,7 @@ export function InviteSheet({ isOpen, onClose }: { isOpen: boolean; onClose: () 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title="Ekibine davet et">
       <p className="text-[15px] leading-snug text-(--color-text-secondary)">
-        Linki açan kişi onay verirse antrenmanlarını görürsün. Kayıtlarını değiştiremezsin; bağı o da sen de istediğin zaman koparabilirsiniz.
+        Linki açan kişi onay verirse antrenmanlarını görürsün, programını düzenleyebilir ve yorum yazabilirsin. Antrenman kayıtlarını değiştiremezsin; bağı o da sen de istediğin zaman koparabilirsiniz.
       </p>
 
       <p className="mt-5 text-[13px] text-(--color-text-secondary)">Bu linkle katılanlar</p>

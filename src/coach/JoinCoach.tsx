@@ -8,6 +8,10 @@ const SEES = [
   'Antrenman ve hareket notların',
   'Haftalık özetin: kaç gün gittin, nerede ilerledin',
 ];
+const CAN_DO = [
+  'Programını düzenlemek: her değişikliği Bugün\'de görürsün, geçmiş haftaların kayıtları değişmez',
+  'Antrenmanlarına yorum yazmak: o hareketi yaparken görürsün',
+];
 const DOES_NOT_SEE = ['E-posta adresin ve hesap bilgilerin', 'Google Sheet dosyan'];
 
 /**
@@ -58,6 +62,16 @@ export function JoinCoach() {
         </ul>
       </section>
       <section className="mt-6">
+        <h2 className="text-[15px] font-semibold">Yapabilir</h2>
+        <ul className="mt-2 grid gap-2.5">
+          {CAN_DO.map(item => (
+            <li key={item} className="flex gap-3 text-[16px] leading-snug">
+              <Icon name="check" className="mt-0.5 w-5 h-5 shrink-0" />{item}
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section className="mt-6">
         <h2 className="text-[15px] font-semibold">Göremez</h2>
         <ul className="mt-2 grid gap-2.5">
           {DOES_NOT_SEE.map(item => (
@@ -68,7 +82,7 @@ export function JoinCoach() {
         </ul>
       </section>
       <p className="mt-6 text-[15px] leading-snug text-(--color-text-secondary)">
-        Hiçbir kaydını değiştiremez. Bağı istediğin zaman Ayarlar → Antrenörüm'den kaldırırsın.
+        Antrenman kayıtlarını değiştiremez. Bağı istediğin zaman Ayarlar → Antrenörüm'den kaldırırsın.
       </p>
 
       <div className="mt-auto pt-6 grid gap-1">

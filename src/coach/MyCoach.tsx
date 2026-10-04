@@ -3,6 +3,8 @@ import { Link, useLocation } from 'react-router-dom';
 import { Modal } from '@/components/shared/Modal';
 import { sinceText, useCoach } from './store';
 
+const when = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long' });
+
 /** The athlete side: who can see my workouts, and the way to stop it. */
 export function MyCoach() {
   const coach = useCoach();
@@ -29,7 +31,7 @@ export function MyCoach() {
             <li key={item.name} className="a-card px-4 py-4">
               <p className="text-[19px] font-semibold">{item.name}</p>
               <p className="mt-1 text-[15px] leading-snug text-(--color-text-secondary)">
-                {sinceText(item.since)} antrenmanlarını görüyor. Kayıtlarını değiştiremez.
+                {sinceText(item.since)} antrenmanlarını görüyor, programını düzenleyebiliyor. Antrenman kayıtlarını değiştiremez.
               </p>
               <button onClick={() => setLeaving(item.name)} className="mt-3 h-11 px-4 rounded-full bg-(--color-bg-input) text-[15px] font-medium">
                 Bağı kaldır
@@ -37,6 +39,24 @@ export function MyCoach() {
             </li>
           ))}
         </ul>
+      )}
+
+      {(coach.inbox.comments.length > 0 || coach.inbox.updates.length > 0) && (
+        <section className="mt-8">
+          <h2 className="a-display text-[30px]">Antrenöründen</h2>
+          <ul className="mt-1">
+            {[
+              ...coach.inbox.comments.map(comment => ({ key: comment.id, at: comment.at, head: `${comment.author} · ${comment.exerciseName} yorumu`, body: [comment.text] })),
+              ...coach.inbox.updates.map(update => ({ key: update.id, at: update.at, head: `${update.coach} · program güncellemesi`, body: update.lines })),
+            ].sort((a, b) => b.at.localeCompare(a.at)).map(item => (
+              <li key={item.key} className="py-3 border-b border-(--color-bg-card) last:border-b-0">
+                <p className="text-[13px] text-(--color-text-secondary)">{when.format(new Date(item.at))} · {item.head}</p>
+                <ul className="mt-0.5 text-[16px] leading-snug">{item.body.map(line => <li key={line}>{line}</li>)}</ul>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[13px] text-(--color-text-secondary)">Yorumlar o hareketi yaparken antrenman ekranında ve Geçmiş'te de görünür.</p>
+        </section>
       )}
 
       <section className="mt-12">

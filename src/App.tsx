@@ -14,7 +14,9 @@ import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { useCloudSync } from '@/hooks/useCloudSync';
 import { LoginPromptModal } from '@/components/shared/LoginPromptModal';
 import { SheetRenewalNotice, SheetSetupModal } from '@/components/shared/SheetSetupModal';
-import { CoachProvider } from '@/coach/store';
+import { CoachProvider, useCoach } from '@/coach/store';
+import { CommentsContext } from '@/coach/comments';
+import { AthleteDayEditor } from '@/coach/AthleteProgram';
 import { Athletes } from '@/coach/Athletes';
 import { AthleteDetail } from '@/coach/AthleteDetail';
 import { JoinCoach } from '@/coach/JoinCoach';
@@ -34,6 +36,9 @@ function AppContent() {
   const { configured, syncStatus, userId, hydrated, authError, refreshFromCloud, signOut } = useCloudSync();
   // The workout page is full screen: its own bar, no tabs.
   const { pathname } = useLocation();
+  // The person's own screens show what their coaches wrote; an athlete's
+  // screens inside the coach's pages get the coach's side instead.
+  const { inbox } = useCoach();
   // The invite answer is full screen too: one question, nothing else to tap.
   const inWorkout = pathname.startsWith('/workout/') || pathname === '/baslangic' || pathname.startsWith('/katil/');
 
@@ -67,6 +72,7 @@ function AppContent() {
       {/* No tab bar on the workout page, so no room kept for it either. */}
       <main className={inWorkout ? 'pb-[env(safe-area-inset-bottom)]!' : undefined}>
         {configured && <SheetRenewalNotice />}
+        <CommentsContext.Provider value={{ list: inbox.comments }}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/programs" element={<ProgramSelect />} />
@@ -80,8 +86,11 @@ function AppContent() {
           <Route path="/sporcular" element={<Athletes />} />
           <Route path="/sporcular/:id" element={<AthleteDetail />} />
           <Route path="/katil/:code" element={<JoinCoach />} />
+          <Route path="/sporcular/:id/gun" element={<AthleteDayEditor />} />
+          <Route path="/sporcular/:id/gun/:programId" element={<AthleteDayEditor />} />
           <Route path="/antrenorum" element={<MyCoach />} />
         </Routes>
+        </CommentsContext.Provider>
       </main>
       {!inWorkout && <BottomNav />}
     </div>

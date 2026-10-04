@@ -5,6 +5,7 @@ import { Modal } from '@/components/shared/Modal';
 import { formatSet } from '@/utils/formatters';
 import { STALL_WEEKS } from '@/utils/progression';
 import { staleWeekAge } from '@/utils/weekAdvance';
+import { useCoach } from '@/coach/store';
 
 const nf = new Intl.NumberFormat('tr-TR');
 const weekdayFormat = new Intl.DateTimeFormat('tr-TR', { weekday: 'long' });
@@ -39,6 +40,8 @@ function DayTile({ day, isNext, week }: { day: WeekDay; isNext: boolean; week: n
 export function Dashboard() {
   const [confirmNewWeek, setConfirmNewWeek] = useState(false);
   const [showAllStalled, setShowAllStalled] = useState(false);
+  const coach = useCoach();
+  const coachUpdate = coach.inbox.updates.find(update => !update.seen);
   const {
     activePlanPrograms, programs, weekLogs, currentWeek, incrementWeek,
     weekLabel, weekStats, streak, programStatuses, stalled, nextWorkout, nextTargets,
@@ -81,6 +84,19 @@ export function Dashboard() {
             ? `${nextTargets.length} hareket · ${nextWorkout.program.exercises.filter(e => e.isActive).reduce((sum, e) => sum + e.defaultSets, 0)} set`
             : 'İlk antrenman: hareketlerini yaparken ekleyeceksin'}
         </p>
+      )}
+
+      {/* Already applied when it arrived; shown once so nothing changes unannounced. */}
+      {coachUpdate && (
+        <section className="mt-5 a-card px-4 py-3.5" style={{ boxShadow: 'inset 0 0 0 1.5px var(--color-text-primary)' }}>
+          <p className="text-[18px] font-semibold">{coachUpdate.coach} programını güncelledi</p>
+          <ul className="mt-1.5 grid gap-1 text-[15px] leading-snug">{coachUpdate.lines.map(line => <li key={line}>{line}</li>)}</ul>
+          <p className="mt-2 text-[13px] text-(--color-text-secondary)">Bu haftadan geçerli; önceki haftaların kayıtları değişmedi.</p>
+          <div className="mt-3 flex gap-2">
+            <button onClick={() => coach.markSeen(coachUpdate.id)} className="flex-1 h-12 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[16px] font-semibold">Tamam</button>
+            <Link to="/programs" onClick={() => coach.markSeen(coachUpdate.id)} className="h-12 px-4 rounded-2xl bg-(--color-bg-input) text-[16px] font-medium flex items-center">Programa bak</Link>
+          </div>
+        </section>
       )}
 
       {staleWeek !== null && !weekDone && !staleDismissed && (

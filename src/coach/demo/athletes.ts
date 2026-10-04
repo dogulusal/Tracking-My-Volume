@@ -127,7 +127,7 @@ function buildState(profile: Profile, today: Date): AppState {
   const programs: Program[] = profile.days.map((day, dayIndex) => ({
     id: `${profile.id}-d${dayIndex}`,
     name: day.name,
-    order: dayIndex,
+    order: dayIndex + 1,
     createdAt: created,
     updatedAt: created,
     exercises: day.moves.map(([name, weight], moveIndex) => ({

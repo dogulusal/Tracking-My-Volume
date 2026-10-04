@@ -1,4 +1,6 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useContext, useLayoutEffect, useRef, useState } from 'react';
+import { AppContext } from '@/context/AppContext';
+import { makeSampleState } from './ownSample';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCoach } from '@/coach/store';
 
@@ -11,6 +13,7 @@ export const DEMO = import.meta.env.VITE_DEMO === 'antrenor';
  */
 export function DemoBar() {
   const coach = useCoach();
+  const app = useContext(AppContext);
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [resetting, setResetting] = useState(false);
@@ -35,7 +38,13 @@ export function DemoBar() {
         {resetting ? (
           <div className="flex flex-wrap items-center gap-x-4">
             <span>Demo baştan başlasın mı?</span>
-            <button className={link} onClick={() => { coach.reset(); setResetting(false); navigate('/sporcular'); }}>Evet</button>
+            <button className={link} onClick={() => {
+              // The coach's update changed the viewer's own sample program too.
+              coach.reset();
+              app?.dispatch({ type: 'IMPORT_DATA', payload: makeSampleState() });
+              setResetting(false);
+              navigate('/sporcular');
+            }}>Evet</button>
             <button className={link} onClick={() => setResetting(false)}>Hayır</button>
           </div>
         ) : (
