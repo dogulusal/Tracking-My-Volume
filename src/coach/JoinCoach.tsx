@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '@/components/shared/Icon';
-import { useCoach, type InviteInfo } from './store';
+import { DEMO, useCoach, type InviteInfo } from './store';
 
 const SEES = [
   'Programların ve antrenman günlerin',
@@ -35,7 +35,8 @@ export function JoinCoach() {
     return () => { current = false; };
   }, [code, lookupInvite]);
   const already = invite && coach.coaches.some(item => item.id === invite.coachId);
-  const own = invite && coach.me?.id === invite.coachId;
+  // In the demo the viewer plays both sides, so the coach's link opens as the athlete's.
+  const own = !DEMO && invite && coach.me?.id === invite.coachId;
 
   const shell = 'max-w-xl mx-auto min-h-[calc(100dvh-var(--demo-bar,0px))] flex flex-col px-5 pt-[calc(env(safe-area-inset-top)+24px)] pb-[calc(env(safe-area-inset-bottom)+20px)]';
 
