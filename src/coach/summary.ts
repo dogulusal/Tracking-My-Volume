@@ -91,10 +91,22 @@ export function summarizeAthlete(state: AppState, today: Date): AthleteSummary {
 /** A full week without training; below that, a gap is an ordinary rest. */
 export const QUIET_DAYS = 7;
 
-/** Why the athlete belongs at the top of the coach's list, or null. */
+/**
+ * Where the athlete stands, as the coach's list groups them: never trained,
+ * on a break (a full week without training), or keeping on.
+ */
+export type Standing = 'not-started' | 'on-break' | 'training';
+
+export function standingOf(summary: AthleteSummary): Standing {
+  if (summary.daysSinceLast === null) return 'not-started';
+  return summary.daysSinceLast >= QUIET_DAYS ? 'on-break' : 'training';
+}
+
+/** Why the athlete is not among those keeping on, or null. */
 export function needsAttention(summary: AthleteSummary): string | null {
-  if (summary.daysSinceLast === null) return 'Henüz antrenman kaydı yok';
-  if (summary.daysSinceLast >= QUIET_DAYS) return `${summary.daysSinceLast} gündür antrenman yok`;
+  const standing = standingOf(summary);
+  if (standing === 'not-started') return 'Henüz antrenman kaydı yok';
+  if (standing === 'on-break') return `${summary.daysSinceLast} gündür antrenman yok`;
   return null;
 }
 

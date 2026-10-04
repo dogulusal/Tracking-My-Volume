@@ -19,7 +19,7 @@ function loadTS(relativePath) {
   return module.exports;
 }
 
-const { summarizeAthlete, needsAttention, agoText } = loadTS('src/coach/summary.ts');
+const { summarizeAthlete, needsAttention, standingOf, agoText } = loadTS('src/coach/summary.ts');
 
 const today = new Date('2026-10-10T09:00:00');
 const now = '2026-09-01T00:00:00.000Z';
@@ -73,6 +73,9 @@ test('a holiday is not a workout, and a quiet week asks for attention', () => {
   assert.equal(summary.weekDone, 0);
   assert.deepEqual(summary.days, ['open', 'holiday']);
   assert.equal(needsAttention(summary), '9 gündür antrenman yok');
+  assert.equal(standingOf(summary), 'on-break');
+  // Six days is an ordinary rest.
+  assert.equal(standingOf({ ...summary, daysSinceLast: 6 }), 'training');
 });
 
 test('someone who joined and has not trained yet', () => {
@@ -80,6 +83,7 @@ test('someone who joined and has not trained yet', () => {
   assert.equal(summary.lastWorkout, null);
   assert.equal(summary.workouts, 0);
   assert.equal(needsAttention(summary), 'Henüz antrenman kaydı yok');
+  assert.equal(standingOf(summary), 'not-started');
   assert.equal(agoText(summary.daysSinceLast), 'kayıt yok');
 });
 
