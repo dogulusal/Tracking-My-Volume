@@ -1,4 +1,4 @@
-import { useContext, useState } from 'react';
+import { useContext, useLayoutEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { AppContext } from '@/context/AppContext';
 import { History } from '@/pages/History';
@@ -9,7 +9,8 @@ import { formatSet } from '@/utils/formatters';
 import { weekName } from '@/utils/phases';
 import { STALL_WEEKS } from '@/utils/progression';
 import { AthleteScope } from './AthleteScope';
-import { agoText, summarizeAthlete } from './summary';
+import { Avatar } from './parts';
+import { agoText, needsAttention } from './summary';
 import { possessive, sinceText, useCoach } from './store';
 
 const nf = new Intl.NumberFormat('tr-TR');
@@ -62,7 +63,7 @@ function AthleteWeek({ firstName }: { firstName: string }) {
         <p className="mt-1.5 text-[12px] text-(--color-text-secondary)">Yeşil rakam: geçen haftayı geçtiği hareket sayısı</p>
 
         <section className="mt-7">
-          <h2 className="a-display text-[28px]">Notlar</h2>
+          <h2 className="a-display text-[28px]">{possessive(firstName)} notları</h2>
           {notes.length === 0 ? <p className="mt-1 text-[15px] text-(--color-text-secondary)">Henüz not yok.</p> : (
             <ul className="mt-1">
               {notes.map(note => (
@@ -116,11 +117,15 @@ export function AthleteDetail() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('week');
   const [removing, setRemoving] = useState(false);
+  const [noteDraft, setNoteDraft] = useState<string | null>(null);
+  // Opened from a long list: start at the athlete's name, not where the list was.
+  useLayoutEffect(() => { window.scrollTo(0, 0); }, [id]);
   const athlete = coach.athletes.find(item => item.id === id);
   const state = athlete ? coach.athleteState(athlete.id) : null;
-  if (!athlete || !state) return <Navigate to="/sporcular" replace />;
+  const summary = athlete ? coach.summaries[athlete.id] : undefined;
+  if (!athlete || !state || !summary) return <Navigate to="/sporcular" replace />;
 
-  const summary = summarizeAthlete(state, new Date());
+  const note = coach.notes[athlete.id] ?? '';
   const firstName = athlete.name.split(' ')[0];
   const tabs: [Tab, string][] = [['week', 'Bu hafta'], ['history', 'Geçmiş'], ['charts', 'Grafikler']];
   const chip = (active: boolean) =>
@@ -129,10 +134,34 @@ export function AthleteDetail() {
   return (
     <div className="max-w-xl lg:max-w-5xl mx-auto px-5 pt-1 pb-8">
       <Link to="/sporcular" className="inline-flex items-center h-11 -ml-1 px-1 text-[15px] text-(--color-text-secondary)">‹ Sporcularım</Link>
-      <h1 className="a-display text-[clamp(40px,13vw,72px)] tracking-[-0.01em] leading-[0.95]">{athlete.name}</h1>
+      <div className="flex items-center gap-3">
+        <Avatar name={athlete.name} size={52} alert={Boolean(needsAttention(summary))} />
+        <h1 className="min-w-0 a-display text-[clamp(38px,12vw,72px)] tracking-[-0.01em] leading-[0.95]">{athlete.name}</h1>
+      </div>
       <p className="mt-2 text-[15px] text-(--color-text-secondary)">
         Son antrenman: {agoText(summary.daysSinceLast)} · {sinceText(athlete.joinedAt)} listende
       </p>
+
+      {/* The coach's own note: a goal, an injury to watch. Never shown to the athlete. */}
+      {noteDraft !== null ? (
+        <form className="mt-3" onSubmit={event => { event.preventDefault(); coach.setNote(athlete.id, noteDraft); setNoteDraft(null); }}>
+          <label htmlFor="coach-note" className="text-[13px] text-(--color-text-secondary)">Notun · yalnız sen görürsün</label>
+          <textarea id="coach-note" autoFocus rows={3} value={noteDraft} onChange={event => setNoteDraft(event.target.value)}
+            placeholder="Ör. hedef: bench 80 kg · omzuna dikkat"
+            className="mt-1 w-full px-3 py-2 rounded-2xl bg-(--color-bg-card) text-[16px] leading-snug outline-none resize-y" />
+          <div className="mt-1 flex gap-2">
+            <button type="submit" className="h-11 px-5 rounded-full bg-(--color-text-primary) text-(--color-bg-primary) text-[15px] font-semibold">Kaydet</button>
+            <button type="button" onClick={() => setNoteDraft(null)} className="h-11 px-4 rounded-full text-[15px] text-(--color-text-secondary)">Vazgeç</button>
+          </div>
+        </form>
+      ) : note ? (
+        <button onClick={() => setNoteDraft(note)} className="mt-3 w-full text-left a-card px-4 py-3">
+          <span className="block text-[13px] text-(--color-text-secondary)">Notun · yalnız sen görürsün · düzenle</span>
+          <span className="block mt-0.5 text-[16px] leading-snug">{note}</span>
+        </button>
+      ) : (
+        <button onClick={() => setNoteDraft('')} className="mt-3 h-11 px-4 rounded-full bg-(--color-bg-card) text-[15px]">+ Not ekle</button>
+      )}
 
       <div className="mt-4 -mx-5 px-5 flex gap-1.5 overflow-x-auto scrollbar-hide" role="tablist">
         {tabs.map(([key, label]) => (

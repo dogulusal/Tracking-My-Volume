@@ -16,7 +16,7 @@ export function BottomNav() {
   const location = useLocation();
   const isMobileDevice = useIsMobileDevice();
   // A coach's athletes take the Sheet's place; the Sheet moves to the settings menu.
-  const { isCoach } = useCoach();
+  const { isCoach, attentionCount } = useCoach();
   const athletesActive = location.pathname.startsWith('/sporcular');
 
   if (!isMobileDevice) return null;
@@ -37,7 +37,15 @@ export function BottomNav() {
         {isCoach ? (
           <Link to="/sporcular" aria-current={athletesActive ? 'page' : undefined}
             className={`flex flex-col items-center justify-center gap-1 whitespace-nowrap ${athletesActive ? 'text-(--color-text-primary)' : 'text-(--color-text-secondary)'}`}>
-            <Icon name="people" className="w-[22px] h-[22px]" />
+            <span className="relative">
+              <Icon name="people" className="w-[22px] h-[22px]" />
+              {attentionCount > 0 && (
+                <span aria-label={`${attentionCount} sporcu seni bekliyor`}
+                  className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-semibold leading-[18px] text-center bg-(--lb-drop) text-(--color-bg-primary)">
+                  {attentionCount}
+                </span>
+              )}
+            </span>
             <span className={`text-[12px] leading-none ${athletesActive ? 'font-semibold' : ''}`}>Sporcular</span>
           </Link>
         ) : (

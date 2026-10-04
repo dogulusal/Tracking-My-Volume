@@ -22,7 +22,7 @@ export function Header() {
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
   const { configured, userEmail, syncStatus } = useCloudSync();
-  const { isCoach } = useCoach();
+  const { isCoach, attentionCount } = useCoach();
 
   const handleToggle = () => {
     toggleTheme();
@@ -51,6 +51,12 @@ export function Header() {
                 <Link key={link.to} to={link.to}
                   className={`px-3 py-2 rounded-lg text-[15px] ${location.pathname === link.to || (link.to === '/sporcular' && location.pathname.startsWith('/sporcular')) ? 'font-semibold' : 'text-(--color-text-secondary)'}`}>
                   {link.label}
+                  {link.to === '/sporcular' && attentionCount > 0 && (
+                    <span aria-label={`, ${attentionCount} sporcu seni bekliyor`}
+                      className="ml-1.5 inline-block min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-semibold leading-[18px] text-center align-[2px] bg-(--lb-drop) text-(--color-bg-primary)">
+                      {attentionCount}
+                    </span>
+                  )}
                 </Link>
               ))}
               <SheetLink className="px-3 py-2 rounded-lg text-[15px] text-(--color-text-secondary)">Sheet</SheetLink>
