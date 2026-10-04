@@ -217,13 +217,16 @@ export function AthleteDetail() {
             <button type="button" onClick={() => setNoteDraft(null)} className="h-11 px-4 rounded-full text-[15px] text-(--color-text-secondary)">Vazgeç</button>
           </div>
         </form>
-      ) : note ? (
-        <button onClick={() => setNoteDraft(note)} className="mt-3 w-full text-left a-card px-4 py-3">
-          <span className="block text-[13px] text-(--color-text-secondary)">Notun · yalnız sen görürsün · düzenle</span>
-          <span className="block mt-0.5 text-[16px] leading-snug">{note}</span>
-        </button>
       ) : (
-        <button onClick={() => setNoteDraft('')} className="mt-3 h-11 px-4 rounded-full bg-(--color-bg-card) text-[15px]">+ Not ekle</button>
+        <button onClick={() => setNoteDraft(note)} className="mt-3 w-full text-left a-card px-4 py-3">
+          <span className="flex items-baseline justify-between gap-3">
+            <span className="text-[13px] font-semibold">Notun</span>
+            <span className="text-[13px] text-(--color-text-secondary)">yalnız sen görürsün · {note ? 'düzenle' : 'yaz'}</span>
+          </span>
+          {note
+            ? <span className="block mt-1 text-[16px] leading-snug">{note}</span>
+            : <span className="block mt-1 text-[15px] leading-snug text-(--color-text-secondary)">Hedefi, sakatlığı, dikkat edeceğin şeyi yaz. Listede adının altında da görünür.</span>}
+        </button>
       )}
 
       <div className="mt-4 -mx-5 px-5 flex gap-1.5 overflow-x-auto scrollbar-hide" role="tablist">
