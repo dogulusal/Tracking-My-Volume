@@ -1,10 +1,10 @@
-import type { AppState, SetLog } from '@/types';
+import type { AppState } from '@/types';
 import { programVersionAt } from '@/utils/programVersions';
 import { weekName } from '@/utils/phases';
 import { daysSince } from '@/utils/weekAdvance';
 import { exerciseKey } from '@/utils/muscleGroups';
 import { movementSessions } from '@/utils/movements';
-import { STALL_WEEKS, bestSet, stallOf } from '@/utils/progression';
+import { STALL_WEEKS, stallOf } from '@/utils/progression';
 import { buildPhaseGrid } from '../../supabase/functions/_shared/historyGrid.mjs';
 
 /**
@@ -28,14 +28,9 @@ export interface AthleteSummary {
   workouts: number;
   /** This week's training days in the plan's order. */
   days: DayMark[];
-  /** Movements whose best set this week beats every earlier one. */
-  bests: { name: string; set: SetLog }[];
 }
 
 export type DayMark = 'done' | 'holiday' | 'open';
-
-// Heavier, or as heavy with more left in it: the order bestSet picks by.
-const beats = (set: SetLog, other: SetLog) => bestSet([other, set]) === set && (set.weight !== other.weight || set.reps !== other.reps || set.intensity !== other.intensity);
 
 export function summarizeAthlete(state: AppState, today: Date): AthleteSummary {
   const week = state.currentWeek;
@@ -79,19 +74,6 @@ export function summarizeAthlete(state: AppState, today: Date): AthleteSummary {
     return log?.isHoliday ? 'holiday' : log && trained.includes(log) ? 'done' : 'open';
   });
 
-  // A first record is not a best: there has to be something to beat.
-  const bests: AthleteSummary['bests'] = [];
-  const thisWeek = trained.filter(log => log.weekNumber === week);
-  const keys = new Set(thisWeek.flatMap(log => log.exercises.map(exercise => exerciseKey(exercise.exerciseName))));
-  for (const key of keys) {
-    const sessions = movementSessions(state.weekLogs, key);
-    const now = bestSet(sessions.filter(item => item.log.weekNumber === week).flatMap(item => item.exercise.sets));
-    const before = bestSet(sessions.filter(item => item.log.weekNumber < week).flatMap(item => item.exercise.sets));
-    if (now && before && beats(now, before)) {
-      bests.push({ name: sessions.find(item => item.log.weekNumber === week)!.exercise.exerciseName, set: now });
-    }
-  }
-
   return {
     lastWorkout,
     daysSinceLast: lastWorkout ? daysSince(lastWorkout, today) : null,
@@ -103,7 +85,6 @@ export function summarizeAthlete(state: AppState, today: Date): AthleteSummary {
     stalled,
     workouts: trained.length,
     days,
-    bests,
   };
 }
 

@@ -61,23 +61,6 @@ test('the week, the last workout and the comparison with last week', () => {
   assert.equal(summary.workouts, 3);
   assert.equal(needsAttention(summary), null);
   assert.deepEqual(summary.days, ['done', 'open']);
-  // The one-rep gain on bench is a new best; the squat only matched.
-  assert.deepEqual(summary.bests, [{ name: 'Bench Press', set: { weight: 60, reps: 9, intensity: 'failure' } }]);
-});
-
-test('a first record is not a best, and a lighter set never is', () => {
-  const first = summarizeAthlete(state([log('A', 0, '2026-10-07', { b: [60, 8] })], 0), today);
-  assert.deepEqual(first.bests, []);
-  const lighter = summarizeAthlete(state([
-    log('A', 0, '2026-09-30', { b: [60, 8] }),
-    log('A', 1, '2026-10-07', { b: [57.5, 12] }),
-  ], 1), today);
-  assert.deepEqual(lighter.bests, []);
-  const heavier = summarizeAthlete(state([
-    log('A', 0, '2026-09-30', { b: [60, 8] }),
-    log('A', 1, '2026-10-07', { b: [62.5, 6] }),
-  ], 1), today);
-  assert.equal(heavier.bests[0].set.weight, 62.5);
 });
 
 test('a holiday is not a workout, and a quiet week asks for attention', () => {

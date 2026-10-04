@@ -53,8 +53,6 @@ export const INVITE_DAYS = 7;
 export const inviteUrl = (code: string) => `https://dogulusal.github.io/Tracking-My-Volume/katil/${code}`;
 
 interface CoachValue extends CoachData {
-  /** The signed-in coach's first name, for the greeting. */
-  coachName: string;
   isCoach: boolean;
   summaries: Record<string, AthleteSummary>;
   /** Athletes the list puts at the top: a week without training, or no record yet. */
@@ -95,7 +93,6 @@ export function CoachProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<CoachValue>(() => ({
     ...data,
-    coachName: DEMO_COACH.split(' ')[0],
     isCoach: data.athletes.length > 0,
     summaries,
     attentionCount: Object.values(summaries).filter(summary => needsAttention(summary)).length,
