@@ -19,7 +19,7 @@ function loadTS(relativePath) {
   return module.exports;
 }
 
-const { activePlanOf, coachPlanOf, newPlanActions, addDayActions, templateFrom } = loadTS('src/coach/templates.ts');
+const { activePlanOf, coachPlanOf, ownPlanOf, newPlanActions, addDayActions, templateFrom } = loadTS('src/coach/templates.ts');
 const { appReducer } = loadTS('src/context/appReducer.ts');
 const { describeProgramChanges } = loadTS('src/coach/programChanges.ts');
 
@@ -93,4 +93,12 @@ test("a new day goes into the coach's program, not the one in use", () => {
   const after = apply(set, addDayActions(set, planId, day));
   assert.deepEqual(coachPlanOf(after, 'Ahmet').days.map(item => item.id), ['D']);
   assert.deepEqual(activePlanOf(after).days.map(item => item.id), ['A', 'B']);
+});
+
+test("the person's own plan is found whether or not they train the coach's", () => {
+  const set = apply(athlete, newPlanActions(athlete, 'Ahmet', template, ids, now));
+  assert.equal(ownPlanOf(set).plan.id, 'plan');
+  const switched = apply(set, [{ type: 'SET_ACTIVE_PLAN', atWeek: 5, payload: coachPlanOf(set, 'Ahmet').plan.id }]);
+  assert.equal(activePlanOf(switched).plan.coach, 'Ahmet');
+  assert.equal(ownPlanOf(switched).plan.id, 'plan');
 });

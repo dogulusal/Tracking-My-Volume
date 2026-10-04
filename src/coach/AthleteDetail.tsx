@@ -226,7 +226,9 @@ export function AthleteDetail() {
       </div>
       {tab !== 'program' && (
         <p className="mt-2 text-[12px] text-(--color-text-secondary)">
-          {possessive(firstName)} ekranları; kayıtlarını değiştiremezsin.{tab !== 'charts' && ' Bir harekete dokunup yorum yazabilirsin.'}
+          {possessive(firstName)} ekranları; kayıtlarını değiştiremezsin.
+          {tab === 'week' && ' Bir güne dokunup not, bir harekete dokunup yorum bırakabilirsin.'}
+          {tab === 'history' && ' Hücreye dokunup yorum, haftalık notlar satırına dokunup not bırakabilirsin.'}
         </p>
       )}
 

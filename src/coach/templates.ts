@@ -31,6 +31,13 @@ export function coachPlanOf(state: AppState, coach: string): PlanDays {
   return daysOf(state, programVersionAt(state, state.currentWeek).plans.find(plan => plan.coach === coach));
 }
 
+/** The person's own plan: the one in use when it is theirs, else the first of theirs. */
+export function ownPlanOf(state: AppState): PlanDays {
+  const scope = programVersionAt(state, state.currentWeek);
+  const active = scope.plans.find(p => p.id === scope.activePlanId);
+  return daysOf(state, active && !active.coach ? active : scope.plans.find(p => !p.coach));
+}
+
 /** A plan's days, as a program to save. */
 export function templateFrom(state: AppState, planId: string, name: string, id: string, savedAt: string): ProgramTemplate {
   const plan = programVersionAt(state, state.currentWeek).plans.find(p => p.id === planId);
