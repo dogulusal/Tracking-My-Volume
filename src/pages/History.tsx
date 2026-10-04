@@ -8,6 +8,7 @@ import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { WorkoutDetailModal } from '@/components/shared/WorkoutDetailModal';
 import { AppContext } from '@/context/AppContext';
 import { useReadOnly } from '@/context/ReadOnly';
+import { commentsOn, useComments } from '@/coach/comments';
 import { buildPhaseGrid, statusFill, type GridRow } from '../../supabase/functions/_shared/historyGrid.mjs';
 import { currentPhaseIndex, startedPhases } from '@/utils/phases';
 import type { ExerciseLog, SetLog } from '@/types';
@@ -17,6 +18,7 @@ const HISTORY_STATE_KEY = 'history-page-state-v1';
 /** `embedded`: shown inside another page (an athlete's), which carries the title. */
 export function History({ embedded = false }: { embedded?: boolean } = {}) {
   const readOnly = useReadOnly();
+  const comments = useComments();
   const [showPhaseSettings, setShowPhaseSettings] = useState(false);
   const navigate = useNavigate();
   const { weekLogs, currentWeek, saveWorkout } = useWeekLogs();
@@ -254,6 +256,9 @@ export function History({ embedded = false }: { embedded?: boolean } = {}) {
                         className="lb-figure cursor-pointer px-2 py-2 text-left align-middle whitespace-pre-line text-[17px] leading-[21px] font-semibold"
                         style={{ background: statusFill(palette, cell.status), borderTop: rule, borderLeft: rule, color: cell.status === 'holiday' ? palette.muted : palette.ink }}>
                         {cell.text}
+                        {commentsOn(comments.list, selectedProgramId, cell.week, row.exerciseId).length > 0 && (
+                          <span className="block mt-1 text-[11px] leading-none font-medium" style={{ color: palette.muted }}>antrenör yorumu</span>
+                        )}
                       </td>
                     ))}
                   </tr>
@@ -312,6 +317,11 @@ export function History({ embedded = false }: { embedded?: boolean } = {}) {
         exerciseNote={modalData?.exerciseNote}
         isEmpty={modalData?.isEmpty || false}
         orderHistory={modalData ? orderHistoryForExercise(modalData.exerciseId) ?? undefined : undefined}
+        coachComments={modalData ? commentsOn(comments.list, selectedProgramId, modalData.weekNumber, modalData.exerciseId) : []}
+        onComment={modalData && comments.add ? text => comments.add!({
+          programId: selectedProgramId, weekNumber: modalData.weekNumber,
+          exerciseId: modalData.exerciseId, exerciseName: modalData.exerciseName, text,
+        }) : undefined}
         onSaveSets={readOnly ? undefined : (sets) => {
           if (!modalData) return;
           const existingLog = weekLogs.find(

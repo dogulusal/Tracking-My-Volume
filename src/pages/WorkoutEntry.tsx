@@ -17,6 +17,7 @@ import { movementSessions, sessionsBefore, type MovementSession } from '@/utils/
 import { STALL_WEEKS, bestSet, nextTarget, previousRecord, progressionRule, stallOf, type ProgressionRule, type Stall, type Target } from '@/utils/progression';
 import { weekName } from '@/utils/phases';
 import type { SetLog, Intensity, ExerciseLog } from '@/types';
+import { useComments } from '@/coach/comments';
 
 const INTENSITY_OPTIONS: { value: Intensity; label: string }[] = [
   { value: 'failure', label: 'F' },
@@ -89,6 +90,7 @@ export function WorkoutEntry() {
   const { getLogForWeek, saveWorkout } = useWeekLogs();
 
   const weekNumber = Number(weekParam) || 0;
+  const coachComments = useComments();
   const ctx = useContext(AppContext);
   const phase = ctx?.state.phases.find(p => weekNumber >= p.startWeek && (p.endWeek === null || weekNumber <= p.endWeek));
   const program = getProgramById(programId || '');
@@ -886,6 +888,10 @@ export function WorkoutEntry() {
   // Never done on any day: no number to start from yet, so the person is
   // told how to pick one.
   const firstTimeMovement = !!exercise && movementSessions(allLogs ?? [], key).length === 0;
+  // The coach's latest word on this movement of this day, from this week or before.
+  const coachComment = exercise ? coachComments.list
+    .filter(comment => comment.programId === programId && comment.exerciseId === exercise.exerciseId && comment.weekNumber <= weekNumber)
+    .sort((a, b) => b.at.localeCompare(a.at))[0] : undefined;
   // Room for the guidance card on a phone: the figures give way a little.
   const guidanceShown = firstTimeMovement || showFirstHint;
   const currentDone = exercise && current ? !!completedSets[`${exercise.exerciseId}:${current.set}`] : false;
@@ -1021,13 +1027,14 @@ export function WorkoutEntry() {
                 {showFirstHint && <button onClick={dismissFirstHint} className="shrink-0 h-11 px-3 rounded-xl text-[14px] font-semibold" style={{ color: 'var(--lb-ref)' }}>Anladım</button>}
               </div>
             )}
-            {(info?.target || pinned || info?.lastNote || (doneCount === 0 && previousNoteLog?.notes?.trim())) && (
+            {(info?.target || pinned || info?.lastNote || coachComment || (doneCount === 0 && previousNoteLog?.notes?.trim())) && (
               <div className="mt-1.5 space-y-0.5 text-[14px] text-(--color-text-secondary)">
                 {info?.target && (
                   <p>Hedef <span className="lb-figure text-[17px] font-semibold text-(--color-text-primary)">{info.target.reps !== null ? `${info.target.weight} × ${info.target.reps}` : `${info.target.weight} kg`}</span>
                     {' · '}{info.target.reps !== null ? `geçen ${formatSet(info.target.from)}` : `${info.target.from.reps} tekrara ulaştın`}</p>
                 )}
                 {pinned && <p className="truncate">Sabit: <span className="text-(--color-text-primary)">{pinned}</span></p>}
+                {coachComment && <p className="line-clamp-2">Antrenör ({coachComment.author.split(' ')[0]}): <span className="text-(--color-text-primary)">{coachComment.text}</span></p>}
                 {info?.lastNote && <p className="truncate">Geçen sefer ({[programName(info.lastNote.log.programId), nameOfWeek(info.lastNote.log.weekNumber)].filter(Boolean).join(' · ')}): <span className="text-(--color-text-primary)">{info.lastNote.exercise.note!.trim()}</span></p>}
                 {doneCount === 0 && previousNoteLog?.notes?.trim() && <p className="truncate">Geçen gün notu: <span className="text-(--color-text-primary)">{previousNoteLog.notes.trim()}</span></p>}
               </div>

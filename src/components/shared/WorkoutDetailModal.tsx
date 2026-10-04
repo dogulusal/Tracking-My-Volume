@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { SetLog, Intensity } from '@/types';
 import { BottomSheet } from './BottomSheet';
 import { formatSet } from '@/utils/formatters';
+import type { CoachComment } from '@/coach/comments';
 
 interface WorkoutDetailModalProps {
   isOpen: boolean;
@@ -21,6 +22,31 @@ interface WorkoutDetailModalProps {
   orderHistory?: string;
   onSaveSets?: (sets: SetLog[]) => void;
   onSaveNotes?: (notes: string) => void;
+  /** A coach's comments on this movement in this workout. */
+  coachComments?: CoachComment[];
+  /** Given where a coach is looking: writes a comment the athlete will see. */
+  onComment?: (text: string) => void;
+  /** In place of "Bench Press — H3", where the week is better named another way. */
+  title?: string;
+}
+
+const commentDate = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long' });
+
+function CommentBox({ onSend }: { onSend: (text: string) => void }) {
+  const [text, setText] = useState('');
+  const [sent, setSent] = useState(false);
+  return (
+    <form onSubmit={event => { event.preventDefault(); if (!text.trim()) return; onSend(text.trim()); setText(''); setSent(true); }}>
+      <label htmlFor="coach-comment" className="lb-label">{sent ? 'Gönderildi. Bir yorum daha:' : 'Sporcuya yorum yaz; o hareketi yaparken görecek.'}</label>
+      <textarea id="coach-comment" value={text} onChange={event => { setText(event.target.value); setSent(false); }} rows={2}
+        placeholder="Ör. derinlik iyi, gelecek hafta 2.5 kg ekle"
+        className="mt-1 w-full px-3 py-2 text-[16px] bg-(--color-bg-primary) border border-(--color-border) rounded-lg focus:outline-none resize-y" />
+      <button type="submit" disabled={!text.trim()}
+        className="lb-press mt-1 px-3 py-2 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg disabled:opacity-40">
+        Yorumu gönder
+      </button>
+    </form>
+  );
 }
 
 const intensityLabels: Record<string, string> = {
@@ -65,6 +91,9 @@ export function WorkoutDetailModal({
   orderHistory,
   onSaveSets,
   onSaveNotes,
+  coachComments = [],
+  onComment,
+  title,
 }: WorkoutDetailModalProps) {
   const [editingSets, setEditingSets] = useState<SetLog[]>([]);
   const [editingInputDrafts, setEditingInputDrafts] = useState<Record<string, string>>({});
@@ -207,7 +236,7 @@ export function WorkoutDetailModal({
   };
 
   return (
-    <BottomSheet isOpen={isOpen} onClose={onClose} title={`${exerciseName} — H${weekNumber}`}>
+    <BottomSheet isOpen={isOpen} onClose={onClose} title={title ?? `${exerciseName} — H${weekNumber}`}>
         {/* Sets Detail or Edit Form */}
         {isEditing ? (
           <div className="space-y-2 mb-5">
@@ -323,6 +352,18 @@ export function WorkoutDetailModal({
             ) : (
               <p className="lb-label italic">{onSaveSets ? "Veri yok — düzenle'ye tıklayarak ekle" : 'Bu hafta kayıt yok'}</p>
             )}
+          </div>
+        )}
+
+        {(coachComments.length > 0 || onComment) && (
+          <div className="mb-5 space-y-3">
+            {coachComments.map(comment => (
+              <div key={comment.id} className="border-l-2 lb-rule-strong pl-3">
+                <p className="lb-label">Antrenör yorumu · {comment.author} · {commentDate.format(new Date(comment.at))}</p>
+                <p className="text-sm mt-1 whitespace-pre-line">{comment.text}</p>
+              </div>
+            ))}
+            {onComment && <CommentBox onSend={onComment} />}
           </div>
         )}
 
