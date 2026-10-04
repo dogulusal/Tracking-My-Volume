@@ -82,6 +82,7 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
             <p className="text-(--color-text-secondary)">
               Son eşitleme: <span className="text-(--color-text-primary)">{lastSyncedAt ? new Date(lastSyncedAt).toLocaleString('tr-TR') : 'Henüz yok'}</span>
             </p>
+            <div className="flex flex-wrap gap-2">
             <button
               onClick={handleRefresh}
               disabled={isRefreshing || syncStatus === 'syncing'}
@@ -95,6 +96,7 @@ export function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
             >
               Çıkış yap
             </button>
+            </div>
           </div>
         )}
 
