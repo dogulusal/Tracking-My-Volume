@@ -102,10 +102,6 @@ export function Athletes() {
             )}
           </p>
 
-          <Link to="/sporcular/kutuphane" className="mt-4 inline-flex items-center h-11 px-4 rounded-full bg-(--color-bg-card) text-[15px] font-medium">
-            Program kütüphanesi · {coach.library.length}
-          </Link>
-
           {groups.length > 0 && (
             <div className="mt-5 -mx-5 px-5 flex gap-1.5 overflow-x-auto scrollbar-hide">
               <button onClick={() => setFilter(null)} aria-pressed={filter === null} className={chip(filter === null)}>Tümü {rows.length}</button>
@@ -123,7 +119,7 @@ export function Athletes() {
               return list.length > 0 && (
                 <section key={standing} className="mt-5">
                   <h2 className="text-[15px] font-semibold">{title} <span className="font-normal text-(--color-text-secondary)">{list.length}</span></h2>
-                  <ul className="mt-2 grid gap-2">{list.map(row => <AthleteRow key={row.athlete.id} row={row} />)}</ul>
+                  <ul className="mt-2 grid grid-cols-1 gap-2">{list.map(row => <AthleteRow key={row.athlete.id} row={row} />)}</ul>
                 </section>
               );
             })}

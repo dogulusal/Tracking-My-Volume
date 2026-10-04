@@ -46,6 +46,8 @@ export function Dashboard() {
     activePlan, activePlanPrograms, programs, weekLogs, currentWeek, incrementWeek,
     weekLabel, weekStats, streak, programStatuses, stalled, nextWorkout, nextTargets,
   } = useWeekOverview();
+  // A program the coach set up waits beside the person's own until they switch.
+  const offerSwitch = coachUpdate && activePlan?.id !== coachUpdate.planId;
   // The week moves on only when told; a week whose first workout was days
   // ago is asked about once (per week, on this phone).
   const staleKey = `tmv-hafta-sorma-${currentWeek}`;
@@ -89,12 +91,25 @@ export function Dashboard() {
       {/* Already applied when it arrived; shown once so nothing changes unannounced. */}
       {coachUpdate && (
         <section className="mt-5 a-card px-4 py-3.5" style={{ boxShadow: 'inset 0 0 0 1.5px var(--color-text-primary)' }}>
-          <p className="text-[18px] font-semibold">{coachUpdate.coach} programını güncelledi</p>
+          <p className="text-[18px] font-semibold">{coachUpdate.isNew ? `${coachUpdate.coach} sana bir program kurdu` : `${coachUpdate.coach} programını güncelledi`}</p>
           <ul className="mt-1.5 grid gap-1 text-[15px] leading-snug">{coachUpdate.lines.map(line => <li key={line}>{line}</li>)}</ul>
-          <p className="mt-2 text-[13px] text-(--color-text-secondary)">Bu haftadan geçerli; önceki haftaların kayıtları değişmedi.</p>
-          <div className="mt-3 flex gap-2">
-            <button onClick={() => coach.markSeen(coachUpdate.id)} className="flex-1 h-12 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[16px] font-semibold">Tamam</button>
-            <Link to="/programs" onClick={() => coach.markSeen(coachUpdate.id)} className="h-12 px-4 rounded-2xl bg-(--color-bg-input) text-[16px] font-medium flex items-center">Programa bak</Link>
+          <p className="mt-2 text-[13px] leading-snug text-(--color-text-secondary)">
+            {offerSwitch
+              ? 'Kendi programın olduğu gibi duruyor. Hangisiyle çalışacağını sen seçersin; sonra Programlar → Plan değiştir ile dönebilirsin.'
+              : 'Bu haftadan geçerli; önceki haftaların kayıtları değişmedi.'}
+          </p>
+          <div className={`mt-3 flex gap-2 ${offerSwitch ? 'flex-col' : ''}`}>
+            {offerSwitch ? (
+              <>
+                <button onClick={() => coach.switchToPlan(coachUpdate.id)} className="flex-1 h-12 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[16px] font-semibold">Bu programa geç</button>
+                <button onClick={() => coach.markSeen(coachUpdate.id)} className="h-12 rounded-2xl bg-(--color-bg-input) text-[16px] font-medium">Kendi programımda kal</button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => coach.markSeen(coachUpdate.id)} className="flex-1 h-12 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[16px] font-semibold">Tamam</button>
+                <Link to="/programs" onClick={() => coach.markSeen(coachUpdate.id)} className="h-12 px-4 rounded-2xl bg-(--color-bg-input) text-[16px] font-medium flex items-center">Programa bak</Link>
+              </>
+            )}
           </div>
         </section>
       )}
