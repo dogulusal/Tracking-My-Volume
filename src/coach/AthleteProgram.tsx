@@ -206,7 +206,7 @@ export function AthleteProgram({ athleteId, firstName }: { athleteId: string; fi
           )}
 
           <div className="mt-5 flex items-baseline justify-between gap-3">
-            <h3 className="a-display text-[28px] truncate">{mine.plan.name}</h3>
+            <h3 className="min-w-0 a-display text-[28px] leading-none break-words">{mine.plan.name}</h3>
             <span className="shrink-0 text-[13px] text-(--color-text-secondary)">{mine.days.length} gün · {week}</span>
           </div>
           <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">

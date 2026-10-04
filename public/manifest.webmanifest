@@ -1,6 +1,6 @@
 {
-  "name": "Volume A (önizleme)",
-  "short_name": "Volume A",
+  "name": "Tracking My Volume",
+  "short_name": "Volume",
   "description": "Antrenman hacmi ve haftalık ilerleme takibi.",
   "lang": "tr",
   "start_url": "./",

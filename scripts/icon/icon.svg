@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Last week, and this week past it: the one question the app answers. -->
+  <rect width="512" height="512" fill="#0b0b0c"/>
+  <rect x="126" y="236" width="118" height="166" rx="26" fill="#46474b"/>
+  <rect x="268" y="110" width="118" height="292" rx="26" fill="#10b981"/>
+</svg>

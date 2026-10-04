@@ -3,10 +3,11 @@
  * because it opens with no signal. Nothing here is a data store — workouts live
  * in localStorage and Supabase; this only makes sure the app itself opens.
  *
- * Bump CACHE when the logic below changes; asset filenames are content-hashed,
- * so the version is not needed for ordinary deploys.
+ * Bump CACHE when the logic below changes, or when a file without a hash in
+ * its name changes (icons, manifest): those are served from the cache for good.
+ * Content-hashed assets need no bump. v6: new icon and app name.
  */
-const CACHE = 'tmv-v5';
+const CACHE = 'tmv-v6';
 
 /** Every SPA route is served by the same document, so the shell has one key. */
 const SHELL = new URL('./', self.registration.scope).href;
