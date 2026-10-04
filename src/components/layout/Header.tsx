@@ -29,12 +29,13 @@ export function Header() {
     setDark(isDarkMode());
   };
 
+  // Antrenör for everyone: the coach's page is where one starts being a coach.
   const navLinks = [
     { to: '/', label: 'Bugün' },
     { to: '/programs', label: 'Programlar' },
     { to: '/history', label: 'Geçmiş' },
     { to: '/charts', label: 'Grafikler' },
-    ...(isCoach ? [{ to: '/sporcular', label: 'Antrenör' }] : []),
+    { to: '/sporcular', label: 'Antrenör' },
   ];
 
   const account = !configured ? 'Bulut kapalı' : userEmail ?? 'Giriş yap';
@@ -82,10 +83,11 @@ export function Header() {
                   <Icon name={dark ? 'sun' : 'moon'} className="w-5 h-5 text-(--color-text-secondary)" />
                 </button>
                 <Link to="/antrenorum" onClick={() => setSettingsOpen(false)} className="px-3 min-h-12 rounded-xl text-[16px] flex items-center">Antrenörüm</Link>
-                {/* On the phone the coach's tab bar has Antrenör where the Sheet was. */}
-                {isCoach && isMobile && (
-                  <SheetLink className="px-3 min-h-12 rounded-xl text-left text-[16px]">Google Sheet</SheetLink>
-                )}
+                {/* On the phone the coach's tab bar has Antrenör where the Sheet was;
+                    until then the coach's page is reached from here. */}
+                {isMobile && (isCoach
+                  ? <SheetLink className="px-3 min-h-12 rounded-xl text-left text-[16px]">Google Sheet</SheetLink>
+                  : <Link to="/sporcular" onClick={() => setSettingsOpen(false)} className="px-3 min-h-12 rounded-xl text-[16px] flex items-center">Antrenör sayfası</Link>)}
                 <Link to="/export" onClick={() => setSettingsOpen(false)} className="px-3 min-h-12 rounded-xl text-[16px] flex items-center">Yedek ve dışa aktarma</Link>
                 <button onClick={() => { setTourOpen(true); setSettingsOpen(false); }} className="px-3 min-h-12 rounded-xl text-left text-[16px]">Uygulama turu</button>
                 <InstallAppButton className="px-3 min-h-12 rounded-xl text-left text-[16px]" />
