@@ -6,7 +6,7 @@ import { weekName } from '@/utils/phases';
 import type { AppAction, Program } from '@/types';
 import { AthleteScope } from './AthleteScope';
 import { DEMO_COACH } from './demo/athletes';
-import { possessive, useCoach } from './store';
+import { dative, possessive, useCoach } from './store';
 import { activePlanOf, coachPlanOf } from './templates';
 
 const sentDate = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
@@ -96,6 +96,9 @@ export function AthleteProgram({ athleteId, firstName }: { athleteId: string; fi
   const mine = coachPlanOf(draft, DEMO_COACH);
   const active = activePlanOf(draft);
   const ownInUse = active.plan && !active.plan.coach ? active : null;
+  const current = coach.athleteState(athleteId);
+  const isNew = !current || !coachPlanOf(current, DEMO_COACH).plan;
+  const lastSent = coach.sent[athleteId]?.[coach.sent[athleteId].length - 1];
   const week = weekName(draft.phases, draft.currentWeek, draft.currentWeek);
 
   const ownProgram = ownInUse && (
@@ -129,20 +132,39 @@ export function AthleteProgram({ athleteId, firstName }: { athleteId: string; fi
 
       {lines.length > 0 ? (
         <section className="mt-3 a-card px-4 py-3.5" style={{ boxShadow: 'inset 0 0 0 1.5px var(--color-text-primary)' }}>
-          <p className="text-[17px] font-semibold">Gönderilmedi · {lines.length} değişiklik</p>
-          <ul className="mt-1.5 grid gap-1 text-[15px] leading-snug">{lines.map(line => <li key={line}>{line}</li>)}</ul>
+          <p className="text-[17px] font-semibold">{dative(firstName)} henüz gitmedi</p>
+          <p className="mt-1 text-[14px] leading-snug text-(--color-text-secondary)">
+            Yaptığın değişiklikler sende bekliyor. Gönderince {possessive(firstName)} uygulamasında Bugün ekranında şu kart çıkar:
+          </p>
+          {/* The card the athlete will get, as their home page shows it. */}
+          <div className="mt-2 rounded-2xl bg-(--color-bg-primary) px-4 py-3" style={{ boxShadow: 'inset 0 0 0 1px var(--color-border)' }}>
+            <p className="text-[16px] font-semibold">{isNew ? `${DEMO_COACH} sana bir program kurdu` : `${DEMO_COACH} programını güncelledi`}</p>
+            <ul className="mt-1 grid gap-0.5 text-[14px] leading-snug">{lines.map(line => <li key={line}>{line}</li>)}</ul>
+            {isNew && ownInUse && (
+              <div aria-hidden="true" className="mt-2 flex gap-1.5 text-[13px]">
+                <span className="px-3 py-1.5 rounded-xl bg-(--color-text-primary) text-(--color-bg-primary) font-semibold">Bu programa geç</span>
+                <span className="px-3 py-1.5 rounded-xl bg-(--color-bg-input)">Kendi programımda kal</span>
+              </div>
+            )}
+          </div>
           <div className="mt-3 flex gap-2">
             <button onClick={() => { coach.sendDraft(athleteId); setJustSent(true); }}
-              className="flex-1 h-12 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[16px] font-semibold">Gönder</button>
+              className="flex-1 h-12 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[16px] font-semibold">{dative(firstName)} gönder</button>
             <button onClick={() => coach.discardDraft(athleteId)} className="h-12 px-4 rounded-2xl bg-(--color-bg-input) text-[16px] font-medium">Vazgeç</button>
           </div>
           <p className="mt-2 text-[13px] leading-snug text-(--color-text-secondary)">
-            {firstName} uygulamayı açınca neyin değiştiğini görür. Geçmiş haftaların kayıtları değişmez.
+            {isNew && ownInUse
+              ? `${firstName} kendi programında kalmayı da seçebilir. Geçmiş haftaların kayıtları değişmez.`
+              : `Bu haftadan geçerli olur. Geçmiş haftaların kayıtları değişmez.`}
           </p>
         </section>
-      ) : justSent && (
+      ) : justSent && lastSent && (
         <p className="mt-3 a-card px-4 py-3 text-[15px] leading-snug" style={{ boxShadow: 'inset 0 0 0 1.5px var(--lb-gain)' }}>
-          Gönderildi. {firstName} uygulamayı açınca görür.
+          {dative(firstName)} gönderildi. {lastSent.isNew && ownInUse
+            ? 'Bugün ekranında kartı görecek ve hangi programla çalışacağını seçecek.'
+            : ownInUse
+              ? `${firstName} şu an kendi programını kullanıyor; değişiklik senin kurduğun programa işlendi.`
+              : 'Programı bu haftadan itibaren böyle; Bugün ekranında neyin değiştiğini görecek.'}
         </p>
       )}
 

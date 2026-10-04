@@ -290,3 +290,11 @@ export function possessive(name: string): string {
   const suffix = 'aı'.includes(last) ? 'ın' : 'ou'.includes(last) ? 'un' : 'öü'.includes(last) ? 'ün' : 'in';
   return /[aıoueiöü]$/i.test(name) ? `${name}'n${suffix}` : `${name}'${suffix}`;
 }
+
+/** "Elif'e", "Can'a", "Ece'ye": the dative, by the name's last vowel. */
+export function dative(name: string): string {
+  const vowels = name.toLocaleLowerCase('tr-TR').match(/[aıoueiöü]/g);
+  const last = vowels?.[vowels.length - 1] ?? 'e';
+  const suffix = 'aıou'.includes(last) ? 'a' : 'e';
+  return /[aıoueiöü]$/i.test(name) ? `${name}'y${suffix}` : `${name}'${suffix}`;
+}
