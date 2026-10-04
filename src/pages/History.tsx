@@ -7,13 +7,16 @@ import { useGridPalette } from '@/hooks/useGridPalette';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { WorkoutDetailModal } from '@/components/shared/WorkoutDetailModal';
 import { AppContext } from '@/context/AppContext';
+import { useReadOnly } from '@/context/ReadOnly';
 import { buildPhaseGrid, statusFill, type GridRow } from '../../supabase/functions/_shared/historyGrid.mjs';
 import { currentPhaseIndex, startedPhases } from '@/utils/phases';
 import type { ExerciseLog, SetLog } from '@/types';
 
 const HISTORY_STATE_KEY = 'history-page-state-v1';
 
-export function History() {
+/** `embedded`: shown inside another page (an athlete's), which carries the title. */
+export function History({ embedded = false }: { embedded?: boolean } = {}) {
+  const readOnly = useReadOnly();
   const [showPhaseSettings, setShowPhaseSettings] = useState(false);
   const navigate = useNavigate();
   const { weekLogs, currentWeek, saveWorkout } = useWeekLogs();
@@ -160,13 +163,13 @@ export function History() {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto px-4 pt-2 pb-8">
+    <div className={embedded ? '' : 'max-w-5xl mx-auto px-4 pt-2 pb-8'}>
       <div className="flex items-end justify-between gap-3 px-1">
         <div className="min-w-0">
-          <h1 className="a-display text-[48px]">Geçmiş</h1>
-          <p className="mt-1 text-[14px] text-(--color-text-secondary)">{currentPhase?.label ?? ''} · Sheet ile aynı tablo</p>
+          {!embedded && <h1 className="a-display text-[48px]">Geçmiş</h1>}
+          <p className="mt-1 text-[14px] text-(--color-text-secondary)">{currentPhase?.label ?? ''}{readOnly ? '' : ' · Sheet ile aynı tablo'}</p>
         </div>
-        <button onClick={() => setShowPhaseSettings(true)} className="shrink-0 h-11 px-4 rounded-full bg-(--color-bg-card) text-[15px] font-medium">Fazlar</button>
+        {!readOnly && <button onClick={() => setShowPhaseSettings(true)} className="shrink-0 h-11 px-4 rounded-full bg-(--color-bg-card) text-[15px] font-medium">Fazlar</button>}
       </div>
 
       {showPhaseSettings && <PhaseSettingsModal phases={contextPhases} currentWeek={currentWeek} onClose={() => setShowPhaseSettings(false)} onSave={updated => {
@@ -225,9 +228,13 @@ export function History() {
                   <th className="sticky z-20 px-1 py-2 text-center text-[12px] font-medium" style={{ left: cols.name, background: palette.label, boxShadow: frozenEdge }}>Set</th>
                   {weeks.map(w => (
                     <th key={w} className="p-0" style={{ color: w === currentWeek ? palette.ink : palette.muted }}>
-                      <button onClick={() => openWeek(w)} title={`H${getDisplayWeek(w)} haftasını doldur / düzenle`} className="lb-figure w-full px-2 py-2 text-[16px] font-semibold text-left">
-                        H{getDisplayWeek(w)}
-                      </button>
+                      {readOnly ? (
+                        <span className="lb-figure block px-2 py-2 text-[16px] font-semibold text-left">H{getDisplayWeek(w)}</span>
+                      ) : (
+                        <button onClick={() => openWeek(w)} title={`H${getDisplayWeek(w)} haftasını doldur / düzenle`} className="lb-figure w-full px-2 py-2 text-[16px] font-semibold text-left">
+                          H{getDisplayWeek(w)}
+                        </button>
+                      )}
                     </th>
                   ))}
                 </tr>
@@ -255,8 +262,8 @@ export function History() {
                   <td colSpan={2} className="sticky left-0 z-10 px-3 py-2 text-left align-middle text-[12px]"
                     style={{ background: palette.note, color: palette.noteText, boxShadow: frozenEdge }}>Haftalık notlar</td>
                   {program.notes.map((note, index) => (
-                    <td key={weeks[index]} onClick={() => openWeek(weeks[index])}
-                      className="cursor-pointer px-2 py-2 text-left align-middle text-[12px] whitespace-pre-line break-words"
+                    <td key={weeks[index]} onClick={readOnly ? undefined : () => openWeek(weeks[index])}
+                      className={`${readOnly ? '' : 'cursor-pointer '}px-2 py-2 text-left align-middle text-[12px] whitespace-pre-line break-words`}
                       style={{ background: palette.note, color: palette.noteText }}>
                       {note}
                     </td>
@@ -268,9 +275,11 @@ export function History() {
         </div>
       )}
       <p className="mt-2 px-1 text-[13px] text-(--color-text-secondary)">75 x 7 +1: 75 kg, 7 tekrar, 1 tekrar daha yapabilirdin · F: tükendin.</p>
-      <p className="mt-1 px-1 text-[13px] text-(--color-text-secondary)">Hücreye dokun: setleri gör ve düzelt. Hafta başlığına dokun: o haftanın antrenmanını aç.</p>
+      <p className="mt-1 px-1 text-[13px] text-(--color-text-secondary)">
+        {readOnly ? 'Hücreye dokun: setleri ve notları gör.' : 'Hücreye dokun: setleri gör ve düzelt. Hafta başlığına dokun: o haftanın antrenmanını aç.'}
+      </p>
 
-      {removedRows.length > 0 && (
+      {removedRows.length > 0 && !readOnly && (
         <div className="mt-6 a-card px-4 py-3">
           <div className="flex items-center justify-between gap-3 min-h-11">
             <span className="text-[16px]">Programdan çıkanları gizle</span>
@@ -303,7 +312,7 @@ export function History() {
         exerciseNote={modalData?.exerciseNote}
         isEmpty={modalData?.isEmpty || false}
         orderHistory={modalData ? orderHistoryForExercise(modalData.exerciseId) ?? undefined : undefined}
-        onSaveSets={(sets) => {
+        onSaveSets={readOnly ? undefined : (sets) => {
           if (!modalData) return;
           const existingLog = weekLogs.find(
             w => w.programId === selectedProgramId && w.weekNumber === modalData.weekNumber
@@ -328,7 +337,7 @@ export function History() {
             updatedAt: new Date().toISOString(),
           });
         }}
-        onSaveNotes={(notes) => {
+        onSaveNotes={readOnly ? undefined : (notes) => {
           if (!modalData) return;
           const existingLog = weekLogs.find(
             w => w.programId === selectedProgramId && w.weekNumber === modalData.weekNumber

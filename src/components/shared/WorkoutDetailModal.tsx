@@ -275,12 +275,14 @@ export function WorkoutDetailModal({
           <div className="space-y-2 mb-5">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-xs font-semibold">Setler</h4>
-              <button
-                onClick={startEditing}
-                className="lb-press px-2 py-1 text-xs font-medium border lb-rule rounded"
-              >
-                {isEmpty ? '+ Veri Ekle' : '✎ Düzenle'}
-              </button>
+              {onSaveSets && (
+                <button
+                  onClick={startEditing}
+                  className="lb-press px-2 py-1 text-xs font-medium border lb-rule rounded"
+                >
+                  {isEmpty ? '+ Veri Ekle' : '✎ Düzenle'}
+                </button>
+              )}
             </div>
             {currentSets.length > 0 ? (
               currentSets.map((set, idx) => {
@@ -319,7 +321,7 @@ export function WorkoutDetailModal({
                 );
               })
             ) : (
-              <p className="lb-label italic">Veri yok — düzenle'ye tıklayarak ekle</p>
+              <p className="lb-label italic">{onSaveSets ? "Veri yok — düzenle'ye tıklayarak ekle" : 'Bu hafta kayıt yok'}</p>
             )}
           </div>
         )}
@@ -354,7 +356,7 @@ export function WorkoutDetailModal({
         <div className="p-3 rounded-lg bg-(--color-bg-input) border lb-rule">
           <div className="flex items-center justify-between mb-1">
             <h4 className="text-xs font-semibold">Not</h4>
-            {!isEditingNotes && (
+            {!isEditingNotes && onSaveNotes && (
               <button
                 onClick={() => { setEditingNotes(weekNotes || ''); setIsEditingNotes(true); }}
                 className="lb-press text-xs font-medium text-(--color-text-secondary) hover:text-(--color-text-primary) hover:underline"

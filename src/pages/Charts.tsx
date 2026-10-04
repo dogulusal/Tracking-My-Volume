@@ -46,7 +46,8 @@ function ExerciseLine({ row, startWeek, open, onToggle }: { row: GridRow; startW
  * Every exercise of a training day across one phase, drawn from the same grid
  * as History: same rows, same records, same colours.
  */
-export function Charts() {
+/** `embedded`: shown inside another page (an athlete's), which carries the title. */
+export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('Charts must be used within AppProvider');
   const { state } = ctx;
@@ -86,9 +87,9 @@ export function Charts() {
   const unrecorded = program?.rows.filter(row => !charted.includes(row)) ?? [];
 
   return (
-    <PageContainer>
+    <PageContainer bare={embedded}>
       <div className="mb-5">
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Grafikler</h1>
+        {!embedded && <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Grafikler</h1>}
         <p className="lb-label mt-1">
           {view === 'progress'
             ? 'Her hareketin en ağır seti, hafta hafta. Renkler Geçmiş tablosuyla aynı.'

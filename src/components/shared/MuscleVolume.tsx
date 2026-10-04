@@ -1,5 +1,6 @@
 import { useContext, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AppContext } from '@/context/AppContext';
+import { useReadOnly } from '@/context/ReadOnly';
 import { BottomSheet } from '@/components/shared/BottomSheet';
 import {
   MUSCLE_GROUPS, UNASSIGNED, blockPeriods, exerciseKey, groupOf, loggedExercises, muscleVolume, suggestedGroup, weeklyPeriods,
@@ -22,6 +23,7 @@ export function MuscleVolume() {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('MuscleVolume must be used within AppProvider');
   const { state, dispatch } = ctx;
+  const readOnly = useReadOnly();
   const [mode, setModeState] = useState<Mode>(() => {
     try { return localStorage.getItem(MODE_KEY) === 'block' ? 'block' : 'week'; } catch { return 'week'; }
   });
@@ -84,9 +86,11 @@ export function MuscleVolume() {
             </button>
           ))}
         </div>
-        <button type="button" onClick={() => setEditing(true)} className="lb-press px-3 py-1.5 border lb-rule text-xs font-semibold rounded-lg">
-          Bölgeleri düzenle
-        </button>
+        {!readOnly && (
+          <button type="button" onClick={() => setEditing(true)} className="lb-press px-3 py-1.5 border lb-rule text-xs font-semibold rounded-lg">
+            Bölgeleri düzenle
+          </button>
+        )}
       </div>
 
       {/* The chosen period */}
@@ -135,7 +139,7 @@ export function MuscleVolume() {
           // open up the lines once the list wraps.
           <div className="lb-label mt-5 flex items-center gap-3">
             <p className="flex-1 min-w-0">Bir bölgeye atanmamış: {unassigned.map(item => item.name).join(', ')}</p>
-            <button type="button" onClick={() => setEditing(true)} className="lb-press shrink-0 px-1 underline hover:text-(--color-text-primary)">Bölge seç</button>
+            {!readOnly && <button type="button" onClick={() => setEditing(true)} className="lb-press shrink-0 px-1 underline hover:text-(--color-text-primary)">Bölge seç</button>}
           </div>
         )}
       </section>
