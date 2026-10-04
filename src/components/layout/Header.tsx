@@ -8,6 +8,7 @@ import { SheetLink } from '@/components/shared/SheetLink';
 import { InstallAppButton } from '@/components/shared/InstallAppButton';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { AppTour } from '@/components/shared/AppTour';
+import { useCoach } from '@/coach/store';
 
 /**
  * Out of the way: on the phone only the account and settings button, each
@@ -21,6 +22,7 @@ export function Header() {
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
   const { configured, userEmail, syncStatus } = useCloudSync();
+  const { isCoach } = useCoach();
 
   const handleToggle = () => {
     toggleTheme();
@@ -32,6 +34,7 @@ export function Header() {
     { to: '/programs', label: 'Programlar' },
     { to: '/history', label: 'Geçmiş' },
     { to: '/charts', label: 'Grafikler' },
+    ...(isCoach ? [{ to: '/sporcular', label: 'Sporcular' }] : []),
     { to: '/export', label: 'Yedek' },
   ];
 
@@ -46,7 +49,7 @@ export function Header() {
               <Link to="/" className="a-display mr-4 text-[22px]">Volume</Link>
               {navLinks.map(link => (
                 <Link key={link.to} to={link.to}
-                  className={`px-3 py-2 rounded-lg text-[15px] ${location.pathname === link.to ? 'font-semibold' : 'text-(--color-text-secondary)'}`}>
+                  className={`px-3 py-2 rounded-lg text-[15px] ${location.pathname === link.to || (link.to === '/sporcular' && location.pathname.startsWith('/sporcular')) ? 'font-semibold' : 'text-(--color-text-secondary)'}`}>
                   {link.label}
                 </Link>
               ))}
@@ -73,6 +76,11 @@ export function Header() {
                   {dark ? 'Açık temaya geç' : 'Koyu temaya geç'}
                   <Icon name={dark ? 'sun' : 'moon'} className="w-5 h-5 text-(--color-text-secondary)" />
                 </button>
+                <Link to="/antrenorum" onClick={() => setSettingsOpen(false)} className="px-3 min-h-12 rounded-xl text-[16px] flex items-center">Antrenörüm</Link>
+                {/* On the phone the coach's tab bar has Sporcular where the Sheet was. */}
+                {isCoach && isMobile && (
+                  <SheetLink className="px-3 min-h-12 rounded-xl text-left text-[16px]">Google Sheet</SheetLink>
+                )}
                 <Link to="/export" onClick={() => setSettingsOpen(false)} className="px-3 min-h-12 rounded-xl text-[16px] flex items-center">Yedek ve dışa aktarma</Link>
                 <button onClick={() => { setTourOpen(true); setSettingsOpen(false); }} className="px-3 min-h-12 rounded-xl text-left text-[16px]">Uygulama turu</button>
                 <InstallAppButton className="px-3 min-h-12 rounded-xl text-left text-[16px]" />

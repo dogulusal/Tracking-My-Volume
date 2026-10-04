@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useIsMobileDevice } from '@/hooks/useIsMobileDevice';
 import { Icon } from '@/components/shared/Icon';
 import { SheetLink } from '@/components/shared/SheetLink';
+import { useCoach } from '@/coach/store';
 
 const tabs = [
   { to: '/', icon: 'home', label: 'Bugün' },
@@ -14,6 +15,9 @@ const tabs = [
 export function BottomNav() {
   const location = useLocation();
   const isMobileDevice = useIsMobileDevice();
+  // A coach's athletes take the Sheet's place; the Sheet moves to the settings menu.
+  const { isCoach } = useCoach();
+  const athletesActive = location.pathname.startsWith('/sporcular');
 
   if (!isMobileDevice) return null;
 
@@ -30,11 +34,19 @@ export function BottomNav() {
             </Link>
           );
         })}
-        {/* Leaves the app, so it never shows as the current tab. */}
-        <SheetLink className="flex flex-col items-center justify-center gap-1 whitespace-nowrap text-(--color-text-secondary)">
-          <Icon name="sheet" className="w-[22px] h-[22px]" />
-          <span className="text-[12px] leading-none">Sheet</span>
-        </SheetLink>
+        {isCoach ? (
+          <Link to="/sporcular" aria-current={athletesActive ? 'page' : undefined}
+            className={`flex flex-col items-center justify-center gap-1 whitespace-nowrap ${athletesActive ? 'text-(--color-text-primary)' : 'text-(--color-text-secondary)'}`}>
+            <Icon name="people" className="w-[22px] h-[22px]" />
+            <span className={`text-[12px] leading-none ${athletesActive ? 'font-semibold' : ''}`}>Sporcular</span>
+          </Link>
+        ) : (
+          // Leaves the app, so it never shows as the current tab.
+          <SheetLink className="flex flex-col items-center justify-center gap-1 whitespace-nowrap text-(--color-text-secondary)">
+            <Icon name="sheet" className="w-[22px] h-[22px]" />
+            <span className="text-[12px] leading-none">Sheet</span>
+          </SheetLink>
+        )}
       </div>
     </nav>
   );

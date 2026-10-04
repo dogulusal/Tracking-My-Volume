@@ -8,6 +8,9 @@ const paths = {
   palette: 'M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1-4 2 2 0 0 1 1-4h3a3 3 0 0 0 3-3c0-4-4-7-9-7ZM7 9h.01M10 6h.01M15 6h.01M18 9h.01',
   sun: 'M12 3V1M12 23v-2M3 12H1M23 12h-2M5 5 3 3M21 21l-2-2M5 19l-2 2M21 3l-2 2M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
   moon: 'M20 14A8 8 0 0 1 10 4a9 9 0 1 0 10 10Z',
+  people: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM2 21v-1a6 6 0 0 1 12 0v1M16 3.5a4 4 0 0 1 0 7.5M18 15a6 6 0 0 1 4 5.5V21',
+  check: 'M5 12.5 10 17 19 7',
+  minus: 'M6 12h12',
 };
 
 export function Icon({ name, className = 'w-5 h-5' }: { name: keyof typeof paths; className?: string }) {
