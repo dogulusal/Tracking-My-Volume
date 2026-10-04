@@ -159,6 +159,14 @@ const errorText = (error: unknown) => {
     : `Olmadı: ${message}`;
 };
 
+/** The name others see: the one on the Google account, never the e-mail. */
+async function accountName(): Promise<string | null> {
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  const meta = data.session?.user.user_metadata as { full_name?: string; name?: string } | undefined;
+  return (meta?.full_name || meta?.name || '').trim().slice(0, 80) || null;
+}
+
 export function CoachProvider({ children }: { children: ReactNode }) {
   const app = useContext(AppContext);
   // Read through a ref inside the functions below: the app's value is a new
@@ -176,13 +184,9 @@ export function CoachProvider({ children }: { children: ReactNode }) {
   const me = useMemo<CoachRef | null>(() => DEMO ? { id: DEMO_COACH_ID, name: DEMO_COACH } : userId ? { id: userId, name: myName ?? 'Antrenör' } : null, [userId, myName]);
   const fail = useCallback((reason: unknown) => setError(errorText(reason)), []);
 
-  // The name others see: the one on the Google account, never the e-mail.
   useEffect(() => {
-    if (DEMO || !userId || !supabase) return;
-    void supabase.auth.getSession().then(({ data: session }) => {
-      const meta = session.session?.user.user_metadata as { full_name?: string; name?: string } | undefined;
-      setMyName((meta?.full_name || meta?.name || '').trim().slice(0, 80) || null);
-    });
+    if (DEMO || !userId) return;
+    void accountName().then(setMyName);
   }, [userId]);
 
   // Kept on the phone: the demo whole, live everything but the athletes' records,
@@ -509,7 +513,9 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         }
         if (!me) return { ok: false, message: 'Önce giriş yap.' };
         try {
-          const joined = await cloud.acceptInvite(clean, me.name);
+          // Read now, not from `me`: its fallback is the coach's word, and the
+          // name may not have loaded yet. No name at all becomes 'Sporcu' there.
+          const joined = await cloud.acceptInvite(clean, (await accountName()) ?? '');
           await refresh(true);
           return { ok: true, coach: joined.coach_name };
         } catch (reason) {
