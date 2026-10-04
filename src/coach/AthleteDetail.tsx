@@ -206,8 +206,9 @@ export function AthleteDetail() {
   if (!athlete || !state || !summary) return <Navigate to="/sporcular" replace />;
 
   const firstName = athlete.name.split(' ')[0];
-  const chip = (active: boolean) =>
-    `shrink-0 h-11 px-4 rounded-full text-[15px] whitespace-nowrap ${active ? 'bg-(--color-text-primary) text-(--color-bg-primary) font-semibold' : 'bg-(--color-bg-card) text-(--color-text-secondary)'}`;
+  const look = (active: boolean) => active ? 'bg-(--color-text-primary) text-(--color-bg-primary) font-semibold' : 'bg-(--color-bg-card) text-(--color-text-secondary)';
+  const chip = (active: boolean) => `shrink-0 h-11 px-4 rounded-full text-[15px] whitespace-nowrap ${look(active)}`;
+  const tabChip = (active: boolean) => `h-11 px-1 lg:px-4 rounded-full text-[clamp(13px,4vw,15px)] lg:text-[15px] whitespace-nowrap ${look(active)}`;
 
   return (
     <div className="max-w-xl lg:max-w-5xl mx-auto px-5 pt-1 pb-8">
@@ -221,9 +222,12 @@ export function AthleteDetail() {
       </p>
       <CoachError />
 
-      <div className="mt-4 -mx-5 px-5 flex gap-1.5 overflow-x-auto scrollbar-hide" role="tablist">
+      {/* Always these four: side by side in equal parts on the phone, where a
+          scrolling row cut Grafikler off at the edge (375–390 px). */}
+      <div className="mt-4 grid grid-cols-4 gap-1.5 lg:flex" role="tablist">
         {TABS.map(([key, label]) => (
-          <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)} className={chip(tab === key)}>{label}</button>
+          <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
+            className={tabChip(tab === key)}>{label}</button>
         ))}
       </div>
       {/* Where to tap for a note or a comment is said next to each part, once. */}
