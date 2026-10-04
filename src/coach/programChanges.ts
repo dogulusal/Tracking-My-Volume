@@ -1,9 +1,10 @@
 import type { AppState, ExerciseDefinition, Program } from '@/types';
 import { programVersionAt } from '@/utils/programVersions';
 
-const activeDays = (state: AppState): Program[] => {
+/** The plan's days this week; the plan in use when no id is given. */
+const planDays = (state: AppState, planId?: string): Program[] => {
   const scope = programVersionAt(state, state.currentWeek);
-  const plan = scope.plans.find(p => p.id === scope.activePlanId) ?? scope.plans[0];
+  const plan = planId ? scope.plans.find(p => p.id === planId) : scope.plans.find(p => p.id === scope.activePlanId) ?? scope.plans[0];
   if (!plan) return [];
   return plan.programIds.flatMap(id => scope.programs.filter(program => program.id === id));
 };
@@ -21,12 +22,13 @@ function changedTarget(before: ExerciseDefinition, after: ExerciseDefinition): s
 /**
  * The program changes between two copies of someone's record, in words, for
  * the person whose program it is: "Üst A: + Incline Press",
- * "Üst A · Bench Press: 3 → 4 set". Only the plan in use this week counts.
+ * "Üst A · Bench Press: 3 → 4 set". One plan counts: the given one, or the
+ * plan in use this week.
  */
-export function describeProgramChanges(before: AppState, after: AppState): string[] {
+export function describeProgramChanges(before: AppState, after: AppState, planId?: string): string[] {
   const lines: string[] = [];
-  const old = activeDays(before);
-  const now = activeDays(after);
+  const old = planDays(before, planId);
+  const now = planDays(after, planId);
 
   for (const day of now) {
     const previous = old.find(item => item.id === day.id);

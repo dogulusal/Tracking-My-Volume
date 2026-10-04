@@ -77,6 +77,8 @@ interface Profile {
   notes?: Record<number, string>;
   /** A note left on a movement, by weeks back. */
   moveNotes?: Record<number, [move: string, note: string]>;
+  /** The plan was set up by the coach; otherwise it is the athlete's own. */
+  coachPlan?: boolean;
 }
 
 const PROFILES: Profile[] = [
@@ -87,17 +89,17 @@ const PROFILES: Profile[] = [
   },
   {
     id: 'mert', name: 'Mert Aydın', group: 'Sabah grubu', joinedDaysAgo: 63, days: FULL_BODY, week: 11,
-    doneThisWeek: 0, lastAgo: 9, pace: 0.5,
+    doneThisWeek: 0, lastAgo: 9, pace: 0.5, coachPlan: true,
     notes: { 1: 'Omzum ağrıyordu, bench\'i hafif tuttum.' },
   },
   {
     id: 'zeynep', name: 'Zeynep Demir', group: 'Online', joinedDaysAgo: 30, days: PPL, week: 6,
-    doneThisWeek: 3, lastAgo: 0, pace: 0.8,
+    doneThisWeek: 3, lastAgo: 0, pace: 0.8, coachPlan: true,
     notes: { 0: 'Bu hafta çok iyi hissettim.' },
   },
   {
     id: 'can', name: 'Can Yıldız', group: 'Online', joinedDaysAgo: 96, days: UPPER_LOWER, week: 15,
-    doneThisWeek: 1, lastAgo: 2, pace: 0.45,
+    doneThisWeek: 1, lastAgo: 2, pace: 0.45, coachPlan: true,
     stuck: { names: ['Bench Press', 'Squat', 'Cable Row'], weeks: 6 },
     notes: { 2: 'Bench\'te 80\'i geçemiyorum, uyku az.' },
   },
@@ -211,7 +213,10 @@ function buildState(profile: Profile, today: Date): AppState {
   return {
     ...initialState,
     programs,
-    plans: [{ id: `${profile.id}-plan`, name: 'Program', programIds: programs.map(p => p.id), createdAt: created, updatedAt: created }],
+    plans: [{
+      id: `${profile.id}-plan`, programIds: programs.map(p => p.id), createdAt: created, updatedAt: created,
+      ...(profile.coachPlan ? { name: 'Antrenör programı', coach: DEMO_COACH } : { name: 'Kendi programım' }),
+    }],
     activePlanId: `${profile.id}-plan`,
     weekLogs,
     currentWeek: profile.week,

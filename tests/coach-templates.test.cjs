@@ -19,7 +19,7 @@ function loadTS(relativePath) {
   return module.exports;
 }
 
-const { activePlanOf, pasteActions, templateFrom } = loadTS('src/coach/templates.ts');
+const { activePlanOf, coachPlanOf, newPlanActions, addDayActions, templateFrom } = loadTS('src/coach/templates.ts');
 const { appReducer } = loadTS('src/context/appReducer.ts');
 const { describeProgramChanges } = loadTS('src/coach/programChanges.ts');
 
@@ -55,38 +55,42 @@ const ids = () => String(++counter);
 const apply = (state, actions) => actions.reduce(appReducer, state);
 
 test('saving keeps the days and movements in use, nothing of the records', () => {
-  const saved = templateFrom(athlete, 'Elif · Üst/Alt', 't1', now);
+  const saved = templateFrom(athlete, 'plan', 'Üst/Alt', 't1', now);
   assert.deepEqual(saved.days.map(day => day.name), ['Üst A', 'Alt A']);
   // A movement taken out of the program is not copied.
   assert.deepEqual(saved.days[0].exercises, [{ name: 'Bench Press', defaultSets: 3, defaultReps: 8, defaultWeight: 60 }]);
 });
 
-test('pasting in place of the days: the plan has only the copy, the old days keep their history', () => {
-  const after = apply(athlete, pasteActions(athlete, template, 'replace', ids, now));
-  const { plan, days } = activePlanOf(after);
-  assert.equal(plan.name, 'Tüm vücut · 2 gün');
-  assert.deepEqual(days.map(day => day.name), ['Tüm vücut A', 'Tüm vücut B']);
-  assert.ok(days.every(day => !['A', 'B'].includes(day.id)));
+test("the person's own plan is never the coach's", () => {
+  assert.equal(coachPlanOf(athlete, 'Ahmet').plan, null);
+});
+
+test("a coach's program goes beside the person's own, which stays in use", () => {
+  const after = apply(athlete, newPlanActions(athlete, 'Ahmet', template, ids, now));
+  const mine = coachPlanOf(after, 'Ahmet');
+  assert.equal(mine.plan.name, 'Tüm vücut · 2 gün');
+  assert.deepEqual(mine.days.map(day => day.name), ['Tüm vücut A', 'Tüm vücut B']);
+  // Copied with new ids, so editing it touches neither the saved program nor anyone else's copy.
+  assert.ok(mine.days.every(day => !['A', 'B'].includes(day.id)));
+  const own = activePlanOf(after);
+  assert.equal(own.plan.id, 'plan');
+  assert.deepEqual(own.days.map(day => day.name), ['Üst A', 'Alt A']);
   assert.equal(after.weekLogs.length, 2);
-  // Last week still shows the program it was trained on.
-  const lastWeek = activePlanOf({ ...after, currentWeek: 4 });
-  assert.deepEqual(lastWeek.days.map(day => day.name), ['Üst A', 'Alt A']);
-  assert.deepEqual(describeProgramChanges(athlete, after), [
-    'Yeni gün: Tüm vücut A (1 hareket)', 'Yeni gün: Tüm vücut B (1 hareket)', 'Plandan çıktı: Üst A', 'Plandan çıktı: Alt A',
-  ]);
+  assert.deepEqual(describeProgramChanges(athlete, after, mine.plan.id), ['Yeni gün: Tüm vücut A (1 hareket)', 'Yeni gün: Tüm vücut B (1 hareket)']);
 });
 
-test('pasting after the days keeps the plan and its name', () => {
-  const after = apply(athlete, pasteActions(athlete, template, 'add', ids, now));
-  const { plan, days } = activePlanOf(after);
-  assert.equal(plan.name, 'Kendi planım');
-  assert.deepEqual(days.map(day => day.name), ['Üst A', 'Alt A', 'Tüm vücut A', 'Tüm vücut B']);
-});
-
-test('pasting for someone with no program yet makes their plan', () => {
+test("for someone with no program yet, the coach's is the one in use", () => {
   const empty = { ...athlete, programs: [], plans: [], activePlanId: null, weekLogs: [] };
-  const after = apply(empty, pasteActions(empty, template, 'add', ids, now));
-  const { plan, days } = activePlanOf(after);
-  assert.equal(plan.name, 'Tüm vücut · 2 gün');
-  assert.equal(days.length, 2);
+  const after = apply(empty, newPlanActions(empty, 'Ahmet', template, ids, now));
+  assert.equal(activePlanOf(after).plan.coach, 'Ahmet');
+  assert.equal(activePlanOf(after).days.length, 2);
+});
+
+test("a new day goes into the coach's program, not the one in use", () => {
+  const set = apply(athlete, newPlanActions(athlete, 'Ahmet', null, ids, now));
+  const planId = coachPlanOf(set, 'Ahmet').plan.id;
+  const day = { type: 'ADD_PROGRAM', atWeek: 5, payload: { id: 'D', name: 'Bacak', order: 1, createdAt: now, updatedAt: now, exercises: [] } };
+  const after = apply(set, addDayActions(set, planId, day));
+  assert.deepEqual(coachPlanOf(after, 'Ahmet').days.map(item => item.id), ['D']);
+  assert.deepEqual(activePlanOf(after).days.map(item => item.id), ['A', 'B']);
 });

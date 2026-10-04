@@ -1,40 +1,25 @@
-import type { AppAction, AppState } from '@/types';
+import type { AppState } from '@/types';
 import { appReducer } from '@/context/appReducer';
-import { programVersionAt } from '@/utils/programVersions';
-import { exerciseKey } from '@/utils/muscleGroups';
 import { describeProgramChanges } from '../programChanges';
+import { coachPlanOf, newPlanActions } from '../templates';
 import type { CoachComment } from '../comments';
+import { DEMO_TEMPLATES } from './athletes';
+
+let counter = 0;
+const newId = () => `demo${Date.now().toString(36)}${++counter}`;
 
 /**
  * Demo only: what the made-up coach sends right after the viewer accepts the
- * invite, built from the viewer's own sample record so it lands on days and
- * movements they have: one program change on their first day (a set more on
- * the first movement, one movement added) and a comment on their latest workout.
+ * invite. A program set up for them beside their own plan (theirs stays in
+ * use until they choose), and a comment on their latest workout.
  */
 export function demoCoachMessages(own: AppState, coach: string) {
-  const week = own.currentWeek;
-  const scope = programVersionAt(own, week);
-  const plan = scope.plans.find(p => p.id === scope.activePlanId) ?? scope.plans[0];
-  const day = plan ? scope.programs.find(p => p.id === plan.programIds[0]) : undefined;
-  if (!day) return null;
-  const first = day.exercises.find(exercise => exercise.isActive);
-  const extra = day.exercises.some(exercise => exerciseKey(exercise.name) === 'face pull') ? 'Lateral Raise' : 'Face Pull';
   const now = new Date().toISOString();
-
-  const actions: AppAction[] = [{
-    type: 'UPDATE_PROGRAM', atWeek: week,
-    payload: {
-      ...day,
-      updatedAt: now,
-      exercises: [
-        ...day.exercises.map(exercise => exercise.id === first?.id ? { ...exercise, defaultSets: exercise.defaultSets + 1 } : exercise),
-        { id: `antrenor_${Date.now().toString(36)}`, name: extra, defaultSets: 3, defaultWeight: 0, defaultReps: 12, isActive: true },
-      ],
-    },
-  }];
-  // The plan becomes the coach's to manage, as on any first update.
-  if (plan && !plan.coach) actions.push({ type: 'UPDATE_PLAN', atWeek: week, payload: { ...plan, coach } });
-  const lines = describeProgramChanges(own, actions.reduce(appReducer, own));
+  const template = DEMO_TEMPLATES.find(item => item.id === 'tum-vucut') ?? DEMO_TEMPLATES[0];
+  const actions = newPlanActions(own, coach, template, newId, now);
+  const after = actions.reduce(appReducer, own);
+  const plan = coachPlanOf(after, coach).plan!;
+  const lines = [`Yeni program: ${plan.name}`, ...describeProgramChanges(own, after, plan.id)];
 
   const latest = own.weekLogs
     .filter(log => !log.isHoliday && log.exercises.some(exercise => exercise.sets.length > 0))
@@ -47,5 +32,5 @@ export function demoCoachMessages(own: AppState, coach: string) {
     at: now, author: coach,
   }] : [];
 
-  return { update: { at: now, actions, lines }, comments };
+  return { update: { at: now, actions, lines, planId: plan.id, planName: plan.name, isNew: true }, comments };
 }
