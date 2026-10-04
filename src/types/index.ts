@@ -10,6 +10,9 @@ export interface Plan {
   id: string;
   name: string;
   programIds: string[];
+  // The coach who manages this plan; absent on the person's own plans, which
+  // a coach can see but not change.
+  coach?: string;
   createdAt: string;
   updatedAt: string;
 }

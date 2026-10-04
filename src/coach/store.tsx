@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { AppAction, AppState } from '@/types';
 import { AppContext } from '@/context/AppContext';
 import { appReducer } from '@/context/appReducer';
-import { DEMO_COACH, demoAthletes, demoAthleteState, type DemoAthlete } from './demo/athletes';
+import { DEMO_COACH, DEMO_TEMPLATES, demoAthletes, demoAthleteState, type DemoAthlete } from './demo/athletes';
+import { activePlanOf, pasteActions, templateFrom, type ProgramTemplate } from './templates';
 import { demoCoachMessages } from './demo/coachMessages';
 import { needsAttention, summarizeAthlete, type AthleteSummary } from './summary';
 import { describeProgramChanges } from './programChanges';
@@ -14,6 +15,7 @@ import type { CoachComment, NewComment } from './comments';
 // updates the athlete's own app applies to its own record.
 
 export type Athlete = DemoAthlete;
+export type { ProgramTemplate };
 
 /** A coach who can see this person's records (the athlete side). */
 export interface MyCoach { name: string; since: string }
@@ -40,6 +42,8 @@ interface CoachData {
   sent: Record<string, ProgramUpdate[]>;
   /** Athlete side: what this person's coaches sent them. */
   inbox: { updates: ReceivedUpdate[]; comments: CoachComment[] };
+  /** The coach's own programs, to copy to anyone. */
+  library: ProgramTemplate[];
 }
 
 const STORAGE_KEY = 'tmv-antrenor-demo-v1';
@@ -60,6 +64,7 @@ const initialData = (): CoachData => ({
   drafts: {},
   sent: {},
   inbox: { updates: [], comments: [] },
+  library: DEMO_TEMPLATES,
 });
 
 function load(): CoachData {
@@ -71,6 +76,7 @@ function load(): CoachData {
 }
 
 const applyAll = (state: AppState, actions: AppAction[]) => actions.reduce(appReducer, state);
+
 
 // Letters that cannot be misread when someone types the code by hand.
 const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -95,6 +101,12 @@ interface CoachValue extends CoachData {
   discardDraft: (athleteId: string) => void;
   sendDraft: (athleteId: string) => void;
   addComment: (athleteId: string, comment: NewComment) => void;
+  /** Saves the athlete's current days (unsent edits included) to the library. */
+  saveTemplate: (athleteId: string, name: string) => void;
+  removeTemplate: (templateId: string) => void;
+  /** Copies a library program into the athlete's plan, as unsent edits. */
+  pasteTemplate: (athleteId: string, templateId: string, mode: 'replace' | 'add') => void;
+  removeDay: (athleteId: string, programId: string) => void;
   markSeen: (updateId: string) => void;
   /** The invite a code belongs to, or null for an unknown or renewed link. */
   inviteFor: (code: string) => { coach: string; group: string | null } | null;
@@ -147,13 +159,29 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     setNote: (athleteId, text) => setData(d => ({ ...d, notes: { ...d.notes, [athleteId]: text.trim() } })),
     athleteState: id => states[id] ?? null,
     draftState: id => drafted[id] ?? null,
-    draftDispatch: (athleteId, action) => setData(d => ({ ...d, drafts: { ...d.drafts, [athleteId]: [...(d.drafts[athleteId] ?? []), action] } })),
+    draftDispatch: (athleteId, action) => {
+      // A first day for someone with no plan: the plan is made here with a
+      // fixed id, or every replay of the edits would make another one.
+      const draft = drafted[athleteId];
+      const planId = `plan_${newId()}`;
+      const actions: AppAction[] = action.type === 'ADD_PROGRAM' && draft && !activePlanOf(draft).plan ? [
+        { type: 'ADD_PLAN', atWeek: draft.currentWeek, payload: { id: planId, name: 'Program', programIds: [], createdAt: action.payload.createdAt, updatedAt: action.payload.updatedAt } },
+        { type: 'SET_ACTIVE_PLAN', atWeek: draft.currentWeek, payload: planId },
+        action,
+      ] : [action];
+      setData(d => ({ ...d, drafts: { ...d.drafts, [athleteId]: [...(d.drafts[athleteId] ?? []), ...actions] } }));
+    },
     draftLines: athleteId => states[athleteId] && drafted[athleteId] ? describeProgramChanges(states[athleteId], drafted[athleteId]) : [],
     discardDraft: athleteId => setData(d => ({ ...d, drafts: { ...d.drafts, [athleteId]: [] } })),
     sendDraft: athleteId => {
-      const actions = data.drafts[athleteId] ?? [];
-      const lines = states[athleteId] && drafted[athleteId] ? describeProgramChanges(states[athleteId], drafted[athleteId]) : [];
-      if (!actions.length) return;
+      const draft = drafted[athleteId];
+      const lines = states[athleteId] && draft ? describeProgramChanges(states[athleteId], draft) : [];
+      let actions = data.drafts[athleteId] ?? [];
+      if (!actions.length || !draft) return;
+      // The first update makes the plan the coach's to manage; the athlete's
+      // own plans stay theirs.
+      const { plan } = activePlanOf(draft);
+      if (plan && !plan.coach) actions = [...actions, { type: 'UPDATE_PLAN', atWeek: draft.currentWeek, payload: { ...plan, coach: DEMO_COACH } }];
       const update: ProgramUpdate = { id: newId(), at: new Date().toISOString(), actions, lines };
       setData(d => ({ ...d, drafts: { ...d.drafts, [athleteId]: [] }, sent: { ...d.sent, [athleteId]: [...(d.sent[athleteId] ?? []), update] } }));
     },
@@ -161,6 +189,27 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       ...d.comments,
       [athleteId]: [...(d.comments[athleteId] ?? []), { ...comment, id: newId(), at: new Date().toISOString(), author: DEMO_COACH }],
     } })),
+    saveTemplate: (athleteId, name) => {
+      const draft = drafted[athleteId];
+      if (!draft || !name.trim()) return;
+      const template = templateFrom(draft, name.trim(), newId(), new Date().toISOString());
+      setData(d => ({ ...d, library: [template, ...d.library] }));
+    },
+    removeTemplate: templateId => setData(d => ({ ...d, library: d.library.filter(item => item.id !== templateId) })),
+    pasteTemplate: (athleteId, templateId, mode) => {
+      const draft = drafted[athleteId];
+      const template = data.library.find(item => item.id === templateId);
+      if (!draft || !template) return;
+      const actions = pasteActions(draft, template, mode, newId, new Date().toISOString());
+      setData(d => ({ ...d, drafts: { ...d.drafts, [athleteId]: [...(d.drafts[athleteId] ?? []), ...actions] } }));
+    },
+    removeDay: (athleteId, programId) => {
+      const draft = drafted[athleteId];
+      const plan = draft ? activePlanOf(draft).plan : null;
+      if (!draft || !plan) return;
+      const action: AppAction = { type: 'UPDATE_PLAN', atWeek: draft.currentWeek, payload: { ...plan, programIds: plan.programIds.filter(id => id !== programId) } };
+      setData(d => ({ ...d, drafts: { ...d.drafts, [athleteId]: [...(d.drafts[athleteId] ?? []), action] } }));
+    },
     markSeen: updateId => setData(d => ({ ...d, inbox: { ...d.inbox, updates: d.inbox.updates.map(update => update.id === updateId ? { ...update, seen: true } : update) } })),
     inviteFor,
     renewInvite: group => setData(d => ({ ...d, invites: { ...d.invites, [group ?? '']: newCode() } })),

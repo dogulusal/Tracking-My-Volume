@@ -1,5 +1,6 @@
 import { initialState } from '@/context/appReducer';
 import type { AppState, Intensity, Program, WeekLog } from '@/types';
+import type { ProgramTemplate } from '../templates';
 
 // Demo only: made-up athletes, each showing one situation a coach meets.
 // Dates are counted back from the day the demo is opened, so "dün" stays
@@ -38,6 +39,18 @@ const PPL: Day[] = [
   { name: 'İtiş', moves: [BENCH, INCLINE, OHP, LATERAL, PUSHDOWN] },
   { name: 'Çekiş', moves: [PULLDOWN, ROW, FACEPULL, CURL] },
   { name: 'Bacak', moves: [SQUAT, LEGPRESS, LEGCURL, CALF] },
+];
+
+const templateOf = (id: string, name: string, days: Day[], reps: number): ProgramTemplate => ({
+  id, name, savedAt: '2026-09-01T09:00:00.000Z',
+  days: days.map(day => ({ name: day.name, exercises: day.moves.map(([move]) => ({ name: move, defaultSets: 3, defaultReps: reps, defaultWeight: 0 })) })),
+});
+
+/** The demo coach's library to start with. */
+export const DEMO_TEMPLATES: ProgramTemplate[] = [
+  templateOf('ust-alt', 'Üst/Alt · 4 gün', UPPER_LOWER, 10),
+  templateOf('tum-vucut', 'Tüm vücut · 3 gün (başlangıç)', FULL_BODY, 12),
+  templateOf('itis-cekis', 'İtiş/Çekiş/Bacak · 3 gün', PPL, 10),
 ];
 
 // Days of the week each split trains on, counted from its first day.

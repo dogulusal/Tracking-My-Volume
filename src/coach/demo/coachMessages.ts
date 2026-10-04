@@ -32,6 +32,8 @@ export function demoCoachMessages(own: AppState, coach: string) {
       ],
     },
   }];
+  // The plan becomes the coach's to manage, as on any first update.
+  if (plan && !plan.coach) actions.push({ type: 'UPDATE_PLAN', atWeek: week, payload: { ...plan, coach } });
   const lines = describeProgramChanges(own, actions.reduce(appReducer, own));
 
   const latest = own.weekLogs
