@@ -86,7 +86,8 @@ export function Athletes() {
       ) : !coach.ready ? (
         <p className="mt-6 text-[17px] text-(--color-text-secondary)">Ekibin yükleniyor…</p>
       ) : rows.length === 0 ? (
-        <section className="mt-6">
+        // The phone's width on the desktop too: a button across the whole page reads as a banner.
+        <section className="mt-6 max-w-xl">
           <p className="text-[17px] leading-snug">
             Ekibine katılmasını istediğin kişilere bir davet linki gönder. Onaylayanların antrenmanlarını burada görürsün: kim antrenman yaptı, kim aksadı, kimin hareketi yerinde sayıyor.
           </p>

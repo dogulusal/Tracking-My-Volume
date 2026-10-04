@@ -125,6 +125,10 @@ export function Onboarding() {
           <div className="flex flex-col gap-2">
             <button onClick={() => setStep('days')} className={primary}>Programımı kuralım</button>
             <Link to="/export" className="h-12 flex items-center justify-center text-[15px] text-(--color-text-secondary)">Yedeğim var, yükleyeceğim</Link>
+            {/* Someone who only coaches has no program to set up; the coach's page needs the account. */}
+            {signedIn && (
+              <Link to="/sporcular" className="h-12 flex items-center justify-center text-[15px] text-(--color-text-secondary)">Antrenörüm, ekibimi takip edeceğim</Link>
+            )}
           </div>
         </>
       )}
