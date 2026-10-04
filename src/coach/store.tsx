@@ -55,7 +55,7 @@ export const inviteUrl = (code: string) => `https://dogulusal.github.io/Tracking
 interface CoachValue extends CoachData {
   isCoach: boolean;
   summaries: Record<string, AthleteSummary>;
-  /** Athletes the list puts at the top: a week without training, or no record yet. */
+  /** Athletes on a break or not started yet: the number on the Antrenör tab. */
   attentionCount: number;
   setNote: (athleteId: string, text: string) => void;
   athleteState: (id: string) => AppState | null;

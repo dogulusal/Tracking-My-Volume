@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { agoText, needsAttention, type AthleteSummary } from './summary';
+import { agoText, needsAttention, standingOf, type AthleteSummary, type Standing } from './summary';
 import { InviteSheet } from './InviteSheet';
 import { Avatar, WeekMarks } from './parts';
 import { useCoach, type Athlete } from './store';
@@ -59,8 +59,11 @@ export function Athletes() {
   }), [coach.athletes, coach.summaries, coach.notes]);
 
   const shown = filter === null ? rows : rows.filter(row => row.athlete.group === filter);
-  const attention = shown.filter(row => row.reason).sort(byQuiet);
-  const fine = shown.filter(row => !row.reason).sort(byQuiet);
+  const inStanding = (rowsToSplit: Row[], standing: Standing) =>
+    rowsToSplit.filter(row => standingOf(row.summary) === standing).sort(byQuiet);
+  const sections: [Standing, string][] = [['not-started', 'Henüz başlamayanlar'], ['on-break', 'Ara verenler'], ['training', 'Devam edenler']];
+  const onBreak = inStanding(rows, 'on-break').length;
+  const notStarted = inStanding(rows, 'not-started').length;
   const groups = coach.groups.filter(name => rows.some(row => row.athlete.group === name));
   const trained = rows.filter(row => row.summary.weekDone > 0).length;
 
@@ -70,7 +73,7 @@ export function Athletes() {
   return (
     <div className="max-w-xl lg:max-w-5xl mx-auto px-5 pt-2 pb-8">
       <div className="flex items-end justify-between gap-3">
-        <h1 className="min-w-0 a-display text-[clamp(44px,15vw,72px)] tracking-[-0.01em]">Ekibim</h1>
+        <h1 className="min-w-0 a-display text-[clamp(44px,15vw,72px)] tracking-[-0.01em]">Antrenör</h1>
         {rows.length > 0 && (
           <button onClick={() => setInviting(true)} className="shrink-0 mb-1 h-11 px-4 rounded-full bg-(--color-text-primary) text-(--color-bg-primary) text-[15px] font-semibold">
             Davet et
@@ -92,7 +95,11 @@ export function Athletes() {
         <>
           <p className="mt-2 text-[17px] leading-snug">
             Bu hafta {rows.length} kişilik ekibinden {trained} kişi antrenman yaptı.
-            {coach.attentionCount > 0 && <> <span style={{ color: 'var(--lb-drop)' }}>{coach.attentionCount} kişi seni bekliyor.</span></>}
+            {(onBreak > 0 || notStarted > 0) && (
+              <> <span style={{ color: 'var(--lb-drop)' }}>
+                {[onBreak && `${onBreak} kişi ara verdi`, notStarted && `${notStarted} kişi henüz başlamadı`].filter(Boolean).join(', ')}.
+              </span></>
+            )}
           </p>
 
           {groups.length > 0 && (
@@ -107,23 +114,20 @@ export function Athletes() {
           )}
 
           <div className="lg:grid lg:grid-cols-2 lg:gap-x-10 lg:items-start">
-            {attention.length > 0 && (
-              <section className="mt-5">
-                <h2 className="text-[15px] font-semibold">Seni bekleyenler</h2>
-                <ul className="mt-2 grid gap-2">{attention.map(row => <AthleteRow key={row.athlete.id} row={row} />)}</ul>
-              </section>
-            )}
-            {fine.length > 0 && (
-              <section className="mt-5">
-                <h2 className="text-[15px] font-semibold">Yolunda gidenler</h2>
-                <ul className="mt-2 grid gap-2">{fine.map(row => <AthleteRow key={row.athlete.id} row={row} />)}</ul>
-              </section>
-            )}
+            {sections.map(([standing, title]) => {
+              const list = inStanding(shown, standing);
+              return list.length > 0 && (
+                <section key={standing} className="mt-5">
+                  <h2 className="text-[15px] font-semibold">{title} <span className="font-normal text-(--color-text-secondary)">{list.length}</span></h2>
+                  <ul className="mt-2 grid gap-2">{list.map(row => <AthleteRow key={row.athlete.id} row={row} />)}</ul>
+                </section>
+              );
+            })}
           </div>
           {shown.length === 0 && <p className="mt-6 text-[15px] text-(--color-text-secondary)">Bu grupta sporcu yok.</p>}
 
           <p className="mt-6 text-[13px] leading-snug text-(--color-text-secondary)">
-            Bir hafta antrenman yapmayan ya da hiç kaydı olmayan en üste çıkar. Çizgiler haftanın antrenman günleri; dolu olan yapıldı. Yeşil: geçen haftayı geçtiği hareket sayısı.
+            Bir hafta antrenman yapmayan ara verenlere geçer. Çizgiler haftanın antrenman günleri; dolu olan yapıldı. Yeşil: geçen haftayı geçtiği hareket sayısı.
           </p>
         </>
       )}

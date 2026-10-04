@@ -133,7 +133,7 @@ export function AthleteDetail() {
 
   return (
     <div className="max-w-xl lg:max-w-5xl mx-auto px-5 pt-1 pb-8">
-      <Link to="/sporcular" className="inline-flex items-center h-11 -ml-1 px-1 text-[15px] text-(--color-text-secondary)">‹ Ekibim</Link>
+      <Link to="/sporcular" className="inline-flex items-center h-11 -ml-1 px-1 text-[15px] text-(--color-text-secondary)">‹ Antrenör</Link>
       <div className="flex items-center gap-3">
         <Avatar name={athlete.name} size={52} alert={Boolean(needsAttention(summary))} />
         <h1 className="min-w-0 a-display text-[clamp(38px,12vw,72px)] tracking-[-0.01em] leading-[0.95]">{athlete.name}</h1>

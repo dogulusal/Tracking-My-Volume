@@ -45,7 +45,7 @@ export function MyCoach() {
           Ekibini kur; kim antrenman yaptı, kim aksadı, kimin hareketi yerinde sayıyor, tek listede gör.
         </p>
         <Link to="/sporcular" className="mt-4 flex items-center justify-center h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">
-          Ekibim
+          Antrenör sayfasını aç
         </Link>
       </section>
 
