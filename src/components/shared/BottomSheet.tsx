@@ -24,6 +24,14 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
+  // Esc closes it, as the ✕ does.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   if (isMobile) {
@@ -41,6 +49,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
                 <h2 className="text-lg font-semibold">{title}</h2>
                 <button
                   onClick={onClose}
+                  aria-label="Kapat"
                   className="text-(--color-text-secondary) text-xl p-1"
                 >
                   ✕
@@ -69,6 +78,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
             <h2 className="text-lg font-semibold">{title}</h2>
             <button
               onClick={onClose}
+              aria-label="Kapat"
               className="text-(--color-text-secondary) hover:text-(--color-text-primary) text-xl"
             >
               ✕

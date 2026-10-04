@@ -21,7 +21,12 @@ function generateId(name: string): string {
  * `programId` and `exit` let another page reuse the editor: a coach editing
  * an athlete's day comes back to the athlete's page, not to Programlar.
  */
-export function ProgramEditor({ programId, exit }: { programId?: string | null; exit?: { to: string; label: string; note?: string } } = {}) {
+export function ProgramEditor({ programId, exit, newOrder }: {
+  programId?: string | null;
+  exit?: { to: string; label: string; note?: string };
+  /** A new day's place, when the days of another plan should not count (the coach's plan). */
+  newOrder?: number;
+} = {}) {
   const routeParams = useParams();
   const id = programId === undefined ? routeParams.id : programId ?? undefined;
   const navigate = useNavigate();
@@ -39,7 +44,7 @@ export function ProgramEditor({ programId, exit }: { programId?: string | null; 
   const [exercises, setExercises] = useState<ExerciseDefinition[]>(
     existingProgram?.exercises || []
   );
-  const [order, setOrder] = useState(existingProgram?.order || programs.length + 1);
+  const [order, setOrder] = useState(existingProgram?.order || (newOrder ?? programs.length + 1));
   const loadedEditorKey = useRef<string | null>(null);
 
   useEffect(() => {
@@ -49,7 +54,7 @@ export function ProgramEditor({ programId, exit }: { programId?: string | null; 
     loadedEditorKey.current = key;
     setName(existingProgram?.name ?? '');
     setExercises(existingProgram?.exercises ?? []);
-    setOrder(existingProgram?.order ?? programs.length + 1);
+    setOrder(existingProgram?.order ?? newOrder ?? programs.length + 1);
   }, [id, week, existingProgram, programs.length]);
 
   const addExercise = () => {

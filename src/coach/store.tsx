@@ -161,6 +161,10 @@ const errorText = (error: unknown) => {
 
 export function CoachProvider({ children }: { children: ReactNode }) {
   const app = useContext(AppContext);
+  // Read through a ref inside the functions below: the app's value is a new
+  // object on every render, and the functions must not change with it.
+  const appRef = useRef(app);
+  appRef.current = app;
   const userId = DEMO ? null : app?.cloud.userId ?? null;
   const available = DEMO || Boolean(supabase && userId);
   const [data, setData] = useState<CoachData>(() => DEMO ? { ...demoData(), ...readStored(DEMO_KEY) } : emptyData());
@@ -195,9 +199,14 @@ export function CoachProvider({ children }: { children: ReactNode }) {
   signedIn.current = userId;
   const refreshing = useRef<Promise<void> | null>(null);
   const lastRefresh = useRef(0);
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (after = false): Promise<void> => {
     if (DEMO || !userId || !supabase) return;
-    if (refreshing.current) return refreshing.current;
+    if (refreshing.current) {
+      // A read that started before a change cannot show it: wait, then read again.
+      if (!after) return refreshing.current;
+      await refreshing.current.catch(() => {});
+      return refresh(after);
+    }
     lastRefresh.current = Date.now();
     const run = (async () => {
       try {
@@ -287,6 +296,22 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       appDispatch({ type: 'APPLY_COACH_UPDATE', payload: { id: update.id, coachId: update.coachId, coachName: update.coach, actions: update.actions } });
     }
   }, [data.inbox.updates, appState, appDispatch, inStep]);
+
+  // Stays the same function while the invites do: the invite page asks once.
+  const demoInvites = DEMO ? data.invites : null;
+  const lookupInvite = useCallback(async (code: string): Promise<InviteInfo | null> => {
+    const clean = code.trim().toUpperCase();
+    if (demoInvites) {
+      const entry = Object.entries(demoInvites).find(([, invite]) => invite.code === clean);
+      return entry ? { coachId: DEMO_COACH_ID, coach: DEMO_COACH, group: entry[0] || null } : null;
+    }
+    try {
+      return await cloud.inviteInfo(clean);
+    } catch (reason) {
+      fail(reason);
+      return null;
+    }
+  }, [demoInvites, fail]);
 
   // What the coach sees of each athlete: their record with the updates sent
   // and not yet applied there, applied the way their app will apply them.
@@ -434,23 +459,12 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       },
       switchToPlan: updateId => {
         const update = data.inbox.updates.find(item => item.id === updateId);
+        const app = appRef.current;
         if (app && update) app.dispatch({ type: 'SET_ACTIVE_PLAN', atWeek: app.state.currentWeek, payload: update.planId });
         setData(d => ({ ...d, inbox: { ...d.inbox, updates: d.inbox.updates.map(item => item.id === updateId ? { ...item, seen: true } : item) } }));
         if (!DEMO) cloud.markUpdateSeen(updateId).catch(fail);
       },
-      lookupInvite: async code => {
-        const clean = code.trim().toUpperCase();
-        if (DEMO) {
-          const entry = Object.entries(data.invites).find(([, invite]) => invite.code === clean);
-          return entry ? { coachId: DEMO_COACH_ID, coach: DEMO_COACH, group: entry[0] || null } : null;
-        }
-        try {
-          return await cloud.inviteInfo(clean);
-        } catch (reason) {
-          fail(reason);
-          return null;
-        }
-      },
+      lookupInvite,
       ensureInvite: group => {
         const invite = data.invites[group ?? ''];
         if (!invite || Date.parse(invite.expiresAt) < Date.now() + DAY_MS) renewInvite(group);
@@ -479,6 +493,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
           // Demo: the coach answers at once with a program set up for this
           // person and a note, so the athlete side has something to show. The
           // program goes into their own record the way their app applies it.
+          const app = appRef.current;
           const messages = app ? demoCoachMessages(app.state, me) : null;
           const id = newId();
           if (app && messages) app.dispatch({ type: 'APPLY_COACH_UPDATE', payload: { id, coachId: me.id, coachName: me.name, actions: messages.update.actions } });
@@ -495,7 +510,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         if (!me) return { ok: false, message: 'Önce giriş yap.' };
         try {
           const joined = await cloud.acceptInvite(clean, me.name);
-          await refresh();
+          await refresh(true);
           return { ok: true, coach: joined.coach_name };
         } catch (reason) {
           const message = reason instanceof Error ? reason.message : '';
@@ -513,7 +528,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       },
       reset: () => { if (DEMO) setData(demoData()); },
     };
-  }, [data, me, available, ready, error, summaries, states, drafted, app, fail, refresh]);
+  }, [data, me, available, ready, error, summaries, states, drafted, fail, refresh, lookupInvite]);
 
   return <CoachContext.Provider value={value}>{children}</CoachContext.Provider>;
 }

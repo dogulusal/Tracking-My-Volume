@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { BrowserRouter, MemoryRouter, Routes, Route, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { BrowserRouter, MemoryRouter, Navigate, Routes, Route, useLocation, useParams } from 'react-router-dom';
 import { AppProvider } from '@/context/AppContext';
 import { Header } from '@/components/layout/Header';
 import { BottomNav } from '@/components/layout/BottomNav';
@@ -32,9 +32,19 @@ function WorkoutRoute() {
 }
 
 // An invite link opened before signing in: kept through Google's sign-in,
-// which always comes back to the start page, and opened after it.
+// which always comes back to the start page, and opened after it. Kept for a
+// day; a link opened and left unanswered does not come back weeks later.
 const PENDING_INVITE_KEY = 'tmv-bekleyen-davet';
+const PENDING_INVITE_MS = 86400000;
 const inviteCodeIn = (pathname: string) => pathname.match(/^\/katil\/([A-Za-z0-9]{4,16})\/?$/)?.[1] ?? null;
+function readPendingInvite(): string | null {
+  try {
+    const [code, at] = (localStorage.getItem(PENDING_INVITE_KEY) ?? '').split('|');
+    return code && Date.now() - Number(at) < PENDING_INVITE_MS ? code : null;
+  } catch {
+    return null;
+  }
+}
 
 // Inner component — must be inside AppProvider to access context hooks
 function AppContent() {
@@ -47,24 +57,25 @@ function AppContent() {
   const { inbox } = useCoach();
   // The invite answer is full screen too: one question, nothing else to tap.
   const inWorkout = pathname.startsWith('/workout/') || pathname === '/baslangic' || pathname.startsWith('/katil/');
-  const navigate = useNavigate();
-  const pendingCode = configured && !userId ? inviteCodeIn(pathname) : null;
+  const [pendingInvite, setPendingInvite] = useState(readPendingInvite);
+  const signedOutAtInvite = configured && !userId ? inviteCodeIn(pathname) : null;
   useEffect(() => {
-    if (pendingCode) try { localStorage.setItem(PENDING_INVITE_KEY, pendingCode); } catch { /* the link can be opened again */ }
-  }, [pendingCode]);
+    if (!signedOutAtInvite) return;
+    try { localStorage.setItem(PENDING_INVITE_KEY, `${signedOutAtInvite}|${Date.now()}`); } catch { /* the link can be opened again */ }
+    setPendingInvite(signedOutAtInvite);
+  }, [signedOutAtInvite]);
+  // Arrived at the invite, signed in: nothing left to keep.
+  const atInvite = pathname.startsWith('/katil/');
   useEffect(() => {
-    if (!userId || !hydrated) return;
-    let code: string | null = null;
-    try { code = localStorage.getItem(PENDING_INVITE_KEY); localStorage.removeItem(PENDING_INVITE_KEY); } catch { /* nothing kept */ }
-    if (code && !pathname.startsWith('/katil/')) navigate(`/katil/${code}`, { replace: true });
-  // Once, on arriving signed in.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, hydrated]);
+    if (!atInvite || !userId || !pendingInvite) return;
+    try { localStorage.removeItem(PENDING_INVITE_KEY); } catch { /* read again only within a day */ }
+    setPendingInvite(null);
+  }, [atInvite, userId, pendingInvite]);
 
   if (configured && !userId) {
     return syncStatus === 'auth_loading'
       ? <div className="logbook flex min-h-screen items-center justify-center bg-(--color-bg-primary) text-(--color-text-primary)">Oturum kontrol ediliyor…</div>
-      : <LoginPromptModal invited={Boolean(pendingCode)} />;
+      : <LoginPromptModal invited={Boolean(signedOutAtInvite)} />;
   }
   if (configured && !hydrated) {
     return <div className="logbook flex min-h-screen items-center justify-center bg-(--color-bg-primary) p-5 text-(--color-text-primary)">
@@ -78,6 +89,10 @@ function AppContent() {
       </div>
     </div>;
   }
+
+  // Before any page: the start page's own redirects (a new person goes to set
+  // up a program) must not run first and carry them away from the invite.
+  if (pendingInvite && !atInvite) return <Navigate to={`/katil/${pendingInvite}`} replace />;
 
   const app = (
     <div

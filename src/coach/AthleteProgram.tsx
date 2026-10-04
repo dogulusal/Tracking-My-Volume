@@ -278,11 +278,12 @@ export function AthleteDayEditor() {
   const athlete = coach.athletes.find(item => item.id === id);
   const state = coach.draftState(id);
   if (!coach.ready) return null;
-  if (!athlete || !state || !coach.me || !coachPlanOf(state, coach.me.id).plan) return <Navigate to={`/sporcular/${id}?tab=program`} replace />;
+  const mine = state && coach.me ? coachPlanOf(state, coach.me.id) : null;
+  if (!athlete || !state || !mine?.plan) return <Navigate to={`/sporcular/${id}?tab=program`} replace />;
   const firstName = firstOf(athlete.name);
   return (
     <AthleteScope state={state} dispatch={dispatch}>
-      <ProgramEditor key={programId ?? 'yeni'} programId={programId ?? null}
+      <ProgramEditor key={programId ?? 'yeni'} programId={programId ?? null} newOrder={mine.days.length + 1}
         exit={{
           to: `/sporcular/${id}?tab=program`, label: `${possessive(firstName)} programı`,
           note: `Kaydet, değişikliği ${dative(firstName)} göndermez: Program sekmesinde gönderene kadar sende bekler. Gönderince bu haftadan geçerli olur; geçmiş haftalar korunur.`,

@@ -31,7 +31,6 @@ export function JoinCoach() {
   const [problem, setProblem] = useState<string | null>(null);
   useEffect(() => {
     let current = true;
-    setInvite(undefined);
     void lookupInvite(code).then(found => { if (current) setInvite(found); });
     return () => { current = false; };
   }, [code, lookupInvite]);
