@@ -10,7 +10,7 @@ const SEES = [
 ];
 const CAN_DO = [
   'Programını düzenlemek: her değişikliği Bugün\'de görürsün, geçmiş haftaların kayıtları değişmez',
-  'Antrenmanlarına yorum yazmak: o hareketi yaparken görürsün',
+  'Antrenmanlarına not ve yorum bırakmak: notu antrenmana başlarken, yorumu o hareketi yaparken görürsün',
 ];
 const DOES_NOT_SEE = ['E-posta adresin ve hesap bilgilerin', 'Google Sheet dosyan'];
 

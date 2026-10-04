@@ -66,13 +66,15 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
   const grid = useMemo(() => phase ? buildPhaseGrid(state, phase.id) : null, [state, phase]);
   const programs = grid?.programs ?? [];
 
+  // As in History: an athlete's charts never overwrite the coach's own choice.
   const [programId, setProgramId] = useState(() => {
+    if (embedded) return '';
     try { return localStorage.getItem(CHARTS_STATE_KEY) ?? ''; } catch { return ''; }
   });
   const program = programs.find(p => p.id === programId) ?? programs[0];
   useEffect(() => {
-    try { if (program) localStorage.setItem(CHARTS_STATE_KEY, program.id); } catch { /* ignore */ }
-  }, [program]);
+    try { if (program && !embedded) localStorage.setItem(CHARTS_STATE_KEY, program.id); } catch { /* ignore */ }
+  }, [embedded, program]);
 
   const counts = useMemo(() => {
     const result: Record<Counted, number> = { improved: 0, same: 0, decreased: 0, new: 0 };

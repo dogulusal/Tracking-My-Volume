@@ -215,7 +215,7 @@ function buildState(profile: Profile, today: Date): AppState {
     programs,
     plans: [{
       id: `${profile.id}-plan`, programIds: programs.map(p => p.id), createdAt: created, updatedAt: created,
-      ...(profile.coachPlan ? { name: 'Antrenör programı', coach: DEMO_COACH } : { name: 'Kendi programım' }),
+      ...(profile.coachPlan ? { name: 'Antrenör programı', coach: DEMO_COACH } : { name: 'Varsayılan Plan' }),
     }],
     activePlanId: `${profile.id}-plan`,
     weekLogs,

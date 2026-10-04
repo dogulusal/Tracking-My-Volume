@@ -29,7 +29,10 @@ export function History({ embedded = false }: { embedded?: boolean } = {}) {
   const ctx = useContext(AppContext);
   const contextPhases = ctx?.state.phases ?? [];
 
+  // An athlete's grid inside the coach's page keeps its own choice; the
+  // coach's own History opens where they left it.
   const [selectedProgramId, setSelectedProgramId] = useState<string>(() => {
+    if (embedded) return '';
     try {
       const saved = localStorage.getItem(HISTORY_STATE_KEY);
       if (saved) return (JSON.parse(saved) as { programId?: string }).programId ?? '';
@@ -81,8 +84,8 @@ export function History({ embedded = false }: { embedded?: boolean } = {}) {
 
   // Persist last selected program so it survives tab switches
   useEffect(() => {
-    localStorage.setItem(HISTORY_STATE_KEY, JSON.stringify({ programId: selectedProgramId }));
-  }, [selectedProgramId]);
+    if (!embedded) localStorage.setItem(HISTORY_STATE_KEY, JSON.stringify({ programId: selectedProgramId }));
+  }, [embedded, selectedProgramId]);
 
   // Like the Sheet, the grid runs from H0 to the latest week; open it scrolled
   // to the latest weeks.

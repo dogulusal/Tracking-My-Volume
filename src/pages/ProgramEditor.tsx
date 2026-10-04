@@ -21,7 +21,7 @@ function generateId(name: string): string {
  * `programId` and `exit` let another page reuse the editor: a coach editing
  * an athlete's day comes back to the athlete's page, not to Programlar.
  */
-export function ProgramEditor({ programId, exit }: { programId?: string | null; exit?: { to: string; label: string } } = {}) {
+export function ProgramEditor({ programId, exit }: { programId?: string | null; exit?: { to: string; label: string; note?: string } } = {}) {
   const routeParams = useParams();
   const id = programId === undefined ? routeParams.id : programId ?? undefined;
   const navigate = useNavigate();
@@ -119,9 +119,9 @@ export function ProgramEditor({ programId, exit }: { programId?: string | null; 
         {exit?.label ?? 'Programlar'}
       </button>
       <h1 className="a-display text-[44px] mt-1">{existingProgram ? 'Günü düzenle' : 'Yeni gün'}</h1>
-      <p className="mt-1 text-[13px] leading-snug text-(--color-text-secondary)">{onlyFirstPhase(ctx.state.phases, ctx.state.currentWeek)
+      <p className="mt-1 text-[13px] leading-snug text-(--color-text-secondary)">{exit?.note ?? (onlyFirstPhase(ctx.state.phases, ctx.state.currentWeek)
         ? `${week + 1}. hafta için. Değişiklikler bir sonraki program değişikliğine kadar geçerli; önceki haftalar korunur.`
-        : `${phase?.name} · H${week - (phase?.startWeek ?? 0)} için. Değişiklikler bir sonraki program sürümüne kadar geçerli; önceki haftalar ve diğer fazlar korunur.`}</p>
+        : `${phase?.name} · H${week - (phase?.startWeek ?? 0)} için. Değişiklikler bir sonraki program sürümüne kadar geçerli; önceki haftalar ve diğer fazlar korunur.`)}</p>
 
       <div className="mt-5 grid grid-cols-[1fr_88px] gap-2">
         <label className="text-[13px] text-(--color-text-secondary)">Günün adı

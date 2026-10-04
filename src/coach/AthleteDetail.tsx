@@ -224,12 +224,9 @@ export function AthleteDetail() {
           <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)} className={chip(tab === key)}>{label}</button>
         ))}
       </div>
+      {/* Where to tap for a note or a comment is said next to each part, once. */}
       {tab !== 'program' && (
-        <p className="mt-2 text-[12px] text-(--color-text-secondary)">
-          {possessive(firstName)} ekranları; kayıtlarını değiştiremezsin.
-          {tab === 'week' && ' Bir güne dokunup not, bir harekete dokunup yorum bırakabilirsin.'}
-          {tab === 'history' && ' Hücreye dokunup yorum, haftalık notlar satırına dokunup not bırakabilirsin.'}
-        </p>
+        <p className="mt-2 text-[12px] text-(--color-text-secondary)">{possessive(firstName)} ekranları; kayıtlarını değiştiremezsin.</p>
       )}
 
       <AthleteScope state={state} comments={{ list: coach.comments[athlete.id] ?? [], add: comment => coach.addComment(athlete.id, comment) }}>

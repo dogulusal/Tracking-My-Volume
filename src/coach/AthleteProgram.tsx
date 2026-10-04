@@ -57,16 +57,16 @@ function StartProgram({ athleteId, firstName, hasOwn }: { athleteId: string; fir
       {coach.library.length > 0 && (
         <>
           <p className="mt-5 text-[13px] text-(--color-text-secondary)">ya da kaydettiğin bir programdan başla, sonra {firstName} için düzelt</p>
-          {/* One column held to the page: a long name truncates instead of widening the row. */}
-          <ul className="mt-2 grid grid-cols-1 gap-2">
+          {/* The name gets the full width on its own line; on a phone the buttons beside it cut it short. */}
+          <ul className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
             {coach.library.map(template => (
-              <li key={template.id} className="a-card px-4 py-3 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[16px] font-semibold truncate">{template.name}</p>
-                  <p className="text-[13px] text-(--color-text-secondary) truncate">{template.days.map(day => day.name).join(' · ')}</p>
+              <li key={template.id} className="a-card px-4 pt-3 pb-2">
+                <p className="text-[16px] font-semibold leading-snug break-words">{template.name}</p>
+                <p className="mt-0.5 text-[13px] leading-snug text-(--color-text-secondary)">{template.days.map(day => day.name).join(' · ')}</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <button onClick={() => coach.createPlan(athleteId, template.id)} className="h-11 px-4 rounded-full bg-(--color-bg-input) text-[15px] font-medium">Bununla başla</button>
+                  <button onClick={() => setRemoving(template.id)} className="ml-auto h-11 px-2 text-[14px] text-(--color-text-secondary)">Sil</button>
                 </div>
-                <button onClick={() => setRemoving(template.id)} className="shrink-0 h-11 px-2 text-[14px] text-(--color-text-secondary)">Sil</button>
-                <button onClick={() => coach.createPlan(athleteId, template.id)} className="shrink-0 h-11 px-4 rounded-full bg-(--color-bg-input) text-[15px] font-medium">Bununla başla</button>
               </li>
             ))}
           </ul>
@@ -84,7 +84,8 @@ function StartProgram({ athleteId, firstName, hasOwn }: { athleteId: string; fir
 function OwnProgram({ firstName, name, days }: { firstName: string; name: string; days: Program[] }) {
   return (
     <section className="mt-4">
-      <p className="text-[17px] font-semibold">{name}</p>
+      {/* Their own name for it ("Varsayılan Plan", "Kendi programım") would read as the coach's. */}
+      <p className="text-[17px] font-semibold">{possessive(firstName)} kendi programı <span className="font-normal text-(--color-text-secondary)">· {name}</span></p>
       <p className="mt-0.5 text-[13px] text-(--color-text-secondary)">{firstName} kendisi kurdu; sen yalnız görürsün, değiştiremezsin.</p>
       <ul className="mt-2 a-card px-4 py-1">
         {days.map(day => (
@@ -268,10 +269,14 @@ export function AthleteDayEditor() {
   const athlete = coach.athletes.find(item => item.id === id);
   const state = coach.draftState(id);
   if (!athlete || !state || !coachPlanOf(state, DEMO_COACH).plan) return <Navigate to={`/sporcular/${id}?tab=program`} replace />;
+  const firstName = athlete.name.split(' ')[0];
   return (
     <AthleteScope state={state} dispatch={dispatch}>
       <ProgramEditor key={programId ?? 'yeni'} programId={programId ?? null}
-        exit={{ to: `/sporcular/${id}?tab=program`, label: `${possessive(athlete.name.split(' ')[0])} programı` }} />
+        exit={{
+          to: `/sporcular/${id}?tab=program`, label: `${possessive(firstName)} programı`,
+          note: `Kaydet, değişikliği ${dative(firstName)} göndermez: Program sekmesinde gönderene kadar sende bekler. Gönderince bu haftadan geçerli olur; geçmiş haftalar korunur.`,
+        }} />
     </AthleteScope>
   );
 }
