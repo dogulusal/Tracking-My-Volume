@@ -758,6 +758,7 @@ export function WorkoutEntry() {
   const [daySettingsOpen, setDaySettingsOpen] = useState(false);
   const [exerciseSheetOpen, setExerciseSheetOpen] = useState(false);
   const [noteSheetOpen, setNoteSheetOpen] = useState(false);
+  const [rirHelpOpen, setRirHelpOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [addQuery, setAddQuery] = useState('');
   // The movement whose set was just finished, offered one more set while resting.
@@ -1087,11 +1088,10 @@ export function WorkoutEntry() {
                   style={{ color: TONE[comparison.tone].color, background: TONE[comparison.tone].fill }}>{comparison.text}</span>
               )}
             </div>
-            {/* RIR in plain words: the question it answers, and the same marks
-                the History grid and the Sheet write (75 x 7 +1, F). */}
-            <div>
-              <p className="mb-1.5 text-[15px] text-(--color-text-secondary)">Sette kaç tekrar daha yapabilirdin?</p>
-              <div className="grid grid-cols-4 gap-1 p-1 rounded-2xl bg-(--color-bg-card)">
+            {/* RIR with the same marks the History grid and the Sheet write
+                (75 x 7 +1, F); the question it answers is behind the "?". */}
+            <div className="flex items-center gap-2">
+              <div role="group" aria-label="Sette kaç tekrar daha yapabilirdin?" className="flex-1 min-w-0 grid grid-cols-4 gap-1 p-1 rounded-2xl bg-(--color-bg-card)">
                 {INTENSITY_OPTIONS.map(opt => {
                   const failure = opt.value === 'failure';
                   const picked = set.intensity === opt.value;
@@ -1105,6 +1105,8 @@ export function WorkoutEntry() {
                   );
                 })}
               </div>
+              <button onClick={() => setRirHelpOpen(true)} aria-label="F, +1, +2, +3 ne demek?"
+                className="shrink-0 w-11 h-11 rounded-full bg-(--color-bg-card) text-[18px] font-semibold text-(--color-text-secondary)">?</button>
             </div>
           </div>
 
@@ -1393,6 +1395,28 @@ export function WorkoutEntry() {
             <button disabled={current.ex === exerciseLogs.length - 1} onClick={() => { moveExercise(current.ex, 1); setFocus({ ex: current.ex + 1, set: current.set }); }}
               className="h-[52px] rounded-2xl bg-(--color-bg-input) text-[16px] font-medium disabled:opacity-30">Sırada aşağı al</button>
           </div>
+        </Sheet>
+      )}
+
+      {/* What F, +1, +2 and +3 mean, with this set's own numbers. */}
+      {rirHelpOpen && (
+        <Sheet title="Kaç tekrar daha?" onClose={() => setRirHelpOpen(false)}>
+          <p className="text-[16px] leading-snug">Seti bitirince kendine sor: bu sette kaç tekrar daha yapabilirdim?</p>
+          <div className="mt-3 flex flex-col gap-1.5">
+            {[['F', 'tükendim', 'Bir tekrar daha yapamazdın.'], ['+1', '1 daha', 'Bir tekrar daha yapabilirdin.'], ['+2', '2 daha', 'İki tekrar daha yapabilirdin.'], ['+3', '3 daha', 'Üç tekrar daha yapabilirdin.']].map(([mark, label, text]) => (
+              <div key={mark} className="flex items-center gap-3 rounded-2xl bg-(--color-bg-input) px-4 py-2.5">
+                <span className="w-14 shrink-0 flex flex-col items-center gap-0.5">
+                  <span className="lb-figure text-[20px] font-bold leading-none">{mark}</span>
+                  <span className="text-[12px] leading-none text-(--color-text-secondary)">{label}</span>
+                </span>
+                <span className="text-[15px]">{text}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[15px] leading-snug text-(--color-text-secondary)">
+            Kayıtta <span className="lb-figure font-semibold text-(--color-text-primary)">{set ? formatSetLine({ ...set, intensity: 'rir1' }) : '75 x 8 +1'}</span> diye görünür.
+            Kilo ve tekrar geçen haftayla aynıyken daha çok tekrar payı bırakmak Geçmiş'te ilerleme sayılır.
+          </p>
         </Sheet>
       )}
 
