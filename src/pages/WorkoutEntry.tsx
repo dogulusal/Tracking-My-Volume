@@ -914,6 +914,7 @@ export function WorkoutEntry() {
     .filter(item => item.index !== current?.ex && item.done < item.exercise.sets.length);
   const nextUp = unfinished.find(item => item.index > (current?.ex ?? -1)) ?? unfinished[0];
   const restShown = timerActive || timerJustFinished;
+  const onSetScreen = !isHoliday && exerciseLogs.length > 0 && !!exercise && !!set && !!current;
   const restFraction = timerActive && timerTotalRef.current > 0 ? 1 - timerRemainingSec / timerTotalRef.current : 1;
 
   const segments = (
@@ -948,9 +949,14 @@ export function WorkoutEntry() {
           <span className="text-[15px] font-semibold truncate px-2">
             {program.name} <span className="font-medium text-(--color-text-secondary)">· {current ? `hareket ${current.ex + 1}/${exerciseLogs.length}` : `${doneCount}/${setCount} set`}</span>
           </span>
-          <button onClick={() => setScreen('list')} aria-label="Hareket listesi ve gün ayarları" className="-mr-2.5 w-11 h-11 flex items-center justify-center">
-            <svg aria-hidden="true" className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" /></svg>
-          </button>
+          {/* On a set the strip under "Seti bitir" opens the list, so this
+              button is only for the screens without one (holiday, first
+              movement, done); an empty box keeps the title centred. */}
+          {onSetScreen ? <span aria-hidden="true" className="-mr-2.5 w-11 h-11" /> : (
+            <button onClick={() => setScreen('list')} aria-label="Hareket listesi ve gün ayarları" className="-mr-2.5 w-11 h-11 flex items-center justify-center">
+              <svg aria-hidden="true" className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" /></svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1026,7 +1032,7 @@ export function WorkoutEntry() {
             {/* Last week's numbers are the ones in the fields below (the week
                 starts from them), and the line under them says how this set
                 compares; they are not repeated up here. */}
-            <p className="mt-1 text-[15px] text-(--color-text-secondary)">Set {current.set + 1} / {exercise.sets.length}</p>
+            <p className="mt-1 [@media(max-height:700px)]:mt-0 text-[15px] text-(--color-text-secondary)">Set {current.set + 1} / {exercise.sets.length}</p>
             {/* One card for both: how to pick a weight never done before, and
                 (until dismissed) how a set is entered at all. */}
             {(firstTimeMovement || showFirstHint) && (
@@ -1112,20 +1118,7 @@ export function WorkoutEntry() {
 
           {/* Pinned to the bottom: on a short screen (or Safari with its bars)
               the set scrolls behind it, and "Seti bitir" stays under the thumb. */}
-          <div className="sticky bottom-0 z-10 bg-(--color-bg-primary) px-4 pt-2 pb-[calc(20px+env(safe-area-inset-bottom))] flex flex-col gap-2.5">
-            <button onClick={() => setScreen('list')} aria-label="Bütün hareketleri göster"
-              className="min-h-12 px-4 py-1 rounded-2xl bg-(--color-bg-card) flex items-center gap-3 text-left [@media(max-height:700px)]:hidden">
-              <span className="flex-1 min-w-0 flex flex-col">
-                <span className="text-[12px] text-(--color-text-secondary)">{nextUp ? 'Sonra' : 'Başka hareket yok · eklemek için dokun'}</span>
-                {nextUp && (
-                  <span className="text-[15px] font-semibold truncate">
-                    {nextUp.exercise.exerciseName} <span className="font-normal text-(--color-text-secondary)">· {nextUp.done}/{nextUp.exercise.sets.length} set</span>
-                  </span>
-                )}
-              </span>
-              <span className="shrink-0 text-[14px] text-(--color-text-secondary)">Tümü ({exerciseLogs.length})</span>
-              <svg aria-hidden="true" className="w-4 h-4 shrink-0 text-(--color-text-secondary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 15l6-6 6 6" /></svg>
-            </button>
+          <div className="sticky bottom-0 z-10 bg-(--color-bg-primary) px-4 pt-2 [@media(max-height:700px)]:pt-1 pb-[calc(20px+env(safe-area-inset-bottom))] [@media(max-height:700px)]:pb-[calc(12px+env(safe-area-inset-bottom))] flex flex-col gap-2.5 [@media(max-height:700px)]:gap-1.5">
             {exercise.sets.some((_, i) => completedSets[`${exercise.exerciseId}:${i}`]) && (
               <div className="flex flex-wrap gap-x-4 gap-y-1 px-1.5">
                 {exercise.sets.map((s, i) => completedSets[`${exercise.exerciseId}:${i}`] && (
@@ -1138,14 +1131,29 @@ export function WorkoutEntry() {
               </div>
             )}
             {currentDone ? (
-              <button onClick={() => setFocus(null)} className="h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Düzeltmeyi bitir</button>
+              <button onClick={() => setFocus(null)} className="h-16 [@media(max-height:700px)]:h-14 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Düzeltmeyi bitir</button>
             ) : (
               <button onClick={finishSet} disabled={!(set && set.reps > 0)}
-                className="h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) flex flex-col items-center justify-center disabled:opacity-40">
+                className="h-16 [@media(max-height:700px)]:h-14 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) flex flex-col items-center justify-center disabled:opacity-40">
                 <span className="text-[19px] font-semibold leading-tight">{set && set.reps > 0 ? 'Seti bitir' : 'Önce tekrarı gir'}</span>
                 <span className="text-[12px] opacity-70">sonra {formatDurationLabel(restDurationSec)} dinlenme</span>
               </button>
             )}
+            {/* Under the button, like a player bar: the next movement, and a tap
+                opens them all (the only way to the list from a set). */}
+            <button onClick={() => setScreen('list')} aria-label="Bütün hareketleri göster"
+              className="min-h-12 [@media(max-height:700px)]:min-h-11 px-4 py-1 [@media(max-height:700px)]:py-0.5 rounded-2xl bg-(--color-bg-card) flex items-center gap-3 text-left">
+              <span className="flex-1 min-w-0 flex flex-col">
+                <span className="text-[12px] text-(--color-text-secondary)">{nextUp ? 'Sonra' : 'Başka hareket yok · eklemek için dokun'}</span>
+                {nextUp && (
+                  <span className="text-[15px] font-semibold truncate">
+                    {nextUp.exercise.exerciseName} <span className="font-normal text-(--color-text-secondary)">· {nextUp.done}/{nextUp.exercise.sets.length} set</span>
+                  </span>
+                )}
+              </span>
+              <span className="shrink-0 text-[14px] text-(--color-text-secondary)">Tümü ({exerciseLogs.length})</span>
+              <svg aria-hidden="true" className="w-4 h-4 shrink-0 text-(--color-text-secondary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 15l6-6 6 6" /></svg>
+            </button>
             {draftStatus === 'error' && <span role="alert" className="text-center text-[13px]" style={{ color: 'var(--lb-drop)' }}>Taslak bu telefona kaydedilemedi</span>}
           </div>
         </>
