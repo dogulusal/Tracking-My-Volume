@@ -757,6 +757,7 @@ export function WorkoutEntry() {
   const [screen, setScreen] = useState<'set' | 'list'>('set');
   const [daySettingsOpen, setDaySettingsOpen] = useState(false);
   const [exerciseSheetOpen, setExerciseSheetOpen] = useState(false);
+  const [noteSheetOpen, setNoteSheetOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [addQuery, setAddQuery] = useState('');
   // The movement whose set was just finished, offered one more set while resting.
@@ -883,6 +884,7 @@ export function WorkoutEntry() {
   const key = exercise ? exerciseKey(exercise.exerciseName) : '';
   const info = exercise ? movementInfo.get(exercise.exerciseId) : undefined;
   const pinned = key ? exerciseSettings?.[key]?.note : undefined;
+  const weightUp = info?.target && info.target.reps === null ? info.target : null;
   const step = info?.rule.step ?? 2.5;
   const comparison = set ? compareToPrevious(set, prevSet) : null;
   const chosenRegion = key ? exerciseSettings?.[key]?.region : undefined;
@@ -1002,22 +1004,28 @@ export function WorkoutEntry() {
           <div className="px-5 pt-2">
             <div className="flex items-start gap-2">
               <h1 className="a-display flex-1 min-w-0 text-[40px] [@media(max-height:700px)]:text-[32px]">{exercise.exerciseName}</h1>
-              <button onClick={() => setExerciseSheetOpen(true)} aria-label={`${exercise.exerciseName} seçenekleri: not, kural, set ekle ya da sil, sıra`}
+              <button onClick={() => setExerciseSheetOpen(true)} aria-label={`${exercise.exerciseName} seçenekleri: bölge, sabit not, kural, set ekle ya da sil, sıra`}
                 className="-mr-2.5 shrink-0 w-11 h-11 flex items-center justify-center text-(--color-text-secondary)">
                 <svg aria-hidden="true" className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
               </button>
             </div>
-            <button onClick={() => setExerciseSheetOpen(true)} className="mt-0.5 min-h-8 text-left text-[14px] text-(--color-text-secondary)">
-              {regions.length ? (
-                <><span className="font-semibold text-(--color-text-primary)">{regions[0]}</span>{regions.length > 1 && ` · ${regions.slice(1).join(', ').toLocaleLowerCase('tr-TR')}`}</>
-              ) : <span className="underline underline-offset-2">Çalıştırdığı bölgeyi seç</span>}
-            </button>
-            <div className="mt-1 flex items-baseline justify-between gap-3">
-              <span className="text-[15px] text-(--color-text-secondary)">Set {current.set + 1} / {exercise.sets.length}</span>
-              <span className="text-[14px] text-(--color-text-secondary)">
-                geçen hafta <span className="lb-figure text-[22px] font-semibold text-(--color-text-primary)">{prevSet ? formatSetLine(prevSet) : '—'}</span>
-              </span>
+            {/* Notes sit in plain sight beside the region: the ⋯ menu alone
+                was not found when one was wanted mid-workout. */}
+            <div className="mt-0.5 flex items-center justify-between gap-3">
+              <button onClick={() => setExerciseSheetOpen(true)} className="flex-1 min-w-0 min-h-8 text-left text-[14px] text-(--color-text-secondary) truncate">
+                {regions.length ? (
+                  <><span className="font-semibold text-(--color-text-primary)">{regions[0]}</span>{regions.length > 1 && ` · ${regions.slice(1).join(', ').toLocaleLowerCase('tr-TR')}`}</>
+                ) : <span className="underline underline-offset-2">Çalıştırdığı bölgeyi seç</span>}
+              </button>
+              <button onClick={() => setNoteSheetOpen(true)} className="shrink-0 -mr-1 min-h-8 px-1 flex items-center gap-1.5 text-[14px] text-(--color-text-secondary)">
+                <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+                {exercise.note?.trim() || notes.trim() ? 'Notu düzenle' : 'Not ekle'}
+              </button>
             </div>
+            {/* Last week's numbers are the ones in the fields below (the week
+                starts from them), and the line under them says how this set
+                compares; they are not repeated up here. */}
+            <p className="mt-1 text-[15px] text-(--color-text-secondary)">Set {current.set + 1} / {exercise.sets.length}</p>
             {/* One card for both: how to pick a weight never done before, and
                 (until dismissed) how a set is entered at all. */}
             {(firstTimeMovement || showFirstHint) && (
@@ -1029,11 +1037,13 @@ export function WorkoutEntry() {
                 {showFirstHint && <button onClick={dismissFirstHint} className="shrink-0 h-11 px-3 rounded-xl text-[14px] font-semibold" style={{ color: 'var(--lb-ref)' }}>Anladım</button>}
               </div>
             )}
-            {(info?.target || pinned || info?.lastNote || coachComment || (doneCount === 0 && (previousNoteLog?.notes?.trim() || coachDayNotes.length > 0))) && (
+            {(weightUp || pinned || info?.lastNote || coachComment || (doneCount === 0 && (previousNoteLog?.notes?.trim() || coachDayNotes.length > 0))) && (
               <div className="mt-1.5 space-y-0.5 text-[14px] text-(--color-text-secondary)">
-                {info?.target && (
-                  <p>Hedef <span className="lb-figure text-[17px] font-semibold text-(--color-text-primary)">{info.target.reps !== null ? `${info.target.weight} × ${info.target.reps}` : `${info.target.weight} kg`}</span>
-                    {' · '}{info.target.reps !== null ? `geçen ${formatSet(info.target.from)}` : `${info.target.from.reps} tekrara ulaştın`}</p>
+                {/* "One more rep" goes without saying; time to add weight is
+                    the one target shown nowhere else. */}
+                {weightUp && (
+                  <p>Hedef <span className="lb-figure text-[17px] font-semibold text-(--color-text-primary)">{weightUp.weight} kg</span>
+                    {' · '}{weightUp.from.reps} tekrara ulaştın</p>
                 )}
                 {pinned && <p className="truncate">Sabit: <span className="text-(--color-text-primary)">{pinned}</span></p>}
                 {doneCount === 0 && coachDayNotes.map(note => (
@@ -1312,13 +1322,7 @@ export function WorkoutEntry() {
       {/* What belongs to the movement rather than the set. */}
       {exerciseSheetOpen && exercise && current && (
         <Sheet title={exercise.exerciseName} onClose={() => { setExerciseSheetOpen(false); setPinnedEdit(null); setRuleEdit(null); }}>
-          <label className="block">
-            <span className="text-[14px] text-(--color-text-secondary)">Not · bir sonraki {exercise.exerciseName} antrenmanında görünür</span>
-            <textarea value={exercise.note ?? ''} onChange={e => updateExerciseNote(current.ex, e.target.value)} rows={2} placeholder="Haftaya 50 kilo gir…"
-              className="mt-1 w-full px-4 py-3 rounded-2xl bg-(--color-bg-input) text-[16px] resize-none focus:outline-none placeholder:text-(--color-text-secondary)" />
-          </label>
-
-          <div className="mt-4">
+          <div>
             <span className="text-[14px] text-(--color-text-secondary)">Çalıştırdığı bölge{regions.length && !chosenRegion ? ' · adından anlaşıldı, değiştirebilirsin' : ''}</span>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {REGIONS.map(region => {
@@ -1392,6 +1396,23 @@ export function WorkoutEntry() {
         </Sheet>
       )}
 
+      {/* Both notes a workout can leave, in one place: for this movement and
+          for the day. Each shows up the next time that movement or day is trained. */}
+      {noteSheetOpen && exercise && current && (
+        <Sheet title="Not" onClose={() => setNoteSheetOpen(false)}>
+          <label className="block">
+            <span className="text-[14px] text-(--color-text-secondary)">{exercise.exerciseName} · bir sonraki {exercise.exerciseName} antrenmanında görünür</span>
+            <textarea value={exercise.note ?? ''} onChange={e => updateExerciseNote(current.ex, e.target.value)} rows={2} placeholder="Haftaya 50 kilo gir…"
+              className="mt-1 w-full px-4 py-3 rounded-2xl bg-(--color-bg-input) text-[16px] resize-none focus:outline-none placeholder:text-(--color-text-secondary)" />
+          </label>
+          <label className="mt-4 block">
+            <span className="text-[14px] text-(--color-text-secondary)">Antrenman notu · bir sonraki {program.name} antrenmanında görünür</span>
+            <textarea value={notes} onChange={e => { setNotes(e.target.value); setIsDirty(true); }} rows={3} placeholder="Bugün uykusuzdum…"
+              className="mt-1 w-full px-4 py-3 rounded-2xl bg-(--color-bg-input) text-[16px] resize-none focus:outline-none placeholder:text-(--color-text-secondary)" />
+          </label>
+        </Sheet>
+      )}
+
       {/* Everything about the day itself, out of the way of the sets. */}
       {daySettingsOpen && (
         <Sheet title="Gün ayarları" onClose={() => setDaySettingsOpen(false)}>
@@ -1454,7 +1475,7 @@ export function WorkoutEntry() {
             <textarea value={notes} onChange={e => { setNotes(e.target.value); setIsDirty(true); }} rows={3} placeholder="Bu antrenman hakkında not…"
               className="mt-1 w-full px-4 py-3 rounded-2xl bg-(--color-bg-input) text-[16px] resize-none focus:outline-none placeholder:text-(--color-text-secondary)" />
           </label>
-          <p className="text-[13px] text-(--color-text-secondary)">Bir hareketle ilgiliyse o hareketin notuna yaz (hareketin ⋯ menüsü).</p>
+          <p className="text-[13px] text-(--color-text-secondary)">Bir hareketle ilgiliyse o hareketin ekranında “Not ekle”ye dokun.</p>
 
           {(existingLog || isDirty) && (
             <button onClick={() => { setDaySettingsOpen(false); setConfirmClear(true); }}
