@@ -204,7 +204,7 @@ export function AthleteDetail() {
   const tabChip = (active: boolean) => `h-11 px-1 lg:px-4 rounded-full text-[clamp(13px,4vw,15px)] lg:text-[15px] whitespace-nowrap ${look(active)}`;
 
   return (
-    <div className="max-w-xl lg:max-w-5xl mx-auto px-5 pt-1 pb-8">
+    <div className="max-w-xl lg:max-w-5xl xl:max-w-7xl mx-auto px-5 pt-1 pb-8">
       <Link to="/sporcular" className="inline-flex items-center h-11 -ml-1 px-1 text-[15px] text-(--color-text-secondary)">‹ Antrenör</Link>
       <div className="flex items-center gap-3">
         <Avatar name={athlete.name} size={52} alert={Boolean(needsAttention(summary))} />

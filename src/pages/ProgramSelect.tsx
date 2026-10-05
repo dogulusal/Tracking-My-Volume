@@ -127,7 +127,7 @@ export function ProgramSelect() {
   }, [activePlanPrograms, weekLogs, phases, selectedWeek, state.currentWeek]);
 
   return (
-    <div className="max-w-5xl mx-auto px-5 pt-2 pb-8">
+    <div className="max-w-5xl xl:max-w-7xl mx-auto px-5 pt-2 pb-8">
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           <h1 className="a-display text-[48px]">Programlar</h1>
@@ -157,14 +157,17 @@ export function ProgramSelect() {
         <ProgramWeekPicker week={selectedWeek} onChange={week => setParams({ week: String(week) })} allowCopy />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
         {programPreviews.map(({ program, lastLog, visibleExercises, lastWeekLabel }) => (
           <section key={program.id} className="a-card px-4 pt-3.5 pb-3 flex flex-col">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="a-display text-[32px] truncate">{program.name}</h2>
                 <p className="mt-0.5 text-[14px] text-(--color-text-secondary)">
-                  {visibleExercises.length} hareket{lastLog ? ` · son kayıt ${lastWeekLabel}` : ' · henüz kayıt yok'}
+                  {/* In a narrow card (four in a row) it breaks between the two
+                      parts, not in the middle of "Faz 3 · H4". */}
+                  <span className="whitespace-nowrap">{visibleExercises.length} hareket</span>
+                  {' · '}<span className="whitespace-nowrap">{lastLog ? `son kayıt ${lastWeekLabel}` : 'henüz kayıt yok'}</span>
                 </p>
               </div>
               <Link to={`/programs/edit/${program.id}?week=${selectedWeek}`} className="shrink-0 h-11 px-4 rounded-full bg-(--color-bg-input) flex items-center text-[15px] font-medium">Düzenle</Link>

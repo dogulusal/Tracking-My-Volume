@@ -70,7 +70,7 @@ export function Athletes() {
     `shrink-0 h-11 px-4 rounded-full text-[15px] whitespace-nowrap ${active ? 'bg-(--color-text-primary) text-(--color-bg-primary) font-semibold' : 'bg-(--color-bg-card) text-(--color-text-secondary)'}`;
 
   return (
-    <div className="max-w-xl lg:max-w-5xl mx-auto px-5 pt-2 pb-8">
+    <div className="max-w-xl lg:max-w-5xl xl:max-w-7xl mx-auto px-5 pt-2 pb-8">
       <div className="flex items-end justify-between gap-3">
         <h1 className="min-w-0 a-display text-[clamp(44px,15vw,72px)] tracking-[-0.01em]">Antrenör</h1>
         {rows.length > 0 && (

@@ -30,7 +30,7 @@ export function DemoBar() {
 
   return (
     <div ref={ref} className="relative z-40 bg-(--color-text-primary) text-(--color-bg-primary)">
-      <div className="max-w-5xl mx-auto px-4 py-1.5 text-[13px]">
+      <div className="max-w-5xl xl:max-w-7xl mx-auto px-4 py-1.5 text-[13px]">
         <p className="font-semibold">Antrenör modu demosu · sporcular örnek, hiçbir şey hesabına gitmez</p>
         {resetting ? (
           <div className="flex flex-wrap items-center gap-x-4">

@@ -83,7 +83,7 @@ export function Dashboard() {
   return (
     // On a wide screen the week's numbers sit beside the workout instead of
     // under it, and the page lines up with the header like the others.
-    <div className="max-w-xl lg:max-w-5xl mx-auto px-5 pt-2 pb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:grid-rows-[auto_1fr] lg:gap-x-14 lg:items-start">
+    <div className="max-w-xl lg:max-w-5xl xl:max-w-7xl mx-auto px-5 pt-2 pb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:grid-rows-[auto_1fr] lg:gap-x-14 lg:items-start">
       <div>
       {/* Centred on a phone, where the day's name stands alone; on a wide
           screen it lines up with the column beside it. */}

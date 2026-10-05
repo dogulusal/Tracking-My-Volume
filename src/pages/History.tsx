@@ -172,7 +172,7 @@ export function History({ embedded = false }: { embedded?: boolean } = {}) {
   ];
 
   return (
-    <div className={embedded ? '' : 'max-w-5xl mx-auto px-4 pt-2 pb-8'}>
+    <div className={embedded ? '' : 'max-w-5xl xl:max-w-7xl mx-auto px-4 pt-2 pb-8'}>
       <div className="flex items-end justify-between gap-3 px-1">
         <div className="min-w-0">
           {!embedded && <h1 className="a-display text-[48px]">Geçmiş</h1>}

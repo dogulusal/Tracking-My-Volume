@@ -11,7 +11,7 @@ export function PageContainer({ children, title, bare = false }: PageContainerPr
   return (
     // Same width, gutters and top as Programlar and Geçmiş, so a page's title
     // does not jump when moving between them.
-    <div className={bare ? '' : 'max-w-5xl mx-auto px-5 pt-2 pb-8'}>
+    <div className={bare ? '' : 'max-w-5xl xl:max-w-7xl mx-auto px-5 pt-2 pb-8'}>
       {title && (
         <h1 className="a-display text-[48px] mb-4">
           {title}
