@@ -1,7 +1,7 @@
 {
   "name": "Tracking My Volume",
   "short_name": "Volume",
-  "description": "Antrenman hacmi ve haftalık ilerleme takibi.",
+  "description": "Antrenman takibi: her hareketin geçen haftaki rakamını geçmeye çalışırsın.",
   "lang": "tr",
   "start_url": "./",
   "scope": "./",
