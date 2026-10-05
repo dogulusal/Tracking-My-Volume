@@ -33,7 +33,7 @@ function ExerciseLine({ row, startWeek, open, onToggle }: { row: GridRow; startW
       <button type="button" onClick={onToggle} aria-expanded={open}
         className="lb-press w-full flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-1 md:gap-x-6 -mx-2 px-2 py-3 rounded text-left">
         <span className="basis-full sm:basis-auto sm:flex-1 min-w-0 text-sm font-medium sm:truncate">{row.name}</span>
-        <Sparkline cells={row.cells} className="flex-1 sm:flex-none sm:w-40 lg:w-72 shrink-0" />
+        <Sparkline cells={row.cells} className="flex-1 sm:flex-none sm:w-40 lg:w-72 xl:w-48 shrink-0" />
         <span className="w-28 md:w-32 shrink-0 flex items-center justify-end gap-2 lb-figure text-sm whitespace-nowrap">
           <span aria-hidden="true" className="w-2 h-2 rounded-full shrink-0" style={{ background: last?.status ? STATUS_INK[last.status] : undefined }} />
           {top && <span>{kg(top.weight)}<span className="text-(--color-text-secondary)"> × {repsLabel(top)}</span></span>}
@@ -96,19 +96,21 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
   const { activePlanPrograms } = usePlans();
   const stalled = useMemo(() => embedded ? [] : stalledMovements(activePlanPrograms, state.weekLogs), [embedded, activePlanPrograms, state.weekLogs]);
   const [showAllStalled, setShowAllStalled] = useState(false);
+  // An athlete's charts sit inside the coach's page, which keeps the tabs.
+  const sideBySide = !embedded;
 
   return (
     <PageContainer bare={embedded}>
       <div className="mb-5">
         {!embedded && <h1 className="a-display text-[48px]">Grafikler</h1>}
-        <p className="lb-label mt-1">
+        <p className={`lb-label mt-1 ${sideBySide ? 'xl:hidden' : ''}`}>
           {view === 'progress'
             ? 'Her hareketin en ağır seti, hafta hafta. Renkler Geçmiş tablosuyla aynı.'
             : 'Haftada bölge başına çalışılan set. Bütün günler sayılır.'}
         </p>
       </div>
 
-      <div className="flex gap-1 mb-5 border-b lb-rule" role="tablist">
+      <div className={`flex gap-1 mb-5 border-b lb-rule ${sideBySide ? 'xl:hidden' : ''}`} role="tablist">
         {([['progress', 'İlerleme'], ['volume', 'Bölge başına set']] as const).map(([key, label]) => (
           <button key={key} type="button" role="tab" aria-selected={view === key} onClick={() => setView(key)}
             className={`lb-press -mb-px px-3 py-2 text-sm border-b-2 ${
@@ -119,7 +121,12 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
         ))}
       </div>
 
-      {view === 'volume' ? <MuscleVolume /> : (<>
+      {/* On a wide screen both views stand side by side instead of behind
+          tabs, so the page is not half empty; on a phone the tabs stay. */}
+      <div className={sideBySide ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] xl:gap-14 xl:items-start' : ''}>
+      {(sideBySide || view === 'progress') && (
+      <div className={view === 'progress' ? '' : 'hidden xl:block'}>
+      {sideBySide && <ColumnHead title="İlerleme" text="Her hareketin en ağır seti, hafta hafta. Renkler Geçmiş tablosuyla aynı." />}
       <div className="flex flex-wrap items-center gap-1 mb-3">
         {programs.map(p => (
           <button key={p.id} onClick={() => setProgramId(p.id)}
@@ -188,7 +195,7 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
             <>
               <div className="hidden md:flex items-center gap-6 pt-5 pb-2 border-b lb-rule lb-label">
                 <span className="flex-1">Hareket</span>
-                <span className="w-20 sm:w-40 lg:w-72">Seyir · en ağır set</span>
+                <span className="w-20 sm:w-40 lg:w-72 xl:w-48">Seyir · en ağır set</span>
                 <span className="w-32 text-right">Son kayıt</span>
                 <span className="w-32 text-right">Faz başından</span>
                 <span className="w-3" />
@@ -227,7 +234,25 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
           )}
         </section>
       )}
-      </>)}
+      </div>
+      )}
+      {(sideBySide || view === 'volume') && (
+        <div className={view === 'volume' ? '' : 'hidden xl:block'}>
+          {sideBySide && <ColumnHead title="Bölge başına set" text="Haftada bölge başına çalışılan set. Bütün günler sayılır." />}
+          <MuscleVolume />
+        </div>
+      )}
+      </div>
     </PageContainer>
+  );
+}
+
+/** A view's own title, shown only when the views stand side by side. */
+function ColumnHead({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="hidden xl:block mb-4">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      <p className="lb-label mt-0.5">{text}</p>
+    </div>
   );
 }

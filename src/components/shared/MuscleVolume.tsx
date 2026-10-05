@@ -64,8 +64,10 @@ export function MuscleVolume() {
   const shadeOf = (rank: number) => 1 - rank * (0.8 / Math.max(1, ranked.length - 1));
   const focused = ranked.find(row => row.group === focus && row.now.sets > 0) ?? null;
 
+  // A container: the ring sits beside its list only when this block itself
+  // is wide enough (a tablet, or a desktop showing it alone), not by screen.
   return (
-    <div>
+    <div className="@container">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div className="flex rounded-lg border lb-rule overflow-hidden text-xs font-semibold" role="group" aria-label="Dönem">
           {(['week', 'block'] as const).map(item => (
@@ -105,7 +107,7 @@ export function MuscleVolume() {
 
         {/* The period as a ring: its total in the middle, each region a slice.
             Tapping a region (in the ring or the list) names it in the middle. */}
-        <div className="mt-5 grid gap-5 sm:grid-cols-[15rem_minmax(0,1fr)] sm:items-center sm:gap-10">
+        <div className="mt-5 grid gap-5 @xl:grid-cols-[15rem_minmax(0,1fr)] @xl:items-center @xl:gap-10">
           <Ring slices={ranked.map((row, rank) => ({ key: row.group, value: row.now.sets, shade: shadeOf(rank) }))}
             focus={focused?.group ?? null} onFocus={key => setFocus(value => value === key ? null : key)}
             center={focused ? (
