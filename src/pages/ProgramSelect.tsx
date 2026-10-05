@@ -145,12 +145,10 @@ export function ProgramSelect() {
       {/* The two ways to build something new, first on the page: at the bottom
           they sat under every day's card and were missed. */}
       <div className="mt-4 grid grid-cols-2 gap-2 sm:max-w-md">
-        <Link to={`/programs/edit?week=${selectedWeek}`} className="h-12 px-2 rounded-2xl bg-(--color-bg-card) flex items-center justify-center gap-1 whitespace-nowrap text-[clamp(14px,4vw,16px)] font-semibold"
-          style={{ boxShadow: 'inset 0 0 0 1.5px var(--color-border)' }}>
+        <Link to={`/programs/edit?week=${selectedWeek}`} className="a-btn-line h-12 px-2 rounded-2xl flex items-center justify-center gap-1 whitespace-nowrap text-[clamp(14px,4vw,16px)]">
           <svg aria-hidden="true" className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>Yeni gün ekle
         </Link>
-        <button onClick={() => setShowNewPlanModal(true)} className="h-12 px-2 rounded-2xl bg-(--color-bg-card) flex items-center justify-center gap-1 whitespace-nowrap text-[clamp(14px,4vw,16px)] font-semibold"
-          style={{ boxShadow: 'inset 0 0 0 1.5px var(--color-border)' }}>
+        <button onClick={() => setShowNewPlanModal(true)} className="a-btn-line h-12 px-2 rounded-2xl flex items-center justify-center gap-1 whitespace-nowrap text-[clamp(14px,4vw,16px)]">
           <svg aria-hidden="true" className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>Yeni plan oluştur
         </button>
       </div>

@@ -201,7 +201,7 @@ export function Dashboard() {
       )}
 
       {!announceDone && (
-        <button onClick={() => setConfirmNewWeek(true)} className="mt-8 w-full h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">
+        <button onClick={() => setConfirmNewWeek(true)} className="a-btn-line mt-8 w-full h-14 rounded-[16px] text-[16px]">
           Yeni haftaya geç
         </button>
       )}

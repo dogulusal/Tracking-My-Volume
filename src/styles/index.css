@@ -211,6 +211,19 @@ input[type="number"]::-webkit-outer-spin-button {
 .a-display { font-weight: 700; line-height: 1; }
 .a-card { background: var(--color-bg-card); border-radius: 18px; }
 
+/* A second action that still has to read as a button on the page ground.
+   The card fill alone nearly vanished there in both themes (white on
+   #f3f4f5, #18191b on #0b0b0c); the outline is half the text colour, which
+   clears 3:1 against the ground in both. */
+.a-btn-line {
+  background: transparent;
+  color: var(--color-text-primary);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--color-text-primary) 50%, transparent);
+  transition: background-color 0.12s ease;
+}
+.a-btn-line:active { background: color-mix(in srgb, var(--color-text-primary) 8%, transparent); }
+
 .lb-rule { border-color: var(--lb-rule); }
 .lb-rule-strong { border-color: var(--lb-rule-strong); }
 
