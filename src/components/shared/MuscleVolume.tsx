@@ -27,6 +27,8 @@ export function MuscleVolume() {
     try { return localStorage.getItem(MODE_KEY) === 'block' ? 'block' : 'week'; } catch { return 'week'; }
   });
   const [picked, setPicked] = useState<number | null>(null);
+  // A region picked in the ring or the list; kept across periods.
+  const [focus, setFocus] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const setMode = (next: Mode) => {
     setModeState(next);
@@ -54,21 +56,13 @@ export function MuscleVolume() {
   const inProgress = period.weeks.includes(state.currentWeek);
   const ranked = rows.map(row => ({ ...row, now: row.cells[index], before: previousIndex >= 0 ? row.cells[previousIndex] : null }))
     .sort((a, b) => b.now.sets - a.now.sets);
-  const top = Math.max(1, ...ranked.map(row => row.now.sets));
   const exercises = loggedExercises(state);
   const unassigned = exercises.filter(item => groupOf(item.name, state.muscleGroups) === UNASSIGNED);
-  // Phase headings over the trend table's columns.
-  const spans: { name: string; count: number }[] = [];
-  for (const item of periods) {
-    const last = spans[spans.length - 1];
-    if (last?.name === item.phaseName) last.count++;
-    else spans.push({ name: item.phaseName, count: 1 });
-  }
-  // One scale for every region, so a small group looks small; the total
-  // row has its own.
-  const most = Math.max(1, ...rows.flatMap(row => row.cells.map(cell => cell.sets)));
-  const phaseStarts = new Set<number>();
-  periods.forEach((item, i) => { if (i > 0 && item.phaseName !== periods[i - 1].phaseName) phaseStarts.add(i); });
+  // Monochrome on purpose: colour in this app means gain, drop or a first
+  // record. Shades step from the largest group to the smallest, in the same
+  // order as the list and clockwise round the ring.
+  const shadeOf = (rank: number) => 1 - rank * (0.8 / Math.max(1, ranked.length - 1));
+  const focused = ranked.find(row => row.group === focus && row.now.sets > 0) ?? null;
 
   return (
     <div>
@@ -97,9 +91,6 @@ export function MuscleVolume() {
               {period.weeks.length > 1 && mode === 'block' && period.weeks.length < 4 ? ` · ${period.weeks.length} hafta` : ''}
               {inProgress ? ' · devam ediyor' : ''}
             </p>
-            <p className="lb-figure text-3xl font-semibold mt-2">
-              {current.sets}<span className="text-sm font-medium text-(--color-text-secondary) ml-1.5">set</span>
-            </p>
             {previous && previousPeriod && (
               <p className="lb-label mt-1.5">{previousPeriod.phaseName} {previousPeriod.label} ile fark {signed(current.sets - previous.sets)} set</p>
             )}
@@ -112,21 +103,41 @@ export function MuscleVolume() {
           </div>
         </div>
 
-        <ul className="mt-6 space-y-3">
-          {ranked.map(row => (
-            <li key={row.group} className="grid grid-cols-[5.5rem_minmax(0,1fr)_auto] sm:grid-cols-[7rem_minmax(0,1fr)_6rem] items-center gap-3">
-              <span className={`text-sm ${row.group === UNASSIGNED ? 'text-(--color-text-secondary)' : 'font-medium'}`}>{row.group}</span>
-              <span className="h-2 rounded-full" style={{ background: 'var(--lb-rule)' }}>
-                <span className="block h-full rounded-full transition-[width] duration-300"
-                  style={{ width: `${(row.now.sets / top) * 100}%`, background: 'var(--color-text-primary)', opacity: row.group === UNASSIGNED ? 0.35 : 0.8 }} />
-              </span>
-              <span className="lb-figure text-sm text-right whitespace-nowrap">
-                {row.now.sets}<span className="text-xs text-(--color-text-secondary)"> set</span>
-                {row.before && <span className="text-xs text-(--color-text-secondary) ml-2">{signed(row.now.sets - row.before.sets)}</span>}
-              </span>
-            </li>
-          ))}
-        </ul>
+        {/* The period as a ring: its total in the middle, each region a slice.
+            Tapping a region (in the ring or the list) names it in the middle. */}
+        <div className="mt-5 grid gap-5 sm:grid-cols-[15rem_minmax(0,1fr)] sm:items-center sm:gap-10">
+          <Ring slices={ranked.map((row, rank) => ({ key: row.group, value: row.now.sets, shade: shadeOf(rank) }))}
+            focus={focused?.group ?? null} onFocus={key => setFocus(value => value === key ? null : key)}
+            center={focused ? (
+              <>
+                <span className="text-sm font-medium truncate max-w-[8rem]">{focused.group}</span>
+                <span className="lb-figure text-[40px] font-bold leading-none mt-1">{focused.now.sets}</span>
+                <span className="lb-label mt-1">set · %{Math.round((focused.now.sets / Math.max(1, current.sets)) * 100)}</span>
+              </>
+            ) : (
+              <>
+                <span className="lb-figure text-[48px] font-bold leading-none">{current.sets}</span>
+                <span className="lb-label mt-1">toplam set</span>
+              </>
+            )} />
+          <ul className="flex flex-col sm:max-w-sm">
+            {ranked.map((row, rank) => (
+              <li key={row.group}>
+                <button type="button" onClick={() => setFocus(value => value === row.group ? null : row.group)} aria-pressed={focus === row.group}
+                  className="lb-press w-full min-h-10 -mx-2 px-2 rounded-lg flex items-center gap-3 text-left"
+                  style={focus === row.group ? { background: 'var(--color-bg-card)' } : undefined}>
+                  <span aria-hidden="true" className="w-3 h-3 rounded-full shrink-0"
+                    style={{ background: 'var(--color-text-primary)', opacity: row.now.sets ? shadeOf(rank) : 0.12 }} />
+                  <span className={`flex-1 min-w-0 truncate text-sm ${row.group === UNASSIGNED ? 'text-(--color-text-secondary)' : 'font-medium'}`}>{row.group}</span>
+                  <span className="lb-figure text-sm text-right whitespace-nowrap">
+                    {row.now.sets}<span className="text-xs text-(--color-text-secondary)"> set</span>
+                  </span>
+                  <span className="lb-figure w-8 text-xs text-right text-(--color-text-secondary)">{row.before ? signed(row.now.sets - row.before.sets) : ''}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
         {unassigned.length > 0 && (
           // Beside the names, not among them: a phone's 44px button would
           // open up the lines once the list wraps.
@@ -136,32 +147,6 @@ export function MuscleVolume() {
           </div>
         )}
       </section>
-
-      {/* Every period at once: one bar per period on a shared scale, so a
-          region's trend reads along its row and regions compare down the
-          column. A tap on a row picks the period under the finger. */}
-      <h2 className="text-sm font-semibold mt-8">Seyir</h2>
-      <p className="lb-label mt-0.5 mb-3">Her çubuk {mode === 'week' ? 'bir hafta' : 'dört hafta'}; seçili olan koyu. Dokunduğun {mode === 'week' ? 'hafta' : 'dönem'} yukarıda açılır.</p>
-      <div className="space-y-1">
-        {[...rows.map(row => ({ name: row.group, values: row.cells.map(cell => cell.sets), quiet: row.group === UNASSIGNED })),
-          { name: 'Toplam', values: totals.map(total => total.sets), quiet: false, total: true }].map(line => (
-          <TrendRow key={line.name} name={line.name} values={line.values} picked={index} phaseStarts={phaseStarts}
-            max={'total' in line ? Math.max(1, ...line.values) : most} quiet={line.quiet} total={'total' in line}
-            onPick={setPicked} />
-        ))}
-      </div>
-      {/* Phase names under the bars, each over the weeks it holds. */}
-      <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_2.5rem] gap-3 mt-1.5">
-        <span />
-        <div className="flex">
-          {spans.map((span, i) => (
-            // The last phase is often only a few weeks wide: its name may run on
-            // into the empty space under the numbers instead of being cut.
-            <span key={`${span.name}-${i}`} className={`lb-label whitespace-nowrap ${i === spans.length - 1 ? 'overflow-visible' : 'truncate'} ${i ? 'border-l lb-rule pl-1' : ''}`} style={{ flexGrow: span.count, flexBasis: 0 }}>{span.name}</span>
-          ))}
-        </div>
-        <span />
-      </div>
 
       <BottomSheet isOpen={editing} onClose={() => setEditing(false)} title="Bölgeleri düzenle">
         <p className="lb-label mb-4">Adından bölgesi anlaşılan hareketler otomatik gruplanır. Yanlış olanı ya da atanmamış olanı buradan seç; aynı adlı hareket tüm günlerde değişir.</p>
@@ -194,34 +179,44 @@ export function MuscleVolume() {
 }
 
 /**
- * One region across every period: bars on a shared scale, the picked period
- * solid and the rest faint, a small gap where a phase starts. The number is
- * the picked period's, as in the list above.
+ * A ring of slices drawn as dashed circles, starting at twelve o'clock and
+ * going clockwise, with a small gap between slices. The focused slice is full
+ * strength and the rest fade back.
  */
-function TrendRow({ name, values, picked, max, phaseStarts, quiet, total, onPick }: {
-  name: string; values: number[]; picked: number; max: number; phaseStarts: Set<number>;
-  quiet: boolean; total: boolean; onPick: (index: number) => void;
+function Ring({ slices, focus, onFocus, center }: {
+  slices: { key: string; value: number; shade: number }[];
+  focus: string | null;
+  onFocus: (key: string) => void;
+  center: React.ReactNode;
 }) {
-  const pickAt = (event: React.MouseEvent<HTMLDivElement>) => {
-    const box = event.currentTarget.getBoundingClientRect();
-    const i = Math.floor(((event.clientX - box.left) / box.width) * values.length);
-    onPick(Math.max(0, Math.min(values.length - 1, i)));
-  };
+  const size = 240;
+  const stroke = 30;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const total = slices.reduce((sum, slice) => sum + slice.value, 0);
+  const shown = slices.filter(slice => slice.value > 0);
+  const gap = shown.length > 1 ? 3 : 0;
+  let offset = 0;
   return (
-    <div className={`grid grid-cols-[5.5rem_minmax(0,1fr)_2.5rem] items-end gap-3 ${total ? 'pt-2 mt-1 border-t lb-rule' : ''}`}>
-      <span className={`text-sm truncate pb-0.5 ${quiet ? 'text-(--color-text-secondary)' : total ? 'lb-label' : 'font-medium'}`}>{name}</span>
-      <div onClick={pickAt} role="img" aria-label={`${name}: ${values.join(', ')} set`}
-        className="h-8 flex items-end gap-px cursor-pointer">
-        {values.map((value, i) => (
-          <span key={i} className={`flex-1 min-w-0 rounded-[2px] ${phaseStarts.has(i) ? 'ml-1' : ''}`}
-            style={{
-              height: value ? `${Math.max(8, (value / max) * 100)}%` : 2,
-              background: 'var(--color-text-primary)',
-              opacity: i === picked ? 0.95 : value ? 0.28 : 0.12,
-            }} />
-        ))}
-      </div>
-      <span className={`lb-figure text-sm text-right pb-0.5 ${total ? 'font-semibold' : ''}`}>{values[picked] ?? 0}</span>
+    <div className="relative mx-auto w-[min(15rem,70vw)] aspect-square">
+      <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full -rotate-90" role="img"
+        aria-label={shown.map(slice => `${slice.key} ${slice.value} set`).join(', ') || 'Bu dönemde set yok'}>
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--color-text-primary)" strokeOpacity={0.08} strokeWidth={stroke} />
+        {total > 0 && shown.map(slice => {
+          const length = (slice.value / total) * circumference;
+          const drawn = Math.max(0.5, length - gap);
+          const dash = `${drawn} ${circumference - drawn}`;
+          const at = -offset;
+          offset += length;
+          return (
+            <circle key={slice.key} cx={size / 2} cy={size / 2} r={radius} fill="none"
+              stroke="var(--color-text-primary)" strokeWidth={stroke} strokeDasharray={dash} strokeDashoffset={at}
+              strokeOpacity={focus === null ? slice.shade : focus === slice.key ? 1 : 0.1}
+              onClick={() => onFocus(slice.key)} className="cursor-pointer transition-[stroke-opacity] duration-200" />
+          );
+        })}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">{center}</div>
     </div>
   );
 }
