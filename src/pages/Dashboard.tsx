@@ -83,7 +83,7 @@ export function Dashboard() {
   return (
     // On a wide screen the week's numbers sit beside the workout instead of
     // under it, and the page lines up with the header like the others.
-    <div className="max-w-xl lg:max-w-5xl mx-auto px-5 pt-2 pb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-x-14 lg:items-start">
+    <div className="max-w-xl lg:max-w-5xl mx-auto px-5 pt-2 pb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:grid-rows-[auto_1fr] lg:gap-x-14 lg:items-start">
       <div>
       {/* Centred on a phone, where the day's name stands alone; on a wide
           screen it lines up with the column beside it. */}
@@ -172,8 +172,10 @@ export function Dashboard() {
 
       </div>
 
-      {/* On a wide screen what the next workout has to beat sits beside the week. */}
-      <div className="lg:pt-2 lg:[&>*:first-child]:mt-0">
+      {/* On a wide screen what the next workout has to beat sits beside the
+          week, and the week's own button goes under the week so neither column
+          is left half empty. On a phone the order is the same as before. */}
+      <div className="lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:pt-2 lg:[&>*:first-child]:mt-0">
       {nextWorkout ? (
         <>
           {nextTargets.length > 0 && (
@@ -199,7 +201,9 @@ export function Dashboard() {
       ) : activePlanPrograms.length ? null : (
         <Link to="/programs" className="mt-6 flex items-center justify-center h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">Programlar</Link>
       )}
+      </div>
 
+      <div className="lg:col-start-1 lg:row-start-2">
       {!announceDone && (
         <button onClick={() => setConfirmNewWeek(true)} className="a-btn-line mt-8 w-full h-14 rounded-[16px] text-[16px]">
           Yeni haftaya geç

@@ -9,9 +9,11 @@ interface PageContainerProps {
 
 export function PageContainer({ children, title, bare = false }: PageContainerProps) {
   return (
-    <div className={bare ? '' : 'max-w-5xl mx-auto px-4 py-6 pb-20 md:pb-6'}>
+    // Same width, gutters and top as Programlar and Geçmiş, so a page's title
+    // does not jump when moving between them.
+    <div className={bare ? '' : 'max-w-5xl mx-auto px-5 pt-2 pb-8'}>
       {title && (
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-6">
+        <h1 className="a-display text-[48px] mb-4">
           {title}
         </h1>
       )}

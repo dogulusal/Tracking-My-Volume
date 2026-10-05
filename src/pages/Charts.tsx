@@ -100,7 +100,7 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
   return (
     <PageContainer bare={embedded}>
       <div className="mb-5">
-        {!embedded && <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Grafikler</h1>}
+        {!embedded && <h1 className="a-display text-[48px]">Grafikler</h1>}
         <p className="lb-label mt-1">
           {view === 'progress'
             ? 'Her hareketin en ağır seti, hafta hafta. Renkler Geçmiş tablosuyla aynı.'

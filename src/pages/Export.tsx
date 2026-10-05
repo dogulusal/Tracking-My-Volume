@@ -74,7 +74,7 @@ export function Export() {
 
   return (
     <PageContainer>
-      <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-2">Dışa Aktar</h1>
+      <h1 className="a-display text-[48px] mb-2">Dışa Aktar</h1>
       <div className="max-w-lg">
         {showSheet && (
           <section className="py-5 border-b lb-rule">
