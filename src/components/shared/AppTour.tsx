@@ -36,7 +36,7 @@ const STEPS: { title: string; text: string; demo: ReactNode }[] = [
   },
   {
     title: 'Seti gir',
-    text: 'Antrenmanda ekranda tek set olur. Kiloyu ve tekrarı − + ile değiştir ya da rakama dokunup yaz.',
+    text: 'Antrenmanda ekranda tek set olur. Rakamlar geçen haftanınkiyle gelir; − + ile değiştir ya da rakama dokunup yaz.',
     demo: (
       <Mini>
         {[['kg', '75'], ['tekrar', '8']].map(([label, value]) => (
