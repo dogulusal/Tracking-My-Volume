@@ -5,9 +5,10 @@
  *
  * Bump CACHE when the logic below changes, or when a file without a hash in
  * its name changes (icons, manifest): those are served from the cache for good.
- * Content-hashed assets need no bump. v6: new icon and app name.
+ * Content-hashed assets need no bump. v6: new icon and app name. v7: the
+ * document is revalidated on every launch.
  */
-const CACHE = 'tmv-v6';
+const CACHE = 'tmv-v7';
 
 /** Every SPA route is served by the same document, so the shell has one key. */
 const SHELL = new URL('./', self.registration.scope).href;
@@ -65,12 +66,14 @@ self.addEventListener('fetch', event => {
 
 /**
  * Online wins for the document, so a deploy is picked up on the next launch.
- * Offline falls back to the last good shell.
+ * Offline falls back to the last good shell. 'no-cache' asks the server every
+ * time (a cheap 304 when nothing changed): GitHub Pages sends max-age=600, so
+ * a plain fetch kept showing the old app for up to ten minutes after a deploy.
  */
 async function shellFirst(request) {
   const cache = await caches.open(CACHE);
   try {
-    const fresh = await fetch(request);
+    const fresh = await fetch(request, { cache: 'no-cache' });
     // A 404 here is GitHub Pages' deep-link bounce, not the app — never store it.
     if (fresh.ok) cache.put(SHELL, fresh.clone());
     return fresh;
