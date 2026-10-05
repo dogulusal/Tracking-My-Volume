@@ -24,8 +24,9 @@ const STEPS: { title: string; text: string; demo: ReactNode }[] = [
     text: 'Bugün ekranı sıradaki antrenmanı ve her harekette geçmen gereken rakamı gösterir: geçen hafta o gün yaptığın.',
     demo: (
       <Mini>
-        <p className="text-[13px] text-(--color-text-secondary)">Sıradaki</p>
-        <p className="a-display text-[40px]">Upper 2</p>
+        <p className="text-center text-[13px] text-(--color-text-secondary)">Faz 1 · Hafta 3 · sıradaki</p>
+        <p className="a-display text-center text-[44px]">Upper 2</p>
+        <p className="mb-2 text-center text-[13px] text-(--color-text-secondary)">6 hareket · 14 set</p>
         {[['Bench Press', '75 x 7 +1'], ['Lat Pulldown', '70 x 9 +1']].map(([name, value]) => (
           <div key={name} className="flex justify-between items-baseline py-1.5 border-t border-(--color-border)">
             <span className="text-[15px]">{name}</span><Fig className="text-[20px]">{value}</Fig>
@@ -36,7 +37,7 @@ const STEPS: { title: string; text: string; demo: ReactNode }[] = [
   },
   {
     title: 'Seti gir',
-    text: 'Antrenmanda ekranda tek set olur. Rakamlar geçen haftanınkiyle gelir; − + ile değiştir ya da rakama dokunup yaz.',
+    text: 'Antrenmanda ekranda tek set olur. Rakamlar geçen haftanınkiyle gelir; − + ile değiştir ya da rakama dokunup yaz. Altındaki satır geçen haftaya göre farkı, kilo artırma zamanı gelince de üstteki hedef söyler.',
     demo: (
       <Mini>
         {[['kg', '75'], ['tekrar', '8']].map(([label, value]) => (
@@ -46,18 +47,24 @@ const STEPS: { title: string; text: string; demo: ReactNode }[] = [
             <span className="w-11 h-11 rounded-full bg-(--color-bg-input) flex items-center justify-center text-[22px]">+</span>
           </div>
         ))}
+        <p className="mt-1.5 flex justify-center">
+          <span className="rounded-full px-3 py-1 text-[14px] font-semibold" style={{ color: 'var(--lb-gain)', background: 'var(--lb-gain-fill)' }}>Geçen haftadan 1 tekrar fazla</span>
+        </p>
       </Mini>
     ),
   },
   {
     title: 'Kaç tekrar daha yapabilirdin?',
-    text: 'Seti bitirince cevapla. F: tükendim, +1: bir tekrar daha yapabilirdim. Kayıtta 75 x 8 +1 diye görünür.',
+    text: 'Seti bitirince cevapla. F: tükendim, +1: bir tekrar daha yapabilirdim. Kayıtta 75 x 8 +1 diye görünür. Unutursan yanındaki ? açıklar.',
     demo: (
       <Mini>
-        <div className="grid grid-cols-4 gap-1 p-1 rounded-2xl bg-(--color-bg-input)">
-          {['F', '+1', '+2', '+3'].map(label => (
-            <span key={label} className={`h-11 rounded-xl flex items-center justify-center lb-figure text-[20px] font-bold ${label === '+1' ? 'bg-(--color-text-primary) text-(--color-bg-primary)' : 'text-(--color-text-secondary)'}`}>{label}</span>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="flex-1 grid grid-cols-4 gap-1 p-1 rounded-2xl bg-(--color-bg-input)">
+            {['F', '+1', '+2', '+3'].map(label => (
+              <span key={label} className={`h-11 rounded-xl flex items-center justify-center lb-figure text-[20px] font-bold ${label === '+1' ? 'bg-(--color-text-primary) text-(--color-bg-primary)' : 'text-(--color-text-secondary)'}`}>{label}</span>
+            ))}
+          </div>
+          <span className="shrink-0 w-11 h-11 rounded-full bg-(--color-bg-input) flex items-center justify-center text-[18px] font-semibold text-(--color-text-secondary)">?</span>
         </div>
         <p className="mt-2.5 text-[14px]"><Fig className="text-[18px]">75 x 8 +1</Fig> <span className="text-(--color-text-secondary)">= 75 kg, 8 tekrar, 1 daha yapabilirdin</span></p>
       </Mini>
@@ -78,20 +85,37 @@ const STEPS: { title: string; text: string; demo: ReactNode }[] = [
   },
   {
     title: 'Bütün hareketler',
-    text: 'Alttaki şerit sıradaki hareketi gösterir; dokununca hepsi açılır. Makine doluysa başka harekete geç ya da yeni hareket ekle.',
+    text: '“Seti bitir”in altındaki şerit sıradaki hareketi gösterir; dokununca hepsi açılır. Makine doluysa başka harekete geç ya da yeni hareket ekle.',
     demo: (
       <Mini>
-        <div className="flex items-center gap-3 rounded-2xl bg-(--color-bg-input) px-3 py-2">
+        <div className="h-12 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) flex items-center justify-center text-[16px] font-semibold">Seti bitir</div>
+        <div className="mt-2 flex items-center gap-3 rounded-2xl bg-(--color-bg-input) px-3 py-2">
           <span className="flex-1"><span className="block text-[12px] text-(--color-text-secondary)">Sonra</span><span className="text-[15px] font-semibold">Incline Dumbbell Press</span></span>
           <span className="text-[13px] text-(--color-text-secondary)">Tümü (6)</span>
         </div>
-        <p className="mt-2 text-center text-[15px] font-medium">Hareket ekle</p>
       </Mini>
     ),
   },
   {
-    title: 'Geçmiş: renkler',
-    text: 'Her hücre bir haftanın setleri. Renk, o haftayı bir öncekine göre söyler.',
+    title: 'Not bırak',
+    text: 'Hareketin adının altındaki “Not ekle” ile o harekete ya da o güne not yaz. Not, bir sonraki aynı antrenmanda karşına çıkar.',
+    demo: (
+      <Mini>
+        <p className="a-display text-[32px]">Bench Press</p>
+        <div className="mt-1 flex items-center justify-between text-[14px]">
+          <span className="font-semibold">Göğüs</span>
+          <span className="flex items-center gap-1.5 text-(--color-text-secondary)">
+            <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+            Not ekle
+          </span>
+        </div>
+        <p className="mt-2.5 rounded-xl bg-(--color-bg-input) px-3 py-2 text-[14px]">Haftaya 77.5 kilo dene</p>
+      </Mini>
+    ),
+  },
+  {
+    title: 'Geçmiş ve Grafikler',
+    text: 'Geçmiş’te her hücre bir haftanın setleri; renk o haftayı bir öncekine göre söyler. Grafikler’de haftalık bölge başına set sayısını ve yerinde sayan hareketleri görürsün.',
     demo: (
       <Mini>
         <div className="grid grid-cols-2 gap-1.5">
@@ -107,15 +131,15 @@ const STEPS: { title: string; text: string; demo: ReactNode }[] = [
   },
   {
     title: 'Bitirince',
-    text: 'Antrenman bitince gelecek sefer seni bekleyen rakamları görürsün. Her hafta onları geçmeye çalış; 12 tekrara ulaşınca uygulama ağırlığı artırmanı söyler.',
+    text: 'Antrenman bitince gelecek sefer seni bekleyen rakamları görürsün. Haftanın bütün günleri bitince Bugün ekranı haber verir; yeni haftaya hazır olduğunda sen geçersin.',
     demo: (
       <Mini>
-        <p className="text-[13px] text-(--color-text-secondary)">Gelecek antrenmanda seni bunlar bekliyor</p>
-        {[['Bench Press', '75 x 8 +1'], ['Squat', '80 x 10 F']].map(([name, value]) => (
-          <div key={name} className="flex justify-between items-baseline py-1.5 border-t border-(--color-border)">
-            <span className="text-[15px]">{name}</span><Fig className="text-[20px]">{value}</Fig>
-          </div>
-        ))}
+        <p className="text-[16px] font-semibold">Bu haftanın antrenmanları bitti</p>
+        <p className="mt-0.5 text-[13px] text-(--color-text-secondary)">4 günün hepsi kaydedildi.</p>
+        <div className="mt-2.5 flex gap-2">
+          <span className="flex-1 h-10 rounded-xl bg-(--color-text-primary) text-(--color-bg-primary) flex items-center justify-center text-[14px] font-semibold">Yeni haftaya geç</span>
+          <span className="h-10 px-3 rounded-xl bg-(--color-bg-input) flex items-center text-[14px]">Sonra</span>
+        </div>
       </Mini>
     ),
   },
