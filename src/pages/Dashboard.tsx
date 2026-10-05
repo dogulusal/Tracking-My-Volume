@@ -77,6 +77,9 @@ export function Dashboard() {
     // under it, and the page lines up with the header like the others.
     <div className="max-w-xl lg:max-w-5xl mx-auto px-5 pt-2 pb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-x-14 lg:items-start">
       <div>
+      {/* Centred on a phone, where the day's name stands alone; on a wide
+          screen it lines up with the column beside it. */}
+      <div className="text-center lg:text-left">
       <p className="text-[15px] text-(--color-text-secondary)">{dateLine}</p>
       <p className="mt-2 text-[15px] text-(--color-text-secondary)">
         {weekLabel} · {nextWorkout ? (nextWorkout.hasDraft ? 'yarım kalan' : 'sıradaki') : 'hafta bitti'}{activePlan?.coach ? ` · ${possessive(activePlan.coach.split(' ')[0])} planı` : ''}
@@ -91,6 +94,7 @@ export function Dashboard() {
             : 'İlk antrenman: hareketlerini yaparken ekleyeceksin'}
         </p>
       )}
+      </div>
       {/* The coach's note on the workout up next, where the day is planned. */}
       {nextWorkout && dayNotesOn(coach.inbox.comments, nextWorkout.program.id, currentWeek).map(note => (
         <p key={note.id} className="mt-3 a-card px-4 py-3 text-[15px] leading-snug">
@@ -158,7 +162,6 @@ export function Dashboard() {
                   </li>
                 ))}
               </ul>
-              <p className="mt-1 text-[12px] text-(--color-text-secondary)">75 x 7 +1: 75 kg, 7 tekrar, 1 tekrar daha yapabilirdin · F: tükendin</p>
             </div>
           )}
           <Link to={`/workout/${nextWorkout.program.id}/week/${currentWeek}`}
