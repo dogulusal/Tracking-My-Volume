@@ -20,13 +20,13 @@ function DayTile({ day, isNext, week }: { day: WeekDay; isNext: boolean; week: n
     : day.status === 'pending' && !day.hasDraft ? { background: 'color-mix(in srgb, var(--color-bg-card) 55%, transparent)' } : { background: 'var(--color-bg-card)' };
   return (
     <Link to={`/workout/${day.program.id}/week/${week}`} style={style}
-      className="min-h-14 rounded-[14px] px-1 py-1.5 flex flex-col items-center justify-center gap-0.5 text-center">
-      <span className={`text-[12px] leading-tight truncate max-w-full ${isNext ? 'font-semibold' : 'text-(--color-text-secondary)'}`}>{day.program.name}</span>
+      className="min-h-14 xl:min-h-[92px] rounded-[14px] xl:rounded-[18px] px-1 py-1.5 flex flex-col items-center justify-center gap-0.5 xl:gap-1.5 text-center">
+      <span className={`text-[12px] xl:text-[15px] leading-tight truncate max-w-full ${isNext ? 'font-semibold' : 'text-(--color-text-secondary)'}`}>{day.program.name}</span>
       {day.status === 'done' && compared > 0 && compared === first ? (
         // Nothing to compare yet: a first record is not 0 out of N.
         <span className="text-[12px]">ilk kayıt</span>
       ) : day.status === 'done' && compared > 0 ? (
-        <span className="lb-figure text-[18px] font-semibold leading-none" style={{ color: improved > 0 ? 'var(--lb-gain)' : undefined }}>
+        <span className="lb-figure text-[18px] xl:text-[28px] font-semibold leading-none" style={{ color: improved > 0 ? 'var(--lb-gain)' : undefined }}>
           {improved} / {compared}
         </span>
       ) : day.status === 'done' ? <span className="text-[12px]">kayıtlı</span>
@@ -82,21 +82,24 @@ export function Dashboard() {
 
   return (
     // On a wide screen the week's numbers sit beside the workout instead of
-    // under it, and the page lines up with the header like the others.
-    <div className="max-w-xl lg:max-w-5xl xl:max-w-7xl mx-auto px-5 pt-2 pb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:grid-rows-[auto_1fr] lg:gap-x-14 lg:items-start">
+    // under it, and the page lines up with the header like the others. On a
+    // computer screen the whole page is centred in the window and drawn
+    // larger: at the top it left the lower half of the screen empty.
+    <div className="xl:min-h-[calc(100dvh-3rem)] xl:flex xl:flex-col xl:justify-center xl:pb-6">
+    <div className="w-full max-w-xl lg:max-w-5xl xl:max-w-7xl mx-auto px-5 pt-2 pb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:grid-rows-[auto_1fr] lg:gap-x-14 lg:items-start">
       <div>
       {/* Centred on a phone, where the day's name stands alone; on a wide
           screen it lines up with the column beside it. */}
       <div className="text-center lg:text-left">
-      <p className="text-[15px] text-(--color-text-secondary)">{dateLine}</p>
-      <p className="mt-2 text-[15px] text-(--color-text-secondary)">
+      <p className="text-[15px] xl:text-[17px] text-(--color-text-secondary)">{dateLine}</p>
+      <p className="mt-2 text-[15px] xl:text-[17px] text-(--color-text-secondary)">
         {weekLabel} · {nextWorkout ? (nextWorkout.hasDraft ? 'yarım kalan' : 'sıradaki') : 'hafta bitti'}{activePlan?.coach ? ` · ${possessive(activePlan.coach.split(' ')[0])} planı` : ''}
       </p>
-      <h1 className="a-display text-[clamp(56px,22vw,92px)] tracking-[-0.01em] mt-0.5">
+      <h1 className="a-display text-[clamp(56px,22vw,92px)] xl:text-[136px] tracking-[-0.01em] mt-0.5">
         {nextWorkout ? nextWorkout.program.name : weekDone ? 'Tamam' : 'Plan boş'}
       </h1>
       {nextWorkout && (
-        <p className="mt-2 text-[15px] text-(--color-text-secondary)">
+        <p className="mt-2 text-[15px] xl:text-[18px] text-(--color-text-secondary)">
           {nextTargets.length
             ? `${nextTargets.length} hareket · ${nextWorkout.program.exercises.filter(e => e.isActive).reduce((sum, e) => sum + e.defaultSets, 0)} set`
             : 'İlk antrenman: hareketlerini yaparken ekleyeceksin'}
@@ -168,7 +171,7 @@ export function Dashboard() {
       <div className="mt-5 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.max(1, programStatuses.length)}, minmax(0, 1fr))` }}>
         {programStatuses.map(day => <DayTile key={day.program.id} day={day} isNext={day === nextWorkout} week={currentWeek} />)}
       </div>
-      <p className="mt-1.5 text-[12px] text-(--color-text-secondary)">Yeşil rakam: geçen haftayı geçtiğin hareket sayısı</p>
+      <p className="mt-1.5 xl:mt-2.5 text-[12px] xl:text-[14px] text-(--color-text-secondary)">Yeşil rakam: geçen haftayı geçtiğin hareket sayısı</p>
 
       </div>
 
@@ -180,21 +183,21 @@ export function Dashboard() {
         <>
           {nextTargets.length > 0 && (
             <div className="mt-5">
-              <div className="flex justify-between pb-1.5 border-b border-(--color-border) text-[13px] text-(--color-text-secondary)">
+              <div className="flex justify-between pb-1.5 border-b border-(--color-border) text-[13px] xl:text-[15px] text-(--color-text-secondary)">
                 <span>Hareket</span><span>geçmen gereken</span>
               </div>
               <ul>
                 {nextTargets.map(target => (
-                  <li key={target.id} className="flex items-baseline justify-between gap-3 py-2 border-b border-(--color-bg-card) last:border-b-0">
-                    <span className="text-[16px] truncate">{target.name}</span>
-                    <span className="lb-figure shrink-0 text-[22px] font-semibold">{target.text ?? '—'}</span>
+                  <li key={target.id} className="flex items-baseline justify-between gap-3 py-2 xl:py-3 border-b border-(--color-bg-card) last:border-b-0">
+                    <span className="text-[16px] xl:text-[19px] truncate">{target.name}</span>
+                    <span className="lb-figure shrink-0 text-[22px] xl:text-[28px] font-semibold">{target.text ?? '—'}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
           <Link to={`/workout/${nextWorkout.program.id}/week/${currentWeek}`}
-            className="mt-4 flex items-center justify-center h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">
+            className="mt-4 xl:mt-6 flex items-center justify-center h-16 xl:h-20 rounded-[18px] xl:rounded-[22px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] xl:text-[22px] font-semibold">
             {nextWorkout.hasDraft ? 'Devam et' : 'Başla'}
           </Link>
         </>
@@ -205,7 +208,7 @@ export function Dashboard() {
 
       <div className="lg:col-start-1 lg:row-start-2">
       {!announceDone && (
-        <button onClick={() => setConfirmNewWeek(true)} className="a-btn-line mt-8 w-full h-14 rounded-[16px] text-[16px]">
+        <button onClick={() => setConfirmNewWeek(true)} className="a-btn-line mt-8 w-full h-14 xl:h-16 rounded-[16px] xl:rounded-[18px] text-[16px] xl:text-[18px]">
           Yeni haftaya geç
         </button>
       )}
@@ -221,6 +224,7 @@ export function Dashboard() {
         title="Yeni haftaya geçilsin mi?"
         message={`Bu hafta ${weekStats.completed}/${weekStats.total} antrenman kaydedildi. Geçtikten sonra haftayı uygulamadan geri alamazsın.`}
         confirmText="Yeni haftaya geç" />
+    </div>
     </div>
   );
 }
