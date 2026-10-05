@@ -40,7 +40,8 @@ export function groupOf(name: string, overrides: Record<string, string> | undefi
   return suggestedGroup(name) ?? UNASSIGNED;
 }
 
-export type VolumePeriod = { key: string; phaseName: string; label: string; weeks: number[] };
+/** `title` names the period on its own ("Faz 3 · H4", "Faz 2 H19 – Faz 3 H2"). */
+export type VolumePeriod = { key: string; phaseName: string; label: string; title: string; weeks: number[] };
 
 /** One period per week from week 0 to the current one, labelled within its phase. */
 export function weeklyPeriods(phases: PhaseDefinition[], currentWeek: number): VolumePeriod[] {
@@ -61,10 +62,37 @@ export function blockPeriods(phases: PhaseDefinition[], currentWeek: number, siz
       const to = Math.min(from + size - 1, end);
       const weeks = Array.from({ length: to - from + 1 }, (_, i) => from + i);
       const label = to === from ? `H${from - phase.startWeek}` : `H${from - phase.startWeek}–H${to - phase.startWeek}`;
-      periods.push({ key: `${phase.id}:${from}`, phaseName: phase.name, label, weeks });
+      periods.push({ key: `${phase.id}:${from}`, phaseName: phase.name, label, title: `${phase.name} · ${label}`, weeks });
     }
   }
   return periods;
+}
+
+/**
+ * The last `size` weeks up to the current one, then the `size` before those,
+ * and so on back to week 0 (the oldest may be shorter). Unlike phase blocks
+ * these may straddle two phases: a phase-aligned block that had just begun
+ * held a single week and showed the same numbers as the weekly view, which
+ * looked like a bug.
+ */
+export function recentBlocks(phases: PhaseDefinition[], currentWeek: number, size = 4): VolumePeriod[] {
+  const sorted = [...phases].sort((a, b) => a.startWeek - b.startWeek);
+  const phaseOf = (week: number) => [...sorted].reverse().find(phase => phase.startWeek <= week);
+  const name = (week: number) => { const phase = phaseOf(week); return phase ? `${phase.name} H${week - phase.startWeek}` : `Hafta ${week}`; };
+  const periods: VolumePeriod[] = [];
+  for (let to = currentWeek; to >= 0; to -= size) {
+    const from = Math.max(0, to - size + 1);
+    const start = phaseOf(from);
+    const end = phaseOf(to);
+    const weeks = Array.from({ length: to - from + 1 }, (_, i) => from + i);
+    const sameStart = start && end && start.id === end.id;
+    const label = from === to ? `H${to - (end?.startWeek ?? 0)}` : sameStart ? `H${from - start.startWeek}–H${to - end.startWeek}` : `${name(from)} – ${name(to)}`;
+    periods.push({
+      key: `son:${to}`, phaseName: end?.name ?? '', label, weeks,
+      title: sameStart || from === to ? `${end?.name ?? ''} · ${label}` : label,
+    });
+  }
+  return periods.reverse();
 }
 
 export type VolumeCell = { sets: number; tonnage: number };

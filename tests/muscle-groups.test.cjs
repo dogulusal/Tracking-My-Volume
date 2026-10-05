@@ -19,7 +19,7 @@ function loadTS(relativePath) {
   return module.exports;
 }
 
-const { suggestedGroup, groupOf, exerciseKey, blockPeriods, weeklyPeriods, muscleVolume } = loadTS('src/utils/muscleGroups.ts');
+const { suggestedGroup, groupOf, exerciseKey, blockPeriods, recentBlocks, weeklyPeriods, muscleVolume } = loadTS('src/utils/muscleGroups.ts');
 const { appReducer, initialState } = loadTS('src/context/appReducer.ts');
 
 test('names suggest their muscle group; the specific movement wins over a word it contains', () => {
@@ -50,6 +50,18 @@ test('four-week blocks start at each phase H0 and never cross into the next phas
     ['Faz 1', 'H0–H3', [0, 1, 2, 3]], ['Faz 1', 'H4–H5', [4, 5]], ['Faz 2', 'H0–H2', [6, 7, 8]],
   ]);
   assert.equal(weeklyPeriods(phases, 8).length, 9);
+});
+
+test('the 4-week view counts back from the current week, across a phase start', () => {
+  const phases = [
+    { id: 'a', name: 'Faz 1', startWeek: 0, endWeek: 5 },
+    { id: 'b', name: 'Faz 2', startWeek: 6, endWeek: null },
+  ];
+  // Week 8 is Faz 2 H2: the latest block is weeks 5-8, not week 8 alone.
+  const blocks = recentBlocks(phases, 8);
+  assert.deepEqual(blocks.map(p => [p.title, p.weeks]), [
+    ['Faz 1 · H0', [0]], ['Faz 1 · H1–H4', [1, 2, 3, 4]], ['Faz 1 H5 – Faz 2 H2', [5, 6, 7, 8]],
+  ]);
 });
 
 test('volume counts sets with reps and their tonnage; holiday weeks count nothing', () => {

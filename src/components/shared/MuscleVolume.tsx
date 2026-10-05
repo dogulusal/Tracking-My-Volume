@@ -3,7 +3,7 @@ import { AppContext } from '@/context/AppContext';
 import { useReadOnly } from '@/context/ReadOnly';
 import { BottomSheet } from '@/components/shared/BottomSheet';
 import {
-  MUSCLE_GROUPS, UNASSIGNED, blockPeriods, exerciseKey, groupOf, loggedExercises, muscleVolume, suggestedGroup, weeklyPeriods,
+  MUSCLE_GROUPS, UNASSIGNED, exerciseKey, groupOf, loggedExercises, muscleVolume, recentBlocks, suggestedGroup, weeklyPeriods,
 } from '@/utils/muscleGroups';
 
 type Mode = 'week' | 'block';
@@ -38,7 +38,7 @@ export function MuscleVolume() {
 
   const periods = useMemo(() => mode === 'week'
     ? weeklyPeriods(state.phases, state.currentWeek)
-    : blockPeriods(state.phases, state.currentWeek), [mode, state.phases, state.currentWeek]);
+    : recentBlocks(state.phases, state.currentWeek), [mode, state.phases, state.currentWeek]);
   const rows = useMemo(() => muscleVolume(state, periods), [state, periods]);
   const index = Math.min(picked ?? periods.length - 1, periods.length - 1);
   const period = periods[index];
@@ -89,12 +89,11 @@ export function MuscleVolume() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="lb-label">
-              {period.phaseName} · {period.label}
-              {period.weeks.length > 1 && mode === 'block' && period.weeks.length < 4 ? ` · ${period.weeks.length} hafta` : ''}
-              {inProgress ? ' · devam ediyor' : ''}
+              {mode === 'block' ? `${index === periods.length - 1 ? 'Son ' : ''}${period.weeks.length} hafta · ` : ''}{period.title}
+              {inProgress ? ' · bu hafta devam ediyor' : ''}
             </p>
             {previous && previousPeriod && (
-              <p className="lb-label mt-1.5">{previousPeriod.phaseName} {previousPeriod.label} ile fark {signed(current.sets - previous.sets)} set</p>
+              <p className="lb-label mt-1.5">{mode === 'block' ? 'Önceki 4 hafta' : previousPeriod.title} ile fark {signed(current.sets - previous.sets)} set</p>
             )}
           </div>
           <div className="flex gap-1 shrink-0">
