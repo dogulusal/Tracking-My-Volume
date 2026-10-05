@@ -1,4 +1,4 @@
-import { useContext, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useMemo, useState } from 'react';
 import { AppContext } from '@/context/AppContext';
 import { useReadOnly } from '@/context/ReadOnly';
 import { BottomSheet } from '@/components/shared/BottomSheet';
@@ -11,8 +11,6 @@ const MODE_KEY = 'volume-period-mode';
 const nf = new Intl.NumberFormat('tr-TR');
 
 const signed = (value: number) => value === 0 ? '±0' : `${value > 0 ? '+' : '−'}${nf.format(Math.abs(value))}`;
-// Neutral shading: the busiest period of a group is the darkest cell of its row.
-const shade = (ratio: number) => ratio > 0 ? `color-mix(in srgb, var(--color-text-primary) ${Math.round(6 + ratio * 30)}%, transparent)` : undefined;
 
 /**
  * Working sets per muscle group, week by week or in four-week blocks, across
@@ -43,12 +41,6 @@ export function MuscleVolume() {
   const index = Math.min(picked ?? periods.length - 1, periods.length - 1);
   const period = periods[index];
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollLeft = el.scrollWidth;
-  }, [mode, periods.length]);
-
   if (!period) return <p className="lb-label py-10 text-center">Henüz kayıt yok.</p>;
 
   const totals = periods.map((_, i) => ({ sets: rows.reduce((sum, row) => sum + row.cells[i].sets, 0) }));
@@ -72,7 +64,11 @@ export function MuscleVolume() {
     if (last?.name === item.phaseName) last.count++;
     else spans.push({ name: item.phaseName, count: 1 });
   }
-  const columnWidth = mode === 'week' ? 44 : 76;
+  // One scale for every region, so a small group looks small; the total
+  // row has its own.
+  const most = Math.max(1, ...rows.flatMap(row => row.cells.map(cell => cell.sets)));
+  const phaseStarts = new Set<number>();
+  periods.forEach((item, i) => { if (i > 0 && item.phaseName !== periods[i - 1].phaseName) phaseStarts.add(i); });
 
   return (
     <div>
@@ -141,58 +137,30 @@ export function MuscleVolume() {
         )}
       </section>
 
-      {/* Every period at once: set counts, shaded within each group's own range */}
-      <h2 className="text-sm font-semibold mt-8 mb-3">Seyir <span className="lb-label font-normal">· set sayısı, bir döneme dokun</span></h2>
-      <div ref={scrollRef} className="lb-scroll overflow-x-auto pb-1">
-        <table className="border-separate border-spacing-0 text-xs" style={{ tableLayout: 'fixed', width: 112 + periods.length * columnWidth }}>
-          <colgroup>
-            <col style={{ width: 112 }} />
-            {periods.map(item => <col key={item.key} style={{ width: columnWidth }} />)}
-          </colgroup>
-          <thead>
-            <tr>
-              <th className="sticky left-0 z-10 bg-(--color-bg-primary)" />
-              {spans.map((span, i) => (
-                <th key={`${span.name}-${i}`} colSpan={span.count} className="lb-label text-left font-medium px-1.5 pb-1 border-l lb-rule truncate">{span.name}</th>
-              ))}
-            </tr>
-            <tr>
-              <th className="sticky left-0 z-10 bg-(--color-bg-primary) lb-label text-left font-medium pb-2">Bölge</th>
-              {periods.map((item, i) => (
-                <th key={item.key} className="px-0.5 pb-2 font-normal">
-                  <button type="button" onClick={() => setPicked(i)} aria-pressed={i === index}
-                    className={`lb-press lb-figure w-full rounded-md py-1 ${i === index ? 'bg-(--color-text-primary) text-(--color-bg-primary) font-semibold' : 'text-(--color-text-secondary)'}`}>
-                    {item.label}
-                  </button>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(row => {
-              const most = Math.max(1, ...row.cells.map(cell => cell.sets));
-              return (
-                <tr key={row.group}>
-                  <th className="sticky left-0 z-10 bg-(--color-bg-primary) text-left font-medium text-sm py-1 pr-2 truncate">{row.group}</th>
-                  {row.cells.map((cell, i) => (
-                    <td key={periods[i].key} onClick={() => setPicked(i)} className="p-0.5 cursor-pointer">
-                      <span className={`lb-figure flex h-8 items-center justify-center rounded-md ${i === index ? 'ring-1 ring-(--color-text-primary)' : ''}`}
-                        style={{ background: shade(cell.sets / most), color: cell.sets ? undefined : 'var(--color-text-secondary)' }}>
-                        {cell.sets || '·'}
-                      </span>
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-            <tr>
-              <th className="sticky left-0 z-10 bg-(--color-bg-primary) text-left lb-label font-medium pt-2">Toplam</th>
-              {totals.map((total, i) => (
-                <td key={periods[i].key} className={`lb-figure text-center pt-2 ${i === index ? 'font-semibold' : 'text-(--color-text-secondary)'}`}>{total.sets || ''}</td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
+      {/* Every period at once: one bar per period on a shared scale, so a
+          region's trend reads along its row and regions compare down the
+          column. A tap on a row picks the period under the finger. */}
+      <h2 className="text-sm font-semibold mt-8">Seyir</h2>
+      <p className="lb-label mt-0.5 mb-3">Her çubuk {mode === 'week' ? 'bir hafta' : 'dört hafta'}; seçili olan koyu. Dokunduğun {mode === 'week' ? 'hafta' : 'dönem'} yukarıda açılır.</p>
+      <div className="space-y-1">
+        {[...rows.map(row => ({ name: row.group, values: row.cells.map(cell => cell.sets), quiet: row.group === UNASSIGNED })),
+          { name: 'Toplam', values: totals.map(total => total.sets), quiet: false, total: true }].map(line => (
+          <TrendRow key={line.name} name={line.name} values={line.values} picked={index} phaseStarts={phaseStarts}
+            max={'total' in line ? Math.max(1, ...line.values) : most} quiet={line.quiet} total={'total' in line}
+            onPick={setPicked} />
+        ))}
+      </div>
+      {/* Phase names under the bars, each over the weeks it holds. */}
+      <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_2.5rem] gap-3 mt-1.5">
+        <span />
+        <div className="flex">
+          {spans.map((span, i) => (
+            // The last phase is often only a few weeks wide: its name may run on
+            // into the empty space under the numbers instead of being cut.
+            <span key={`${span.name}-${i}`} className={`lb-label whitespace-nowrap ${i === spans.length - 1 ? 'overflow-visible' : 'truncate'} ${i ? 'border-l lb-rule pl-1' : ''}`} style={{ flexGrow: span.count, flexBasis: 0 }}>{span.name}</span>
+          ))}
+        </div>
+        <span />
       </div>
 
       <BottomSheet isOpen={editing} onClose={() => setEditing(false)} title="Bölgeleri düzenle">
@@ -221,6 +189,39 @@ export function MuscleVolume() {
           })}
         </ul>
       </BottomSheet>
+    </div>
+  );
+}
+
+/**
+ * One region across every period: bars on a shared scale, the picked period
+ * solid and the rest faint, a small gap where a phase starts. The number is
+ * the picked period's, as in the list above.
+ */
+function TrendRow({ name, values, picked, max, phaseStarts, quiet, total, onPick }: {
+  name: string; values: number[]; picked: number; max: number; phaseStarts: Set<number>;
+  quiet: boolean; total: boolean; onPick: (index: number) => void;
+}) {
+  const pickAt = (event: React.MouseEvent<HTMLDivElement>) => {
+    const box = event.currentTarget.getBoundingClientRect();
+    const i = Math.floor(((event.clientX - box.left) / box.width) * values.length);
+    onPick(Math.max(0, Math.min(values.length - 1, i)));
+  };
+  return (
+    <div className={`grid grid-cols-[5.5rem_minmax(0,1fr)_2.5rem] items-end gap-3 ${total ? 'pt-2 mt-1 border-t lb-rule' : ''}`}>
+      <span className={`text-sm truncate pb-0.5 ${quiet ? 'text-(--color-text-secondary)' : total ? 'lb-label' : 'font-medium'}`}>{name}</span>
+      <div onClick={pickAt} role="img" aria-label={`${name}: ${values.join(', ')} set`}
+        className="h-8 flex items-end gap-px cursor-pointer">
+        {values.map((value, i) => (
+          <span key={i} className={`flex-1 min-w-0 rounded-[2px] ${phaseStarts.has(i) ? 'ml-1' : ''}`}
+            style={{
+              height: value ? `${Math.max(8, (value / max) * 100)}%` : 2,
+              background: 'var(--color-text-primary)',
+              opacity: i === picked ? 0.95 : value ? 0.28 : 0.12,
+            }} />
+        ))}
+      </div>
+      <span className={`lb-figure text-sm text-right pb-0.5 ${total ? 'font-semibold' : ''}`}>{values[picked] ?? 0}</span>
     </div>
   );
 }
