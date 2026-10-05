@@ -966,7 +966,7 @@ export function WorkoutEntry() {
             <div className="mt-0.5 flex items-center justify-between gap-3">
               <button onClick={() => setExerciseSheetOpen(true)} className="flex-1 min-w-0 min-h-8 text-left text-[14px] text-(--color-text-secondary) truncate">
                 {regions.length ? (
-                  <><span className="font-semibold text-(--color-text-primary)">{regions[0]}</span>{regions.length > 1 && ` · ${regions.slice(1).join(', ').toLocaleLowerCase('tr-TR')}`}</>
+                  <span className="font-semibold text-(--color-text-primary)">{regions[0]}</span>
                 ) : <span className="underline underline-offset-2">Çalıştırdığı bölgeyi seç</span>}
               </button>
               <button onClick={() => setNoteSheetOpen(true)} className="shrink-0 -mr-1 min-h-8 px-1 flex items-center gap-1.5 text-[14px] text-(--color-text-secondary)">
