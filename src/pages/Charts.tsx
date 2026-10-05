@@ -95,12 +95,12 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
         <p className="lb-label mt-1">
           {view === 'progress'
             ? 'Her hareketin en ağır seti, hafta hafta. Renkler Geçmiş tablosuyla aynı.'
-            : 'Bölge başına çalışılan set; tonaj = kg × tekrar. Tüm günler ve fazlar.'}
+            : 'Haftada bölge başına çalışılan set. Bütün günler sayılır.'}
         </p>
       </div>
 
       <div className="flex gap-1 mb-5 border-b lb-rule" role="tablist">
-        {([['progress', 'İlerleme'], ['volume', 'Bölgesel hacim']] as const).map(([key, label]) => (
+        {([['progress', 'İlerleme'], ['volume', 'Bölge başına set']] as const).map(([key, label]) => (
           <button key={key} type="button" role="tab" aria-selected={view === key} onClick={() => setView(key)}
             className={`lb-press -mb-px px-3 py-2 text-sm border-b-2 ${
               view === key ? 'font-semibold border-(--color-text-primary)' : 'font-medium border-transparent text-(--color-text-secondary) hover:text-(--color-text-primary)'

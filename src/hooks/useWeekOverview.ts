@@ -3,7 +3,6 @@ import { AppContext } from '@/context/AppContext';
 import { usePrograms } from '@/hooks/usePrograms';
 import { usePlans } from '@/hooks/usePlans';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
-import { calculateWeeklyVolume } from '@/utils/volumeCalculator';
 import { exerciseKey } from '@/utils/muscleGroups';
 import { movementSessions } from '@/utils/movements';
 import { STALL_WEEKS, bestSet, previousRecord, stallOf } from '@/utils/progression';
@@ -15,7 +14,7 @@ export type DayStatus = 'done' | 'holiday' | 'pending';
 // How this week's workout of the day compares, movement by movement, coloured
 // by the same rule as the History grid and the Sheet.
 export type DayCounts = { improved: number; same: number; decreased: number; new: number };
-export type WeekDay = { program: Program; status: DayStatus; hasDraft: boolean; volume: number; counts: DayCounts };
+export type WeekDay = { program: Program; status: DayStatus; hasDraft: boolean; counts: DayCounts };
 
 /** Everything the home page shows about the current week, whatever it looks like. */
 export function useWeekOverview() {
@@ -31,26 +30,13 @@ export function useWeekOverview() {
 
   const activeProgramIds = useMemo(() => activePlanPrograms.map(p => p.id), [activePlanPrograms]);
 
-  const volumeForWeek = useMemo(() => {
-    return (week: number) =>
-      weekLogs
-        .filter(w => w.weekNumber === week && activeProgramIds.includes(w.programId))
-        .reduce((sum, log) => sum + calculateWeeklyVolume(log), 0);
-  }, [weekLogs, activeProgramIds]);
-
   const weekStats = useMemo(() => {
     const thisWeekLogs = weekLogs.filter(w => w.weekNumber === currentWeek && activeProgramIds.includes(w.programId));
-    const completed = thisWeekLogs.filter(w => !w.isHoliday && w.exercises.length > 0).length;
-    const volume = volumeForWeek(currentWeek);
-    const lastVolume = currentWeek > 0 ? volumeForWeek(currentWeek - 1) : 0;
     return {
-      completed,
+      completed: thisWeekLogs.filter(w => !w.isHoliday && w.exercises.length > 0).length,
       total: activePlanPrograms.length,
-      volume,
-      // Only a real comparison counts — no delta against a week with no data.
-      delta: lastVolume > 0 ? volume - lastVolume : null,
     };
-  }, [weekLogs, currentWeek, activeProgramIds, activePlanPrograms.length, volumeForWeek]);
+  }, [weekLogs, currentWeek, activeProgramIds, activePlanPrograms.length]);
 
   // Consecutive weeks before this one with at least one logged workout
   const streak = useMemo(() => {
@@ -80,7 +66,7 @@ export function useWeekOverview() {
         const cellStatus = row.cells.find(cell => cell.week === currentWeek)?.status;
         if (cellStatus === 'improved' || cellStatus === 'same' || cellStatus === 'decreased' || cellStatus === 'new') counts[cellStatus] += 1;
       }
-      return { program, status, hasDraft, volume: log ? calculateWeeklyVolume(log) : 0, counts };
+      return { program, status, hasDraft, counts };
     });
   }, [activePlanPrograms, weekLogs, currentWeek, grid]);
 

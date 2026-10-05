@@ -9,7 +9,6 @@ import { staleWeekAge } from '@/utils/weekAdvance';
 import { possessive, useCoach } from '@/coach/store';
 import { dayNotesOn } from '@/coach/comments';
 
-const nf = new Intl.NumberFormat('tr-TR');
 const weekdayFormat = new Intl.DateTimeFormat('tr-TR', { weekday: 'long' });
 const dayMonthFormat = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long' });
 
@@ -178,17 +177,10 @@ export function Dashboard() {
       <div className="lg:pt-2 lg:[&>*:first-child]:mt-0">
       <div className="mt-8 grid grid-cols-2 gap-2">
         <div className="a-card px-4 py-3">
-          <p className="lb-figure text-[30px] font-bold leading-none">{weekStats.volume > 0 ? nf.format(Math.round(weekStats.volume)) : '—'}{weekStats.volume > 0 && <span className="text-[16px] font-semibold text-(--color-text-secondary)"> kg</span>}</p>
-          <p className="mt-1 text-[13px] text-(--color-text-secondary)">bu haftanın hacmi</p>
-        </div>
-        <div className="a-card px-4 py-3">
           <p className="lb-figure text-[30px] font-bold leading-none">{streak}<span className="text-[16px] font-semibold text-(--color-text-secondary)"> hafta</span></p>
           <p className="mt-1 text-[13px] text-(--color-text-secondary)">üst üste antrenman</p>
         </div>
       </div>
-      {weekDone && weekStats.delta !== null && (
-        <p className="mt-2 text-[13px] text-(--color-text-secondary)">Geçen haftaya göre toplam hacim: {weekStats.delta > 0 ? '+' : ''}{nf.format(Math.round(weekStats.delta))} kg</p>
-      )}
 
       {stalled.length > 0 && (
         <section className="mt-8">

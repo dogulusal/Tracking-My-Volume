@@ -16,8 +16,9 @@ const shade = (ratio: number) => ratio > 0 ? `color-mix(in srgb, var(--color-tex
 
 /**
  * Working sets per muscle group, week by week or in four-week blocks, across
- * every day and phase. Sets are the measure; tonnage (kg × reps) is shown
- * beside it, since a leg press and a lateral raise do not weigh alike.
+ * every day and phase. Sets are the only measure shown: tonnage (kg × reps)
+ * cannot compare a leg press with a lateral raise, and the user found the
+ * "volume in kg" figure meaningless.
  */
 export function MuscleVolume() {
   const ctx = useContext(AppContext);
@@ -50,9 +51,7 @@ export function MuscleVolume() {
 
   if (!period) return <p className="lb-label py-10 text-center">Henüz kayıt yok.</p>;
 
-  const totals = periods.map((_, i) => rows.reduce((sum, row) => ({
-    sets: sum.sets + row.cells[i].sets, tonnage: sum.tonnage + row.cells[i].tonnage,
-  }), { sets: 0, tonnage: 0 }));
+  const totals = periods.map((_, i) => ({ sets: rows.reduce((sum, row) => sum + row.cells[i].sets, 0) }));
   const current = totals[index];
   // Compared with the nearest earlier period of the same length: a phase's
   // short last block would make the next full block look like a jump.
@@ -105,10 +104,9 @@ export function MuscleVolume() {
             <p className="lb-figure text-3xl font-semibold mt-2">
               {current.sets}<span className="text-sm font-medium text-(--color-text-secondary) ml-1.5">set</span>
             </p>
-            <p className="lb-label mt-1.5">
-              {nf.format(Math.round(current.tonnage))} kg
-              {previous && previousPeriod ? ` · ${previousPeriod.phaseName} ${previousPeriod.label} ile fark ${signed(current.sets - previous.sets)} set` : ''}
-            </p>
+            {previous && previousPeriod && (
+              <p className="lb-label mt-1.5">{previousPeriod.phaseName} {previousPeriod.label} ile fark {signed(current.sets - previous.sets)} set</p>
+            )}
           </div>
           <div className="flex gap-1 shrink-0">
             <button type="button" aria-label="Önceki dönem" disabled={index === 0} onClick={() => setPicked(index - 1)}
@@ -120,7 +118,7 @@ export function MuscleVolume() {
 
         <ul className="mt-6 space-y-3">
           {ranked.map(row => (
-            <li key={row.group} className="grid grid-cols-[5.5rem_minmax(0,1fr)_auto] sm:grid-cols-[7rem_minmax(0,1fr)_12rem] items-center gap-3">
+            <li key={row.group} className="grid grid-cols-[5.5rem_minmax(0,1fr)_auto] sm:grid-cols-[7rem_minmax(0,1fr)_6rem] items-center gap-3">
               <span className={`text-sm ${row.group === UNASSIGNED ? 'text-(--color-text-secondary)' : 'font-medium'}`}>{row.group}</span>
               <span className="h-2 rounded-full" style={{ background: 'var(--lb-rule)' }}>
                 <span className="block h-full rounded-full transition-[width] duration-300"
@@ -129,7 +127,6 @@ export function MuscleVolume() {
               <span className="lb-figure text-sm text-right whitespace-nowrap">
                 {row.now.sets}<span className="text-xs text-(--color-text-secondary)"> set</span>
                 {row.before && <span className="text-xs text-(--color-text-secondary) ml-2">{signed(row.now.sets - row.before.sets)}</span>}
-                <span className="hidden sm:inline text-xs text-(--color-text-secondary) ml-2">· {nf.format(Math.round(row.now.tonnage))} kg</span>
               </span>
             </li>
           ))}

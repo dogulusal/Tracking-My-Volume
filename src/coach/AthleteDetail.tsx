@@ -18,7 +18,6 @@ import { Avatar, CoachError } from './parts';
 import { agoText, needsAttention } from './summary';
 import { possessive, sinceText, useCoach } from './store';
 
-const nf = new Intl.NumberFormat('tr-TR');
 const dayMonth = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long' });
 type Tab = 'week' | 'program' | 'history' | 'charts';
 const TABS: [Tab, string][] = [['week', 'Bu hafta'], ['program', 'Program'], ['history', 'Geçmiş'], ['charts', 'Grafikler']];
@@ -155,16 +154,10 @@ function AthleteWeek({ firstName }: { firstName: string }) {
       </div>
 
       <div>
-        <div className="mt-7 grid grid-cols-2 gap-2">
-          <div className="a-card px-4 py-3">
-            <p className="lb-figure text-[30px] font-bold leading-none">{weekStats.volume > 0 ? nf.format(Math.round(weekStats.volume)) : '—'}{weekStats.volume > 0 && <span className="text-[16px] font-semibold text-(--color-text-secondary)"> kg</span>}</p>
-            <p className="mt-1 text-[13px] text-(--color-text-secondary)">bu haftanın hacmi</p>
-          </div>
-          <div className="a-card px-4 py-3">
-            <p className="lb-figure text-[30px] font-bold leading-none">{streak}<span className="text-[16px] font-semibold text-(--color-text-secondary)"> hafta</span></p>
-            <p className="mt-1 text-[13px] text-(--color-text-secondary)">üst üste antrenman</p>
-          </div>
-        </div>
+        <p className="mt-7 a-card px-4 py-3 flex items-baseline gap-2">
+          <span className="lb-figure text-[30px] font-bold leading-none">{streak}<span className="text-[16px] font-semibold text-(--color-text-secondary)"> hafta</span></span>
+          <span className="text-[13px] text-(--color-text-secondary)">üst üste antrenman</span>
+        </p>
         {stalled.length > 0 && (
           <section className="mt-7">
             <h2 className="a-display text-[28px]">Yerinde sayanlar</h2>
