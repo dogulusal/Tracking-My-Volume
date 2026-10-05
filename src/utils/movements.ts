@@ -1,5 +1,6 @@
-import type { ExerciseLog, WeekLog } from '@/types';
+import type { ExerciseLog, Program, WeekLog } from '@/types';
 import { exerciseKey } from '@/utils/muscleGroups';
+import { STALL_WEEKS, stallOf, type Stall } from '@/utils/progression';
 
 /** One workout's record of a movement. */
 export type MovementSession = { log: WeekLog; exercise: ExerciseLog };
@@ -35,4 +36,24 @@ export function sessionsBefore(
 ): MovementSession[] {
   return sessions.filter(({ log }) =>
     !(log.programId === current.programId && log.weekNumber === current.weekNumber) && sessionOrder(log, current) < 0);
+}
+
+/**
+ * Movements of these days whose best set has not been beaten for a while,
+ * counted across every day that trains them and across phases: the
+ * week-to-week colours cannot show this, each compares one week only.
+ */
+export function stalledMovements(programs: Program[], weekLogs: WeekLog[]): { key: string; name: string; stall: Stall }[] {
+  const seen = new Set<string>();
+  const items: { key: string; name: string; stall: Stall }[] = [];
+  for (const program of programs) {
+    for (const exercise of program.exercises) {
+      const key = exerciseKey(exercise.name);
+      if (!exercise.isActive || seen.has(key)) continue;
+      seen.add(key);
+      const stall = stallOf(movementSessions(weekLogs, key));
+      if (stall && stall.weeks >= STALL_WEEKS) items.push({ key, name: exercise.name, stall });
+    }
+  }
+  return items.sort((a, b) => b.stall.weeks - a.stall.weeks);
 }

@@ -39,3 +39,13 @@ export function staleWeekAge(logs: WeekLog[], currentWeek: number, today: Date):
   const oldest = Math.max(...ages);
   return oldest >= STALE_WEEK_DAYS ? oldest : null;
 }
+
+/** Consecutive weeks before this one with at least one logged workout. */
+export function trainingStreak(weekLogs: WeekLog[], currentWeek: number): number {
+  let count = 0;
+  for (let week = currentWeek - 1; week >= 0; week--) {
+    if (!weekLogs.some(log => log.weekNumber === week && !log.isHoliday && log.exercises.length > 0)) break;
+    count++;
+  }
+  return count;
+}

@@ -12,6 +12,7 @@ import { commentsOn, dayNotesOn, useComments } from '@/coach/comments';
 import { DayNoteSheet } from '@/coach/DayNoteSheet';
 import { buildPhaseGrid, statusFill, type GridRow } from '../../supabase/functions/_shared/historyGrid.mjs';
 import { currentPhaseIndex, startedPhases } from '@/utils/phases';
+import { trainingStreak } from '@/utils/weekAdvance';
 import type { ExerciseLog, SetLog } from '@/types';
 
 const HISTORY_STATE_KEY = 'history-page-state-v1';
@@ -24,6 +25,7 @@ export function History({ embedded = false }: { embedded?: boolean } = {}) {
   const [showPhaseSettings, setShowPhaseSettings] = useState(false);
   const navigate = useNavigate();
   const { weekLogs, currentWeek, saveWorkout } = useWeekLogs();
+  const streak = useMemo(() => trainingStreak(weekLogs, currentWeek), [weekLogs, currentWeek]);
   const palette = useGridPalette();
   const isMobile = useIsMobileDevice();
   const ctx = useContext(AppContext);
@@ -175,6 +177,9 @@ export function History({ embedded = false }: { embedded?: boolean } = {}) {
         <div className="min-w-0">
           {!embedded && <h1 className="a-display text-[48px]">Geçmiş</h1>}
           <p className="mt-1 text-[14px] text-(--color-text-secondary)">{currentPhase?.label ?? ''}{readOnly ? '' : ' · Sheet ile aynı tablo'}</p>
+          {/* The run of weeks this table is made of; moved here from Bugün,
+              where it sat oddly beside the day's workout. */}
+          {!embedded && streak > 0 && <p className="text-[14px] text-(--color-text-secondary)"><span className="lb-figure font-semibold text-(--color-text-primary)">{streak} hafta</span> üst üste antrenman</p>}
         </div>
         {!readOnly && <button onClick={() => setShowPhaseSettings(true)} className="shrink-0 h-11 px-4 rounded-full bg-(--color-bg-card) text-[15px] font-medium">Fazlar</button>}
       </div>

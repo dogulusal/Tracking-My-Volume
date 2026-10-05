@@ -3,9 +3,9 @@ import { AppContext } from '@/context/AppContext';
 import { usePrograms } from '@/hooks/usePrograms';
 import { usePlans } from '@/hooks/usePlans';
 import { useWeekLogs } from '@/hooks/useWeekLogs';
-import { exerciseKey } from '@/utils/muscleGroups';
-import { movementSessions } from '@/utils/movements';
-import { STALL_WEEKS, bestSet, previousRecord, stallOf } from '@/utils/progression';
+import { stalledMovements } from '@/utils/movements';
+import { bestSet, previousRecord } from '@/utils/progression';
+import { trainingStreak } from '@/utils/weekAdvance';
 import { buildPhaseGrid, formatSetLine } from '../../supabase/functions/_shared/historyGrid.mjs';
 import { onlyFirstPhase } from '@/utils/phases';
 import type { Program } from '@/types';
@@ -38,16 +38,7 @@ export function useWeekOverview() {
     };
   }, [weekLogs, currentWeek, activeProgramIds, activePlanPrograms.length]);
 
-  // Consecutive weeks before this one with at least one logged workout
-  const streak = useMemo(() => {
-    let count = 0;
-    for (let w = currentWeek - 1; w >= 0; w--) {
-      const hasWorkout = weekLogs.some(log => log.weekNumber === w && !log.isHoliday && log.exercises.length > 0);
-      if (hasWorkout) count++;
-      else break;
-    }
-    return count;
-  }, [weekLogs, currentWeek]);
+  const streak = useMemo(() => trainingStreak(weekLogs, currentWeek), [weekLogs, currentWeek]);
 
   const grid = useMemo(() => state && phase ? buildPhaseGrid(state, phase.id) : null, [state, phase]);
 
@@ -70,23 +61,7 @@ export function useWeekOverview() {
     });
   }, [activePlanPrograms, weekLogs, currentWeek, grid]);
 
-  // Movements of the plan whose best set has not been beaten for a while,
-  // counted across every day that trains them and across phases: the
-  // week-to-week colours cannot show this, each compares one week only.
-  const stalled = useMemo(() => {
-    const seen = new Set<string>();
-    const items: { key: string; name: string; stall: NonNullable<ReturnType<typeof stallOf>> }[] = [];
-    for (const program of activePlanPrograms) {
-      for (const exercise of program.exercises) {
-        const key = exerciseKey(exercise.name);
-        if (!exercise.isActive || seen.has(key)) continue;
-        seen.add(key);
-        const stall = stallOf(movementSessions(weekLogs, key));
-        if (stall && stall.weeks >= STALL_WEEKS) items.push({ key, name: exercise.name, stall });
-      }
-    }
-    return items.sort((a, b) => b.stall.weeks - a.stall.weeks);
-  }, [activePlanPrograms, weekLogs]);
+  const stalled = useMemo(() => stalledMovements(activePlanPrograms, weekLogs), [activePlanPrograms, weekLogs]);
 
   const nextWorkout = programStatuses.find(p => p.hasDraft) ?? programStatuses.find(p => p.status === 'pending');
 

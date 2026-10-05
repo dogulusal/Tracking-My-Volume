@@ -3,8 +3,6 @@ import { useContext, useState } from 'react';
 import { AppContext } from '@/context/AppContext';
 import { useWeekOverview, type WeekDay } from '@/hooks/useWeekOverview';
 import { Modal } from '@/components/shared/Modal';
-import { formatSet } from '@/utils/formatters';
-import { STALL_WEEKS } from '@/utils/progression';
 import { staleWeekAge } from '@/utils/weekAdvance';
 import { possessive, useCoach } from '@/coach/store';
 import { dayNotesOn } from '@/coach/comments';
@@ -40,7 +38,6 @@ function DayTile({ day, isNext, week }: { day: WeekDay; isNext: boolean; week: n
 
 export function Dashboard() {
   const [confirmNewWeek, setConfirmNewWeek] = useState(false);
-  const [showAllStalled, setShowAllStalled] = useState(false);
   const coach = useCoach();
   const ctx = useContext(AppContext);
   // Shown once it is in the record, so the card never announces what is not there yet.
@@ -48,7 +45,7 @@ export function Dashboard() {
   const coachUpdate = coach.inbox.updates.find(update => !update.seen && (applied ?? []).includes(update.id));
   const {
     activePlan, activePlanPrograms, programs, weekLogs, currentWeek, incrementWeek,
-    weekLabel, weekStats, streak, programStatuses, stalled, nextWorkout, nextTargets,
+    weekLabel, weekStats, programStatuses, nextWorkout, nextTargets,
   } = useWeekOverview();
   // A program the coach set up waits beside the person's own until they switch.
   const offerSwitch = coachUpdate && activePlan?.id !== coachUpdate.planId;
@@ -147,6 +144,10 @@ export function Dashboard() {
       </div>
       <p className="mt-1.5 text-[12px] text-(--color-text-secondary)">Yeşil rakam: geçen haftayı geçtiğin hareket sayısı</p>
 
+      </div>
+
+      {/* On a wide screen what the next workout has to beat sits beside the week. */}
+      <div className="lg:pt-2 lg:[&>*:first-child]:mt-0">
       {nextWorkout ? (
         <>
           {nextTargets.length > 0 && (
@@ -174,36 +175,6 @@ export function Dashboard() {
           className="mt-6 w-full h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Yeni haftaya geç</button>
       ) : (
         <Link to="/programs" className="mt-6 flex items-center justify-center h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">Programlar</Link>
-      )}
-      </div>
-
-      <div className="lg:pt-2 lg:[&>*:first-child]:mt-0">
-      <div className="mt-8 grid grid-cols-2 gap-2">
-        <div className="a-card px-4 py-3">
-          <p className="lb-figure text-[30px] font-bold leading-none">{streak}<span className="text-[16px] font-semibold text-(--color-text-secondary)"> hafta</span></p>
-          <p className="mt-1 text-[13px] text-(--color-text-secondary)">üst üste antrenman</p>
-        </div>
-      </div>
-
-      {stalled.length > 0 && (
-        <section className="mt-8">
-          <h2 className="a-display text-[28px]">Yerinde sayanlar</h2>
-          <p className="mt-1 text-[13px] text-(--color-text-secondary)">En iyi set {STALL_WEEKS} haftadan uzun süredir aşılmadı.</p>
-          <ul className="mt-2">
-            {(showAllStalled ? stalled : stalled.slice(0, 5)).map(({ key, name, stall }) => (
-              <li key={key} className="flex items-baseline gap-3 py-2.5 border-b border-(--color-bg-card)">
-                <span className="flex-1 min-w-0 text-[16px] truncate">{name}</span>
-                <span className="lb-figure text-[18px] text-(--color-text-secondary)">{formatSet(stall.best)}</span>
-                <span className="lb-figure w-14 text-right text-[18px] font-semibold">{stall.weeks} hf</span>
-              </li>
-            ))}
-          </ul>
-          {stalled.length > 5 && (
-            <button onClick={() => setShowAllStalled(value => !value)} className="mt-1 h-11 text-[15px] text-(--color-text-secondary)">
-              {showAllStalled ? 'Daha az göster' : `Tümünü göster (${stalled.length})`}
-            </button>
-          )}
-        </section>
       )}
 
       {!weekDone && (

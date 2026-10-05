@@ -4,6 +4,10 @@ import { STATUS_INK, Sparkline, TrendChart, kg, phaseChange, repsLabel, topSet }
 import { MuscleVolume } from '@/components/shared/MuscleVolume';
 import { AppContext } from '@/context/AppContext';
 import { currentPhaseIndex, startedPhases } from '@/utils/phases';
+import { usePlans } from '@/hooks/usePlans';
+import { stalledMovements } from '@/utils/movements';
+import { STALL_WEEKS } from '@/utils/progression';
+import { formatSet } from '@/utils/formatters';
 import { buildPhaseGrid, type GridRow } from '../../supabase/functions/_shared/historyGrid.mjs';
 
 const CHARTS_STATE_KEY = 'charts-page-state-v1';
@@ -87,6 +91,11 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
   const charted = program?.rows.filter(row => row.cells.some(cell => cell.sets?.length)) ?? [];
   const [openId, setOpenId] = useState<string | null>(null);
   const unrecorded = program?.rows.filter(row => !charted.includes(row)) ?? [];
+  // Across every day of the plan, not the one picked above: a movement can
+  // stall on one day while another day trains it too.
+  const { activePlanPrograms } = usePlans();
+  const stalled = useMemo(() => embedded ? [] : stalledMovements(activePlanPrograms, state.weekLogs), [embedded, activePlanPrograms, state.weekLogs]);
+  const [showAllStalled, setShowAllStalled] = useState(false);
 
   return (
     <PageContainer bare={embedded}>
@@ -196,6 +205,27 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
             <p className="lb-label mt-5">Bu fazda kaydı olmayan: {unrecorded.map(row => row.name).join(', ')}</p>
           )}
         </>
+      )}
+
+      {stalled.length > 0 && (
+        <section className="mt-10">
+          <h2 className="a-display text-[28px]">Yerinde sayanlar</h2>
+          <p className="lb-label mt-1">En iyi set {STALL_WEEKS} haftadan uzun süredir aşılmadı · bütün günler</p>
+          <ul className="mt-2">
+            {(showAllStalled ? stalled : stalled.slice(0, 5)).map(({ key, name, stall }) => (
+              <li key={key} className="flex items-baseline gap-3 py-2.5 border-b lb-rule">
+                <span className="flex-1 min-w-0 text-[16px] truncate">{name}</span>
+                <span className="lb-figure text-[18px] text-(--color-text-secondary)">{formatSet(stall.best)}</span>
+                <span className="lb-figure w-14 text-right text-[18px] font-semibold">{stall.weeks} hf</span>
+              </li>
+            ))}
+          </ul>
+          {stalled.length > 5 && (
+            <button onClick={() => setShowAllStalled(value => !value)} className="mt-1 h-11 text-[15px] text-(--color-text-secondary)">
+              {showAllStalled ? 'Daha az göster' : `Tümünü göster (${stalled.length})`}
+            </button>
+          )}
+        </section>
       )}
       </>)}
     </PageContainer>
