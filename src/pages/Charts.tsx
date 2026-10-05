@@ -121,11 +121,13 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
         ))}
       </div>
 
-      {/* On a wide screen both views stand side by side instead of behind
-          tabs, so the page is not half empty; on a phone the tabs stay. */}
-      <div className={sideBySide ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] xl:gap-14 xl:items-start' : ''}>
+      {/* On a wide screen the three parts are panels instead of tabs, each with
+          its own title so it is clear which is which: progress on the left,
+          sets per region and the stalled list on the right. On a phone the
+          tabs stay. */}
+      <div className={sideBySide ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,27rem)] xl:gap-6' : ''}>
       {(sideBySide || view === 'progress') && (
-      <div className={view === 'progress' ? '' : 'hidden xl:block'}>
+      <div className={`${view === 'progress' ? '' : 'hidden xl:block'} ${sideBySide ? PANEL : ''}`}>
       {sideBySide && <ColumnHead title="İlerleme" text="Her hareketin en ağır seti, hafta hafta. Renkler Geçmiş tablosuyla aynı." />}
       <div className="flex flex-wrap items-center gap-1 mb-3">
         {programs.map(p => (
@@ -215,31 +217,23 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
       )}
 
       {stalled.length > 0 && (
-        <section className="mt-10">
-          <h2 className="a-display text-[28px]">Yerinde sayanlar</h2>
-          <p className="lb-label mt-1">En iyi set {STALL_WEEKS} haftadan uzun süredir aşılmadı · bütün günler</p>
-          <ul className="mt-2">
-            {(showAllStalled ? stalled : stalled.slice(0, 5)).map(({ key, name, stall }) => (
-              <li key={key} className="flex items-baseline gap-3 py-2.5 border-b lb-rule">
-                <span className="flex-1 min-w-0 text-[16px] truncate">{name}</span>
-                <span className="lb-figure text-[18px] text-(--color-text-secondary)">{formatSet(stall.best)}</span>
-                <span className="lb-figure w-14 text-right text-[18px] font-semibold">{stall.weeks} hf</span>
-              </li>
-            ))}
-          </ul>
-          {stalled.length > 5 && (
-            <button onClick={() => setShowAllStalled(value => !value)} className="mt-1 h-11 text-[15px] text-(--color-text-secondary)">
-              {showAllStalled ? 'Daha az göster' : `Tümünü göster (${stalled.length})`}
-            </button>
-          )}
-        </section>
+        <div className={sideBySide ? 'mt-10 xl:hidden' : 'mt-10'}>
+          <StalledList stalled={stalled} showAll={showAllStalled} onToggle={() => setShowAllStalled(value => !value)} heading />
+        </div>
       )}
       </div>
       )}
       {(sideBySide || view === 'volume') && (
-        <div className={view === 'volume' ? '' : 'hidden xl:block'}>
+        <div className={`${view === 'volume' ? '' : 'hidden xl:block'} ${sideBySide ? PANEL : ''}`}>
           {sideBySide && <ColumnHead title="Bölge başına set" text="Haftada bölge başına çalışılan set. Bütün günler sayılır." />}
           <MuscleVolume />
+        </div>
+      )}
+      {/* Under both, across the page: the list runs in two columns. */}
+      {sideBySide && stalled.length > 0 && (
+        <div className={`hidden xl:block xl:col-span-2 ${PANEL}`}>
+          <ColumnHead title="Yerinde sayanlar" text={`En iyi set ${STALL_WEEKS} haftadan uzun süredir aşılmadı · bütün günler`} />
+          <StalledList stalled={stalled} showAll={showAllStalled} onToggle={() => setShowAllStalled(value => !value)} twoColumns />
         </div>
       )}
       </div>
@@ -247,12 +241,45 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
   );
 }
 
-/** A view's own title, shown only when the views stand side by side. */
+// A part of the page on a wide screen: a filled surface with its own title.
+const PANEL = 'xl:rounded-[22px] xl:bg-(--color-bg-card) xl:p-6';
+
+/** A part's own title, shown only when the parts stand side by side. */
 function ColumnHead({ title, text }: { title: string; text: string }) {
   return (
-    <div className="hidden xl:block mb-4">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <p className="lb-label mt-0.5">{text}</p>
+    <div className="hidden xl:block mb-5">
+      <h2 className="a-display text-[30px]">{title}</h2>
+      <p className="lb-label mt-1">{text}</p>
     </div>
+  );
+}
+
+/** Movements whose best set has not been beaten for a while, worst first. */
+function StalledList({ stalled, showAll, onToggle, heading = false, twoColumns = false }: {
+  stalled: ReturnType<typeof stalledMovements>; showAll: boolean; onToggle: () => void; heading?: boolean; twoColumns?: boolean;
+}) {
+  return (
+    <section>
+      {heading && (
+        <>
+          <h2 className="a-display text-[28px]">Yerinde sayanlar</h2>
+          <p className="lb-label mt-1">En iyi set {STALL_WEEKS} haftadan uzun süredir aşılmadı · bütün günler</p>
+        </>
+      )}
+      <ul className={`${heading ? 'mt-2' : ''} ${twoColumns ? 'grid grid-cols-2 gap-x-12' : ''}`}>
+        {(showAll ? stalled : stalled.slice(0, twoColumns ? 6 : 5)).map(({ key, name, stall }) => (
+          <li key={key} className="flex items-baseline gap-3 py-2.5 border-b lb-rule">
+            <span className="flex-1 min-w-0 text-[16px] truncate">{name}</span>
+            <span className="lb-figure text-[18px] text-(--color-text-secondary)">{formatSet(stall.best)}</span>
+            <span className="lb-figure w-14 text-right text-[18px] font-semibold">{stall.weeks} hf</span>
+          </li>
+        ))}
+      </ul>
+      {stalled.length > (twoColumns ? 6 : 5) && (
+        <button onClick={onToggle} className="mt-1 h-11 text-[15px] text-(--color-text-secondary)">
+          {showAll ? 'Daha az göster' : `Tümünü göster (${stalled.length})`}
+        </button>
+      )}
+    </section>
   );
 }

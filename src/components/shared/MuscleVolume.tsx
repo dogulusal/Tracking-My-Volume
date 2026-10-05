@@ -126,7 +126,7 @@ export function MuscleVolume() {
               <li key={row.group}>
                 <button type="button" onClick={() => setFocus(value => value === row.group ? null : row.group)} aria-pressed={focus === row.group}
                   className="lb-press w-full min-h-10 -mx-2 px-2 rounded-lg flex items-center gap-3 text-left"
-                  style={focus === row.group ? { background: 'var(--color-bg-card)' } : undefined}>
+                  style={focus === row.group ? { background: 'color-mix(in srgb, var(--color-text-primary) 8%, transparent)' } : undefined}>
                   <span aria-hidden="true" className="w-3 h-3 rounded-full shrink-0"
                     style={{ background: 'var(--color-text-primary)', opacity: row.now.sets ? shadeOf(rank) : 0.12 }} />
                   <span className={`flex-1 min-w-0 truncate text-sm ${row.group === UNASSIGNED ? 'text-(--color-text-secondary)' : 'font-medium'}`}>{row.group}</span>
