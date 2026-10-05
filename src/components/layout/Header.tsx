@@ -43,7 +43,9 @@ export function Header() {
   return (
     <>
       <header className="sticky top-0 z-50 pt-[env(safe-area-inset-top)] bg-(--color-bg-primary)">
-        <div className="max-w-5xl mx-auto px-2 h-12 flex items-center justify-between gap-3">
+        {/* On a computer the wordmark and the settings circle line up with the
+            pages' 20px gutter (nav pl-2 + 12px; circle sits 4px inside its button). */}
+        <div className="max-w-5xl mx-auto px-2 min-[901px]:pl-3 min-[901px]:pr-4 h-12 flex items-center justify-between gap-3">
           {isMobile ? <span /> : (
             <nav className="flex items-center gap-1 pl-2">
               <Link to="/" className="a-display mr-4 text-[22px]">Volume</Link>

@@ -159,7 +159,7 @@ export function ProgramSelect() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {programPreviews.map(({ program, lastLog, visibleExercises, lastWeekLabel }) => (
-          <section key={program.id} className="a-card px-4 pt-3.5 pb-3">
+          <section key={program.id} className="a-card px-4 pt-3.5 pb-3 flex flex-col">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="a-display text-[32px] truncate">{program.name}</h2>
@@ -170,7 +170,9 @@ export function ProgramSelect() {
               <Link to={`/programs/edit/${program.id}?week=${selectedWeek}`} className="shrink-0 h-11 px-4 rounded-full bg-(--color-bg-input) flex items-center text-[15px] font-medium">Düzenle</Link>
             </div>
 
-            <ul className="mt-3">
+            {/* Cards in a row share a height; the buttons sit at the bottom so
+                they line up across the row. */}
+            <ul className="mt-3 mb-3">
               {visibleExercises.map(exercise => (
                 <li key={exercise.exerciseId} className="flex items-baseline justify-between gap-3 py-2 border-t border-(--color-border)">
                   <span className="min-w-0 text-[16px] truncate">{exercise.exerciseName}</span>
@@ -185,7 +187,7 @@ export function ProgramSelect() {
             </ul>
 
             <Link to={`/workout/${program.id}/week/${selectedWeek}`}
-              className="mt-3 flex items-center justify-center h-14 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[17px] font-semibold">
+              className="mt-auto flex items-center justify-center h-14 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[17px] font-semibold">
               Antrenman gir
             </Link>
             <div className="mt-1 flex items-center justify-between">
