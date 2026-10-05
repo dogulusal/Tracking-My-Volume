@@ -54,25 +54,15 @@ const REST_TIMER_RECENTS_KEY = 'rest-timer-recent-sec';
 const TIMER_END_AT_KEY = 'rest-timer-end-at';
 const MAX_RECENT_DURATIONS = 3;
 
-// 1-second silent WAV (8000 Hz, 8-bit mono) — keeps iOS audio session alive when screen locks
-const SILENT_WAV_URL = (() => {
-  try {
-    const rate = 8000;
-    const buf = new ArrayBuffer(44 + rate);
-    const v = new DataView(buf);
-    const ws = (o: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-    ws(0, 'RIFF'); v.setUint32(4, 36 + rate, true);
-    ws(8, 'WAVE'); ws(12, 'fmt ');
-    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-    v.setUint32(24, rate, true); v.setUint32(28, rate, true);
-    v.setUint16(32, 1, true); v.setUint16(34, 8, true);
-    ws(36, 'data'); v.setUint32(40, rate, true);
-    for (let i = 0; i < rate; i++) v.setUint8(44 + i, 128);
-    const bytes = new Uint8Array(buf);
-    let b = ''; bytes.forEach(x => { b += String.fromCharCode(x); });
-    return 'data:audio/wav;base64,' + btoa(b);
-  } catch { return ''; }
-})();
+// The rest beep plays over the person's own music instead of stopping it
+// (Safari 16.4+). An "ambient" sound mixes with other apps; the cost is that
+// it follows the silent switch and stops while the screen is locked.
+// iPhones give web apps no way to vibrate (Android does), so it is promised only where it works.
+const CAN_VIBRATE = typeof navigator !== 'undefined' && 'vibrate' in navigator;
+function mixWithOtherAudio() {
+  const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+  if (session && session.type !== 'ambient') session.type = 'ambient';
+}
 
 // Pure formatter — outside component so interval callbacks use it without deps
 function formatTimer(totalSec: number): string {
@@ -153,10 +143,6 @@ export function WorkoutEntry() {
   const audioContextRef = useRef<AudioContext | null>(null);
   // WakeLock — keeps screen on while timer counts down
   const wakeLockRef = useRef<{ release(): Promise<void> } | null>(null);
-  // Silent audio element — keeps iOS audio session alive when screen locks
-  const silentAudioRef = useRef<HTMLAudioElement | null>(null);
-  // Pre-scheduled oscillators — cancelled if user stops timer early
-  const scheduledOscillatorsRef = useRef<OscillatorNode[]>([]);
 
   const draftKey = `draft-${programId}-${weekNumber}`;
 
@@ -339,10 +325,8 @@ export function WorkoutEntry() {
   useEffect(() => {
     return () => {
       if (timerRef.current !== null) clearInterval(timerRef.current);
-      scheduledOscillatorsRef.current.forEach(o => { try { o.disconnect(); } catch { /* */ } });
       void audioContextRef.current?.close();
       void wakeLockRef.current?.release();
-      silentAudioRef.current?.pause();
     };
   }, []);
 
@@ -538,13 +522,14 @@ export function WorkoutEntry() {
   const playAlarmTone = useCallback(async () => {
     try {
       // Reuse the pre-unlocked AudioContext so iOS allows audio from non-gesture contexts
+      mixWithOtherAudio();
       let ctx = audioContextRef.current;
       if (!ctx || ctx.state === 'closed') {
         ctx = new AudioContext();
         audioContextRef.current = ctx;
       }
-      // iOS suspends AudioContext when page goes to background; resume before playing
-      if (ctx.state === 'suspended') {
+      // iOS suspends (or "interrupts") AudioContext when page goes to background; resume before playing
+      if (ctx.state !== 'running') {
         await ctx.resume();
       }
       const now = ctx.currentTime;
@@ -555,7 +540,7 @@ export function WorkoutEntry() {
         oscillator.frequency.value = frequency;
         const startAt = now + index * 0.22;
         gain.gain.setValueAtTime(0.0001, startAt);
-        gain.gain.exponentialRampToValueAtTime(0.12, startAt + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.35, startAt + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.18);
         oscillator.connect(gain);
         gain.connect(ctx!.destination);
@@ -573,10 +558,13 @@ export function WorkoutEntry() {
       navigator.vibrate([180, 100, 220]);
     }
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('Dinlenme bitti', {
-        body: 'Sonraki sete hazırsın.',
-        tag: 'rest-timer-finished',
-      });
+      // A throw here would skip the "Dinlenme bitti" screen below.
+      try {
+        new Notification('Dinlenme bitti', {
+          body: 'Sonraki sete hazırsın.',
+          tag: 'rest-timer-finished',
+        });
+      } catch { /* the screen and the sound still tell */ }
     }
     // Visual banner — reliable even when audio/vibration fails (e.g. iOS Safari)
     setTimerJustFinished(true);
@@ -595,9 +583,6 @@ export function WorkoutEntry() {
         localStorage.removeItem(TIMER_END_AT_KEY);
         void wakeLockRef.current?.release();
         wakeLockRef.current = null;
-        silentAudioRef.current?.pause();
-        scheduledOscillatorsRef.current.forEach(o => { try { o.disconnect(); } catch { /* */ } });
-        scheduledOscillatorsRef.current = [];
         setTimerActive(false);
         setTimerRemainingSec(0);
         fireTimerFinishedAlerts();
@@ -610,10 +595,11 @@ export function WorkoutEntry() {
   const startRestTimer = (seconds: number = restDurationSec, remember = true) => {
     // Unlock / resume AudioContext on this user gesture — required for iOS audio policy
     try {
+      mixWithOtherAudio();
       if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
         audioContextRef.current = new AudioContext();
       }
-      if (audioContextRef.current.state === 'suspended') {
+      if (audioContextRef.current.state !== 'running') {
         void audioContextRef.current.resume();
       }
     } catch { /* ignore */ }
@@ -632,41 +618,6 @@ export function WorkoutEntry() {
     setTimerRemainingSec(safeSeconds);
     setTimerActive(true);
     if (remember) addRecentDuration(safeSeconds);
-    // Play silent audio loop — keeps iOS audio session alive when screen locks
-    if (SILENT_WAV_URL) {
-      if (!silentAudioRef.current) {
-        silentAudioRef.current = new Audio(SILENT_WAV_URL);
-        silentAudioRef.current.loop = true;
-      }
-      void silentAudioRef.current.play().catch(() => {});
-    }
-    // Pre-schedule alarm tones in AudioContext.
-    // The audio thread continues running even when JS is suspended (iOS background/lock),
-    // so the alarm fires at the exact time as long as the audio session stays active.
-    if (audioContextRef.current && audioContextRef.current.state === 'running') {
-      const ctx = audioContextRef.current;
-      // Cancel any leftover pre-scheduled notes from a previous timer
-      scheduledOscillatorsRef.current.forEach(o => { try { o.disconnect(); } catch { /* */ } });
-      scheduledOscillatorsRef.current = [];
-      const fireAt = ctx.currentTime + safeSeconds;
-      const oscs: OscillatorNode[] = [];
-      [880, 660, 880].forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        const startAt = fireAt + i * 0.22;
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.0001, startAt);
-        gain.gain.exponentialRampToValueAtTime(0.35, startAt + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.18);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(startAt);
-        osc.stop(startAt + 0.22);
-        oscs.push(osc);
-      });
-      scheduledOscillatorsRef.current = oscs;
-    }
     restartIntervalFromEndAt(endAt);
   };
 
@@ -676,9 +627,6 @@ export function WorkoutEntry() {
     localStorage.removeItem(TIMER_END_AT_KEY);
     void wakeLockRef.current?.release();
     wakeLockRef.current = null;
-    scheduledOscillatorsRef.current.forEach(o => { try { o.disconnect(); } catch { /* */ } });
-    scheduledOscillatorsRef.current = [];
-    silentAudioRef.current?.pause();
     setTimerActive(false);
     setTimerRemainingSec(0);
     setTimerJustFinished(false);
@@ -728,9 +676,6 @@ export function WorkoutEntry() {
         if (timerRef.current !== null) { clearInterval(timerRef.current); timerRef.current = null; }
         timerEndAtRef.current = null;
         localStorage.removeItem(TIMER_END_AT_KEY);
-        silentAudioRef.current?.pause();
-        scheduledOscillatorsRef.current.forEach(o => { try { o.disconnect(); } catch { /* */ } });
-        scheduledOscillatorsRef.current = [];
         setTimerActive(false);
         setTimerRemainingSec(0);
         fireTimerFinishedAlerts();
@@ -1196,7 +1141,7 @@ export function WorkoutEntry() {
                   <button onClick={() => adjustRestTimer(30)} className="h-[52px] px-6 rounded-full bg-(--color-bg-card) text-[17px] font-semibold">+30 sn</button>
                 </div>
               )}
-              <span className="text-[13px] text-(--color-text-secondary)">Süre bitince ses çalar, telefon titrer</span>
+              <span className="text-[13px] text-(--color-text-secondary)">{CAN_VIBRATE ? 'Süre bitince ses çalar, telefon titrer' : 'Süre bitince ses çalar'}</span>
             </div>
             <div className="px-4 pb-[calc(24px+env(safe-area-inset-bottom))] flex flex-col gap-3">
               {exercise && set && current && (
@@ -1497,7 +1442,9 @@ export function WorkoutEntry() {
             </div>
             <p className="mt-2 text-[13px] text-(--color-text-secondary)">
               {recentDurations.length > 0 ? 'Son kullandığın süreler. ' : ''}
-              {notificationPermission === 'granted' ? 'Süre bitince ses, titreşim ve bildirim.' : 'Süre bitince ses çalar ve telefon titrer.'}
+              {notificationPermission === 'granted'
+                ? (CAN_VIBRATE ? 'Süre bitince ses, titreşim ve bildirim.' : 'Süre bitince ses ve bildirim.')
+                : (CAN_VIBRATE ? 'Süre bitince ses çalar ve telefon titrer.' : 'Süre bitince ses çalar.')}
               {notificationPermission === 'default' && <> <button onClick={handleEnableNotifications} className="underline underline-offset-2">Bildirim izni ver</button></>}
             </p>
           </div>
