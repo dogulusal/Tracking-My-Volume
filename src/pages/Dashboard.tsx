@@ -7,6 +7,7 @@ import { staleWeekAge } from '@/utils/weekAdvance';
 import { possessive, useCoach } from '@/coach/store';
 import { dayNotesOn } from '@/coach/comments';
 
+const WEEK_DONE_KEY = 'tmv-hafta-bitti-sonra';
 const weekdayFormat = new Intl.DateTimeFormat('tr-TR', { weekday: 'long' });
 const dayMonthFormat = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long' });
 
@@ -60,6 +61,15 @@ export function Dashboard() {
     setStaleDismissed(true);
     try { localStorage.setItem(staleKey, '1'); } catch { /* a per-device nicety only */ }
   };
+  // A finished week is announced once; "Sonra" leaves it to the button at the
+  // bottom of the page (remembered per week, on this phone).
+  const [doneDismissedWeek, setDoneDismissedWeek] = useState(() => {
+    try { return Number(localStorage.getItem(WEEK_DONE_KEY) ?? -1); } catch { return -1; }
+  });
+  const laterNewWeek = () => {
+    setDoneDismissedWeek(currentWeek);
+    try { localStorage.setItem(WEEK_DONE_KEY, String(currentWeek)); } catch { /* a per-device nicety only */ }
+  };
   const now = new Date();
   const weekday = weekdayFormat.format(now);
   const dateLine = `${weekday.charAt(0).toLocaleUpperCase('tr-TR')}${weekday.slice(1)}, ${dayMonthFormat.format(now)}`;
@@ -68,6 +78,7 @@ export function Dashboard() {
   if (programs.length === 0) return <Navigate to="/baslangic" replace />;
 
   const weekDone = weekStats.total > 0 && weekStats.completed === weekStats.total;
+  const announceDone = weekDone && doneDismissedWeek !== currentWeek;
 
   return (
     // On a wide screen the week's numbers sit beside the workout instead of
@@ -139,6 +150,21 @@ export function Dashboard() {
         </section>
       )}
 
+      {/* Every day of the week is in: said straight away, but the week moves on
+          only when the person says so. */}
+      {announceDone && (
+        <section className="mt-5 a-card px-4 py-3.5" style={{ boxShadow: 'inset 0 0 0 1.5px var(--color-text-primary)' }}>
+          <p className="text-[18px] font-semibold">Bu haftanın antrenmanları bitti</p>
+          <p className="mt-1 text-[15px] leading-snug text-(--color-text-secondary)">
+            {weekStats.total} günün hepsi kaydedildi. Sıradaki antrenman yeni haftada; hazır olduğunda geç.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button onClick={() => setConfirmNewWeek(true)} className="flex-1 h-12 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[16px] font-semibold">Yeni haftaya geç</button>
+            <button onClick={laterNewWeek} className="h-12 px-4 rounded-2xl bg-(--color-bg-input) text-[16px] font-medium">Sonra</button>
+          </div>
+        </section>
+      )}
+
       <div className="mt-5 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.max(1, programStatuses.length)}, minmax(0, 1fr))` }}>
         {programStatuses.map(day => <DayTile key={day.program.id} day={day} isNext={day === nextWorkout} week={currentWeek} />)}
       </div>
@@ -170,14 +196,11 @@ export function Dashboard() {
             {nextWorkout.hasDraft ? 'Devam et' : 'Başla'}
           </Link>
         </>
-      ) : activePlanPrograms.length ? (
-        <button onClick={() => setConfirmNewWeek(true)}
-          className="mt-6 w-full h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Yeni haftaya geç</button>
-      ) : (
+      ) : activePlanPrograms.length ? null : (
         <Link to="/programs" className="mt-6 flex items-center justify-center h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">Programlar</Link>
       )}
 
-      {!weekDone && (
+      {!announceDone && (
         <button onClick={() => setConfirmNewWeek(true)} className="mt-8 w-full h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">
           Yeni haftaya geç
         </button>
