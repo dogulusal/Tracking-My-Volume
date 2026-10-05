@@ -142,6 +142,19 @@ export function ProgramSelect() {
         )}
       </div>
 
+      {/* The two ways to build something new, first on the page: at the bottom
+          they sat under every day's card and were missed. */}
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:max-w-md">
+        <Link to={`/programs/edit?week=${selectedWeek}`} className="h-12 px-2 rounded-2xl bg-(--color-bg-card) flex items-center justify-center gap-1 whitespace-nowrap text-[clamp(14px,4vw,16px)] font-semibold"
+          style={{ boxShadow: 'inset 0 0 0 1.5px var(--color-border)' }}>
+          <svg aria-hidden="true" className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>Yeni gün ekle
+        </Link>
+        <button onClick={() => setShowNewPlanModal(true)} className="h-12 px-2 rounded-2xl bg-(--color-bg-card) flex items-center justify-center gap-1 whitespace-nowrap text-[clamp(14px,4vw,16px)] font-semibold"
+          style={{ boxShadow: 'inset 0 0 0 1.5px var(--color-border)' }}>
+          <svg aria-hidden="true" className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>Yeni plan oluştur
+        </button>
+      </div>
+
       <div className="mt-5">
         <ProgramWeekPicker week={selectedWeek} onChange={week => setParams({ week: String(week) })} allowCopy />
       </div>
@@ -191,7 +204,6 @@ export function ProgramSelect() {
       </div>
 
       <div className="mt-6 flex flex-col gap-2">
-        <Link to={`/programs/edit?week=${selectedWeek}`} className="h-14 rounded-2xl bg-(--color-bg-card) flex items-center justify-center text-[16px] font-medium">Yeni gün ekle</Link>
         {availablePrograms.length > 0 && (
           <button onClick={() => setShowLibrary(!showLibrary)} aria-expanded={showLibrary} className="h-14 rounded-2xl bg-(--color-bg-card) text-[16px] font-medium">
             Mevcut günlerden ekle ({availablePrograms.length})
@@ -210,7 +222,6 @@ export function ProgramSelect() {
             ))}
           </div>
         )}
-        <button onClick={() => setShowNewPlanModal(true)} className="h-12 rounded-2xl text-[15px] text-(--color-text-secondary)">Yeni plan oluştur</button>
       </div>
       <p className="mt-2 text-[13px] leading-snug text-(--color-text-secondary)">Aynı antrenmanı haftada birden fazla yapmak için günü kopyalayabilirsin; her gün ayrı kaydedilir. Hareketleri antrenman sırasında da ekleyebilirsin.</p>
 
