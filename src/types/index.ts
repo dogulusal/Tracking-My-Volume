@@ -164,6 +164,9 @@ export interface AppState {
   bodyMeasurements?: BodyMeasurement[];
   // A target per measurement; a measurement without one is absent.
   bodyGoals?: Partial<Record<MeasureKey, number>>;
+  // The plates the person's gym has, kg, heaviest first; absent means the
+  // standard set (utils/plates).
+  plates?: number[];
 }
 
 /** Program changes a coach sent, as the person's own app applies them. */
@@ -203,6 +206,7 @@ export type AppAction =
   | { type: 'SAVE_MEASUREMENT'; payload: BodyMeasurement }
   | { type: 'DELETE_MEASUREMENT'; payload: string }
   | { type: 'SET_BODY_GOAL'; payload: { key: MeasureKey; value: number | null } }
+  | { type: 'SET_PLATES'; payload: number[] | null }
   | { type: 'IMPORT_DATA'; payload: AppState }
   | { type: 'RESET_DATA' };
 
@@ -231,6 +235,7 @@ export interface ExportData {
   appliedCoachUpdates?: string[];
   bodyMeasurements?: AppState['bodyMeasurements'];
   bodyGoals?: AppState['bodyGoals'];
+  plates?: AppState['plates'];
 }
 
 /** Non-secret preferences only. Google credentials never enter synced state. */

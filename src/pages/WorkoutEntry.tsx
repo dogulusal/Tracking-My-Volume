@@ -20,7 +20,7 @@ import { summarizeWorkout } from '@/utils/workoutSummary';
 import { WorkoutSummaryCard } from '@/components/shared/WorkoutSummaryCard';
 import { MuscleMap } from '@/components/shared/MuscleMap';
 import { videoLink } from '@/utils/videoLink';
-import { BARS, platesPerSide } from '@/utils/plates';
+import { BARS, PLATE_OPTIONS, STANDARD_PLATES, platesPerSide } from '@/utils/plates';
 import type { SetLog, Intensity, ExerciseLog } from '@/types';
 import { dayNotesOn, useComments } from '@/coach/comments';
 
@@ -854,7 +854,8 @@ export function WorkoutEntry() {
   const pinned = key ? exerciseSettings?.[key]?.note : undefined;
   const video = key ? exerciseSettings?.[key]?.videoUrl : undefined;
   const barKg = key ? exerciseSettings?.[key]?.barKg : undefined;
-  const loading = barKg && set && set.weight > 0 ? platesPerSide(set.weight, barKg) : null;
+  const gymPlates = ctx?.state.plates ?? STANDARD_PLATES;
+  const loading = barKg && set && set.weight > 0 ? platesPerSide(set.weight, barKg, gymPlates) : null;
   const weightUp = info?.target && info.target.reps === null ? info.target : null;
   const step = info?.rule.step ?? 2.5;
   const comparison = set ? compareToPrevious(set, prevSet) : null;
@@ -1398,6 +1399,26 @@ export function WorkoutEntry() {
                 );
               })}
             </div>
+            {/* The gym's plates, for every movement: the last one cannot be taken away. */}
+            {barKg && (
+              <>
+                <span className="mt-3 block text-[14px] text-(--color-text-secondary)">Salondaki plakalar · bütün hareketler için</span>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {PLATE_OPTIONS.map(plate => {
+                    const on = gymPlates.includes(plate);
+                    const next = on ? gymPlates.filter(item => item !== plate) : [...gymPlates, plate];
+                    const standard = next.length === STANDARD_PLATES.length && STANDARD_PLATES.every(item => next.includes(item));
+                    return (
+                      <button key={plate} aria-pressed={on} disabled={on && gymPlates.length === 1}
+                        onClick={() => ctx?.dispatch({ type: 'SET_PLATES', payload: standard ? null : next })}
+                        className={`lb-figure h-10 min-w-12 px-3 rounded-full text-[15px] disabled:opacity-60 ${on ? 'bg-(--color-text-primary) text-(--color-bg-primary) font-semibold' : 'bg-(--color-bg-input)'}`}>
+                        {plate}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
 
           {info?.rule && (

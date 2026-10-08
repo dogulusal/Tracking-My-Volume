@@ -313,6 +313,12 @@ function reduceData(state: AppState, action: AppAction): AppState {
       return { ...state, bodyGoals: action.payload.value === null ? rest : { ...rest, [action.payload.key]: action.payload.value } };
     }
 
+    case 'SET_PLATES': {
+      // The standard set is stored as the field's absence.
+      const { plates: _previous, ...rest } = state;
+      return action.payload?.length ? { ...rest, plates: [...action.payload].sort((a, b) => b - a) } : rest;
+    }
+
     case 'IMPORT_DATA':
       return { ...action.payload };
 

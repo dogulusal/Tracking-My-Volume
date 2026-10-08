@@ -40,6 +40,7 @@ export function useExportImport() {
     appliedCoachUpdates: state.appliedCoachUpdates,
     bodyMeasurements: state.bodyMeasurements,
     bodyGoals: state.bodyGoals,
+    plates: state.plates,
   });
 
   const downloadExport = (exportData: ExportData, filename: string) => {
