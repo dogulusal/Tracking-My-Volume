@@ -25,25 +25,35 @@ interface WorkoutDetailModalProps {
   /** A coach's comments on this movement in this workout. */
   coachComments?: CoachComment[];
   /** Given where a coach is looking: writes a comment the athlete will see. */
-  onComment?: (text: string) => void;
+  onComment?: (text: string) => Promise<boolean>;
   /** In place of "Bench Press — H3", where the week is better named another way. */
   title?: string;
 }
 
 const commentDate = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long' });
 
-function CommentBox({ onSend }: { onSend: (text: string) => void }) {
+/** The text is cleared only once it has gone: on a weak connection it stays, to send again. */
+function CommentBox({ onSend }: { onSend: (text: string) => Promise<boolean> }) {
   const [text, setText] = useState('');
-  const [sent, setSent] = useState(false);
+  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
+  const send = async () => {
+    if (!text.trim() || state === 'sending') return;
+    setState('sending');
+    const ok = await onSend(text.trim());
+    if (ok) setText('');
+    setState(ok ? 'sent' : 'failed');
+  };
   return (
-    <form onSubmit={event => { event.preventDefault(); if (!text.trim()) return; onSend(text.trim()); setText(''); setSent(true); }}>
-      <label htmlFor="coach-comment" className="lb-label">{sent ? 'Gönderildi. Bir yorum daha:' : 'Sporcuya yorum yaz; o hareketi yaparken görecek.'}</label>
-      <textarea id="coach-comment" value={text} onChange={event => { setText(event.target.value); setSent(false); }} rows={2}
+    <form onSubmit={event => { event.preventDefault(); void send(); }}>
+      <label htmlFor="coach-comment" className="lb-label" style={state === 'failed' ? { color: 'var(--lb-drop)' } : undefined}>
+        {state === 'sent' ? 'Gönderildi. Bir yorum daha:' : state === 'failed' ? 'Gönderilemedi; yazdığın duruyor, tekrar dene.' : 'Sporcuya yorum yaz; o hareketi yaparken görecek.'}
+      </label>
+      <textarea id="coach-comment" value={text} onChange={event => { setText(event.target.value); if (state !== 'sending') setState('idle'); }} rows={2}
         placeholder="Ör. derinlik iyi, gelecek hafta 2.5 kg ekle"
         className="mt-1 w-full px-3 py-2 text-[16px] bg-(--color-bg-primary) border border-(--color-border) rounded-lg focus:outline-none resize-y" />
-      <button type="submit" disabled={!text.trim()}
+      <button type="submit" disabled={!text.trim() || state === 'sending'}
         className="lb-press mt-1 px-3 py-2 bg-(--color-text-primary) text-(--color-bg-primary) text-sm font-semibold rounded-lg disabled:opacity-40">
-        Yorumu gönder
+        {state === 'sending' ? 'Gönderiliyor…' : 'Yorumu gönder'}
       </button>
     </form>
   );

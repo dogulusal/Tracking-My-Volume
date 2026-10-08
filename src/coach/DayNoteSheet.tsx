@@ -13,11 +13,19 @@ export function DayNoteSheet({ title, status, athleteNote, notes, onAdd, onClose
   status?: string;
   athleteNote?: string;
   notes: CoachComment[];
-  onAdd?: (text: string) => void;
+  onAdd?: (text: string) => Promise<boolean>;
   onClose: () => void;
 }) {
   const [text, setText] = useState('');
-  const [sent, setSent] = useState(false);
+  // The text is cleared only once it has gone: on a weak connection it stays, to send again.
+  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
+  const send = async () => {
+    if (!onAdd || !text.trim() || state === 'sending') return;
+    setState('sending');
+    const ok = await onAdd(text.trim());
+    if (ok) setText('');
+    setState(ok ? 'sent' : 'failed');
+  };
   return (
     <BottomSheet isOpen onClose={onClose} title={title}>
       {status && <p className="text-[14px] text-(--color-text-secondary)">{status}</p>}
@@ -37,14 +45,16 @@ export function DayNoteSheet({ title, status, athleteNote, notes, onAdd, onClose
         {!athleteNote?.trim() && notes.length === 0 && !onAdd && <p className="text-[15px] text-(--color-text-secondary)">Not yok.</p>}
       </div>
       {onAdd && (
-        <form className="mt-4" onSubmit={event => { event.preventDefault(); if (!text.trim()) return; onAdd(text.trim()); setText(''); setSent(true); }}>
-          <label htmlFor="day-note" className="lb-label">{sent ? 'Bırakıldı. Bir not daha:' : 'Bu antrenmana not bırak; sporcu antrenmana başlarken görür.'}</label>
-          <textarea id="day-note" value={text} onChange={event => { setText(event.target.value); setSent(false); }} rows={3}
+        <form className="mt-4" onSubmit={event => { event.preventDefault(); void send(); }}>
+          <label htmlFor="day-note" className="lb-label" style={state === 'failed' ? { color: 'var(--lb-drop)' } : undefined}>
+            {state === 'sent' ? 'Bırakıldı. Bir not daha:' : state === 'failed' ? 'Gönderilemedi; yazdığın duruyor, tekrar dene.' : 'Bu antrenmana not bırak; sporcu antrenmana başlarken görür.'}
+          </label>
+          <textarea id="day-note" value={text} onChange={event => { setText(event.target.value); if (state !== 'sending') setState('idle'); }} rows={3}
             placeholder="Ör. bu hafta son setleri tükenişe götür, setler arası 2 dk dinlen"
             className="mt-1 w-full px-3 py-2 text-[16px] bg-(--color-bg-primary) border border-(--color-border) rounded-lg focus:outline-none resize-y" />
-          <button type="submit" disabled={!text.trim()}
+          <button type="submit" disabled={!text.trim() || state === 'sending'}
             className="mt-1 h-11 px-4 rounded-full bg-(--color-text-primary) text-(--color-bg-primary) text-[15px] font-semibold disabled:opacity-40">
-            Notu bırak
+            {state === 'sending' ? 'Gönderiliyor…' : 'Notu bırak'}
           </button>
         </form>
       )}

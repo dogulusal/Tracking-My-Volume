@@ -24,8 +24,8 @@ export type NewComment = Pick<CoachComment, 'programId' | 'weekNumber' | 'exerci
 
 interface CommentsValue {
   list: CoachComment[];
-  /** Present only where comments can be written: the coach looking at an athlete. */
-  add?: (comment: NewComment) => void;
+  /** Present only where comments can be written: the coach looking at an athlete. False when it could not be sent. */
+  add?: (comment: NewComment) => Promise<boolean>;
 }
 
 export const CommentsContext = createContext<CommentsValue>({ list: [] });

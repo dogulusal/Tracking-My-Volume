@@ -127,7 +127,8 @@ interface CoachValue extends Omit<CoachData, 'records'> {
   draftLines: (athleteId: string) => string[];
   discardDraft: (athleteId: string) => void;
   sendDraft: (athleteId: string) => Promise<boolean>;
-  addComment: (athleteId: string, comment: NewComment) => void;
+  /** False when it could not be sent; the writer keeps the text to try again. */
+  addComment: (athleteId: string, comment: NewComment) => Promise<boolean>;
   /** Saves the days of the plan the coach set up for this athlete, unsent edits included. */
   saveTemplate: (athleteId: string, name: string) => Promise<boolean>;
   removeTemplate: (templateId: string) => void;
@@ -415,17 +416,22 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         }));
         return true;
       },
-      addComment: (athleteId, comment) => {
-        if (!me) return;
+      addComment: async (athleteId, comment) => {
+        if (!me) return false;
         const draft: CoachComment = { ...comment, id: `yeni-${newId()}`, at: new Date().toISOString(), author: me.name };
         const put = (list: (old: CoachComment[]) => CoachComment[]) =>
           setData(d => ({ ...d, comments: { ...d.comments, [athleteId]: list(d.comments[athleteId] ?? []) } }));
         put(old => [...old, draft]);
-        if (DEMO) return;
-        cloud.addComment(athleteId, me.name, comment).then(
-          saved => put(old => old.map(item => item.id === draft.id ? saved : item)),
-          reason => { put(old => old.filter(item => item.id !== draft.id)); fail(reason); },
-        );
+        if (DEMO) return true;
+        try {
+          const saved = await cloud.addComment(athleteId, me.name, comment);
+          put(old => old.map(item => item.id === draft.id ? saved : item));
+          return true;
+        } catch (reason) {
+          put(old => old.filter(item => item.id !== draft.id));
+          fail(reason);
+          return false;
+        }
       },
       saveTemplate: async (athleteId, name) => {
         const draft = drafted[athleteId];

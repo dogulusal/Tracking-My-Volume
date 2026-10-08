@@ -16,7 +16,7 @@ export function AthleteScope({ state, children, dispatch, comments }: {
   state: AppState;
   children: ReactNode;
   dispatch?: (action: AppAction) => void;
-  comments?: { list: CoachComment[]; add: (comment: NewComment) => void };
+  comments?: { list: CoachComment[]; add: (comment: NewComment) => Promise<boolean> };
 }) {
   const parent = useContext(AppContext);
   const value = useMemo(() => parent && { ...parent, state, dispatch: dispatch ?? ignore }, [parent, state, dispatch]);
