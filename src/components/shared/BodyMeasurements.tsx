@@ -1,6 +1,7 @@
 import { useContext, useState, type PointerEvent } from 'react';
 import { AppContext } from '@/context/AppContext';
 import { useReadOnly } from '@/context/ReadOnly';
+import { useCoach } from '@/coach/store';
 import { BottomSheet } from '@/components/shared/BottomSheet';
 import { useWidth } from '@/components/shared/ExerciseTrend';
 import { MEASURES, MIN_SPAN, chartScale, dayOffsets, estimatedBodyFat, formMeasures, localDay, measureStatus, pointsOf, seriesChange, type Point } from '@/utils/body';
@@ -25,6 +26,18 @@ const SEXES: { value: Exclude<SexChoice, null | undefined>; label: string }[] = 
   { value: 'female', label: 'Kadın' }, { value: 'male', label: 'Erkek' }, { value: 'none', label: 'Belirtmek istemiyorum' },
 ];
 const measureOf = (key: MeasureKey) => MEASURES.find(measure => measure.key === key)!;
+
+/**
+ * Who else sees these figures: a coach sees the whole record. Told here, not
+ * only on the invite, for someone who joined a coach before measurements
+ * were part of it.
+ */
+function useCoachNote(): string | null {
+  const { coaches } = useCoach();
+  if (!coaches.length) return null;
+  const names = coaches.map(coach => coach.name).join(', ');
+  return `${coaches.length > 1 ? 'Koçların' : 'Koçun'} ${names} bu ölçüleri görür.`;
+}
 
 /** Sex and height, both optional: asked with the first measurement and changed from the panel later. */
 function ProfileFields({ sex, height, onSex, onHeight }: {
@@ -84,6 +97,7 @@ export function MeasurementSheet({ isOpen, onClose, initial }: { isOpen: boolean
   const { first, other } = formMeasures(sex === 'male' || sex === 'female' ? sex : undefined);
   const [showOther, setShowOther] = useState(() => other.some(key => typeof opened?.[key] === 'number'));
   const weight = parse(values.weight ?? '');
+  const coachNote = useCoachNote();
 
   const save = () => {
     if (!ctx || weight === undefined || !date) return;
@@ -138,7 +152,9 @@ export function MeasurementSheet({ isOpen, onClose, initial }: { isOpen: boolean
           {showOther ? '− Diğer ölçüleri gizle' : `+ Diğer ölçüler (${other.map(key => measureOf(key).label.toLocaleLowerCase('tr-TR')).join(', ')})`}
         </button>
         {showOther && other.map(field)}
-        <p className="text-[13px] leading-snug text-(--color-text-secondary)">Hep aynı koşulda ölç: sabah, aç karnına; mezurayı sıkmadan.</p>
+        <p className="text-[13px] leading-snug text-(--color-text-secondary)">
+          Hep aynı koşulda ölç: sabah, aç karnına; mezurayı sıkmadan.{coachNote && ` ${coachNote}`}
+        </p>
         <button onClick={save} disabled={weight === undefined || !date}
           className="mt-1 h-14 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[17px] font-semibold disabled:opacity-40">
           Kaydet
@@ -388,6 +404,7 @@ export function BodyMeasurements() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>('weight');
   const [allRecords, setAllRecords] = useState(false);
+  const coachNote = useCoachNote();
   if (!ctx) return null;
   const measurements = ctx.state.bodyMeasurements ?? [];
   const goals = ctx.state.bodyGoals ?? {};
@@ -421,6 +438,7 @@ export function BodyMeasurements() {
           </button>
         )}
       </div>
+      {!readOnly && coachNote && <p className="-mt-2 mb-4 text-[13px] text-(--color-text-secondary)">{coachNote}</p>}
       {!shown.length && (
         <p className="lb-label py-6">
           {readOnly ? 'Henüz ölçü girilmedi.' : 'Kilonu haftada bir gir; istersen bel, kol gibi ölçülerini de. Burada haftalık seyrini ve hedefe ne kaldığını görürsün.'}
