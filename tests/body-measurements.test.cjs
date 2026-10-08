@@ -19,7 +19,7 @@ function loadTS(relativePath) {
   return module.exports;
 }
 
-const { weekStart, weeklySeries, measureStatus, measurementDue } = loadTS('src/utils/body.ts');
+const { weekStart, pointsOf, weeklySeries, measureStatus, measurementDue, navyBodyFat, estimatedBodyFat, formMeasures } = loadTS('src/utils/body.ts');
 const { appReducer, initialState } = loadTS('src/context/appReducer.ts');
 
 test('weeks start on Monday', () => {
@@ -34,16 +34,16 @@ test('the chart takes each week’s mean, and a measurement left blank is not a 
     { date: '2026-10-01', weight: 81 },
     { date: '2026-10-06', weight: 80.4 },
   ];
-  assert.deepEqual(weeklySeries(entries, 'weight'), [{ week: '2026-09-28', value: 81.5 }, { week: '2026-10-05', value: 80.4 }]);
-  assert.deepEqual(weeklySeries(entries, 'waist'), [{ week: '2026-09-28', value: 86 }]);
-  assert.deepEqual(weeklySeries(entries, 'arm'), []);
+  assert.deepEqual(weeklySeries(pointsOf(entries, 'weight')), [{ week: '2026-09-28', value: 81.5 }, { week: '2026-10-05', value: 80.4 }]);
+  assert.deepEqual(weeklySeries(pointsOf(entries, 'waist')), [{ week: '2026-09-28', value: 86 }]);
+  assert.deepEqual(weeklySeries(pointsOf(entries, 'arm')), []);
 });
 
 test('start, latest and the way left to the goal', () => {
   const entries = [{ date: '2026-09-01', weight: 84 }, { date: '2026-09-20', weight: 82.3, waist: 88 }, { date: '2026-10-06', weight: 81 }];
-  assert.deepEqual(measureStatus(entries, 'weight', 78), { first: 84, latest: 81, latestDate: '2026-10-06', change: -3, toGoal: -3 });
-  assert.deepEqual(measureStatus(entries, 'waist'), { first: 88, latest: 88, latestDate: '2026-09-20', change: 0, toGoal: null });
-  assert.equal(measureStatus(entries, 'arm'), null);
+  assert.deepEqual(measureStatus(pointsOf(entries, 'weight'), 78), { first: 84, latest: 81, latestDate: '2026-10-06', change: -3, toGoal: -3 });
+  assert.deepEqual(measureStatus(pointsOf(entries, 'waist')), { first: 88, latest: 88, latestDate: '2026-09-20', change: 0, toGoal: null });
+  assert.equal(measureStatus(pointsOf(entries, 'arm')), null);
 });
 
 test('the reminder is only for someone who measures, a week after the last time', () => {
@@ -65,4 +65,40 @@ test('saving a day again replaces it, entries stay in date order, goals can be r
   state = appReducer(state, { type: 'SET_BODY_GOAL', payload: { key: 'waist', value: 80 } });
   state = appReducer(state, { type: 'SET_BODY_GOAL', payload: { key: 'waist', value: null } });
   assert.deepEqual(state.bodyGoals, { weight: 78 });
+});
+
+test('body fat by the US Navy method: men from waist, neck and height, women also from the hips', () => {
+  const man = { sex: 'male', heightCm: 178 };
+  const woman = { sex: 'female', heightCm: 165 };
+  assert.equal(navyBodyFat({ date: '2026-10-08', weight: 80, waist: 85, neck: 38 }, man), 16.4);
+  assert.equal(navyBodyFat({ date: '2026-10-08', weight: 62, waist: 72, neck: 32, hips: 97 }, woman), 26.9);
+  // Without the hips a woman's estimate cannot be made; without sex or height nobody's.
+  assert.equal(navyBodyFat({ date: '2026-10-08', weight: 62, waist: 72, neck: 32 }, woman), null);
+  assert.equal(navyBodyFat({ date: '2026-10-08', weight: 80, waist: 85, neck: 38 }, { heightCm: 178 }), null);
+  assert.equal(navyBodyFat({ date: '2026-10-08', weight: 80, waist: 85, neck: 38 }, { sex: 'male' }), null);
+  assert.equal(navyBodyFat({ date: '2026-10-08', weight: 80, waist: 85, neck: 38 }, undefined), null);
+  // A neck typed into the waist field is not a body fat figure.
+  assert.equal(navyBodyFat({ date: '2026-10-08', weight: 80, waist: 38, neck: 85 }, man), null);
+});
+
+test('the estimate is made for the days that have what it needs', () => {
+  const entries = [{ date: '2026-09-29', weight: 82, waist: 88, neck: 39 }, { date: '2026-10-01', weight: 81.6 }, { date: '2026-10-06', weight: 81, waist: 86, neck: 39 }];
+  assert.deepEqual(estimatedBodyFat(entries, { sex: 'male', heightCm: 180 }).map(point => point.date), ['2026-09-29', '2026-10-06']);
+});
+
+test('the form offers what each sex mostly follows first, and never withholds the rest', () => {
+  assert.deepEqual(formMeasures('male').first, ['waist', 'neck', 'chest', 'arm', 'shoulders']);
+  assert.deepEqual(formMeasures('female').first, ['waist', 'hips', 'neck', 'thigh', 'arm']);
+  for (const sex of ['male', 'female', undefined]) {
+    const { first, other } = formMeasures(sex);
+    assert.equal(first.length + other.length, 9);
+    assert.ok(!first.includes('weight') && !other.includes('weight'));
+  }
+});
+
+test('the profile is kept as given, an empty one meaning asked and left blank', () => {
+  let state = appReducer({ ...initialState }, { type: 'SET_BODY_PROFILE', payload: {} });
+  assert.deepEqual(state.bodyProfile, {});
+  state = appReducer(state, { type: 'SET_BODY_PROFILE', payload: { sex: 'female', heightCm: 165 } });
+  assert.deepEqual(state.bodyProfile, { sex: 'female', heightCm: 165 });
 });

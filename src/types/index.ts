@@ -94,17 +94,31 @@ export interface WeekLog {
 
 // ─── Body Measurements ────────────────────────────────
 
-export type MeasureKey = 'weight' | 'waist' | 'chest' | 'arm' | 'hips' | 'bodyFat';
+export type MeasureKey = 'weight' | 'waist' | 'neck' | 'chest' | 'shoulders' | 'arm' | 'hips' | 'thigh' | 'calf' | 'bodyFat';
 
 /** One day's measurements: weight always, the rest only when they were taken. */
 export interface BodyMeasurement {
   date: string; // YYYY-MM-DD
   weight: number; // kg
   waist?: number; // cm
+  neck?: number; // cm
   chest?: number; // cm
+  shoulders?: number; // cm
   arm?: number; // cm
   hips?: number; // cm
-  bodyFat?: number; // %
+  thigh?: number; // cm
+  calf?: number; // cm
+  bodyFat?: number; // %, as measured (scale, caliper)
+}
+
+/**
+ * Asked once, with the first measurement, both optional: which measurements
+ * the form offers first and the body fat estimate. An empty object means the
+ * person was asked and left both blank.
+ */
+export interface BodyProfile {
+  sex?: 'female' | 'male';
+  heightCm?: number;
 }
 
 // ─── Phase Definitions ────────────────────────────────
@@ -164,6 +178,8 @@ export interface AppState {
   bodyMeasurements?: BodyMeasurement[];
   // A target per measurement; a measurement without one is absent.
   bodyGoals?: Partial<Record<MeasureKey, number>>;
+  // Absent until the first measurement asks for it.
+  bodyProfile?: BodyProfile;
   // The plates the person's gym has, kg, heaviest first; absent means the
   // standard set (utils/plates).
   plates?: number[];
@@ -207,6 +223,7 @@ export type AppAction =
   | { type: 'DELETE_MEASUREMENT'; payload: string }
   | { type: 'SET_BODY_GOAL'; payload: { key: MeasureKey; value: number | null } }
   | { type: 'SET_PLATES'; payload: number[] | null }
+  | { type: 'SET_BODY_PROFILE'; payload: BodyProfile }
   | { type: 'IMPORT_DATA'; payload: AppState }
   | { type: 'RESET_DATA' };
 
@@ -236,6 +253,7 @@ export interface ExportData {
   bodyMeasurements?: AppState['bodyMeasurements'];
   bodyGoals?: AppState['bodyGoals'];
   plates?: AppState['plates'];
+  bodyProfile?: AppState['bodyProfile'];
 }
 
 /** Non-secret preferences only. Google credentials never enter synced state. */

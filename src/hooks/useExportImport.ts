@@ -41,6 +41,7 @@ export function useExportImport() {
     bodyMeasurements: state.bodyMeasurements,
     bodyGoals: state.bodyGoals,
     plates: state.plates,
+    bodyProfile: state.bodyProfile,
   });
 
   const downloadExport = (exportData: ExportData, filename: string) => {

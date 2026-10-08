@@ -1,14 +1,33 @@
-import type { BodyMeasurement, MeasureKey } from '@/types';
+import type { BodyMeasurement, BodyProfile, MeasureKey } from '@/types';
 
-/** Weight is the one asked every time; the rest are the person's choice. */
+/** Every measurement the app keeps; weight is the one asked every time. */
 export const MEASURES: { key: MeasureKey; label: string; unit: string }[] = [
   { key: 'weight', label: 'Kilo', unit: 'kg' },
   { key: 'waist', label: 'Bel', unit: 'cm' },
+  { key: 'neck', label: 'Boyun', unit: 'cm' },
   { key: 'chest', label: 'Göğüs', unit: 'cm' },
+  { key: 'shoulders', label: 'Omuz', unit: 'cm' },
   { key: 'arm', label: 'Kol', unit: 'cm' },
   { key: 'hips', label: 'Kalça', unit: 'cm' },
+  { key: 'thigh', label: 'Uyluk', unit: 'cm' },
+  { key: 'calf', label: 'Baldır', unit: 'cm' },
   { key: 'bodyFat', label: 'Yağ oranı', unit: '%' },
 ];
+
+// Offered first, after weight: the waist and the neck for everyone (the
+// neck for the body fat estimate), then what men and women mostly follow.
+// Nothing is withheld; the rest sit under "Diğer ölçüler".
+const FIRST: Record<'male' | 'female' | 'none', MeasureKey[]> = {
+  male: ['waist', 'neck', 'chest', 'arm', 'shoulders'],
+  female: ['waist', 'hips', 'neck', 'thigh', 'arm'],
+  none: ['waist', 'neck', 'chest', 'arm', 'hips'],
+};
+
+/** The form's measurements besides weight: shown first, and the others. */
+export function formMeasures(sex?: BodyProfile['sex']): { first: MeasureKey[]; other: MeasureKey[] } {
+  const first = FIRST[sex ?? 'none'];
+  return { first, other: MEASURES.map(measure => measure.key).filter(key => key !== 'weight' && !first.includes(key)) };
+}
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
 const pad2 = (value: number) => String(value).padStart(2, '0');
@@ -25,17 +44,52 @@ export function weekStart(date: string): string {
   return day.toISOString().slice(0, 10);
 }
 
+export type Point = { date: string; value: number };
+
+/** A measurement's entries, oldest first; a day it was not taken is left out. */
+export function pointsOf(measurements: BodyMeasurement[], key: MeasureKey): Point[] {
+  return measurements.flatMap(entry => typeof entry[key] === 'number' ? [{ date: entry.date, value: entry[key]! }] : []);
+}
+
+/**
+ * Body fat by the US Navy method (Naval Health Research Center), metric:
+ * men from waist, neck and height; women also need the hips. Null when a
+ * measurement is missing or the sex was not given.
+ */
+export function navyBodyFat(entry: BodyMeasurement, profile: BodyProfile | undefined): number | null {
+  const height = profile?.heightCm;
+  const { waist, neck, hips } = entry;
+  if (!height || !waist || !neck) return null;
+  let fat: number;
+  if (profile?.sex === 'male') {
+    if (waist <= neck) return null;
+    fat = 495 / (1.0324 - 0.19077 * Math.log10(waist - neck) + 0.15456 * Math.log10(height)) - 450;
+  } else if (profile?.sex === 'female') {
+    if (!hips || waist + hips <= neck) return null;
+    fat = 495 / (1.29579 - 0.35004 * Math.log10(waist + hips - neck) + 0.221 * Math.log10(height)) - 450;
+  } else {
+    return null;
+  }
+  return fat > 0 && fat < 75 ? round1(fat) : null;
+}
+
+/** The estimate for every day it can be made. */
+export function estimatedBodyFat(measurements: BodyMeasurement[], profile: BodyProfile | undefined): Point[] {
+  return measurements.flatMap(entry => {
+    const value = navyBodyFat(entry, profile);
+    return value === null ? [] : [{ date: entry.date, value }];
+  });
+}
+
 /**
  * A measurement week by week, oldest first: the mean of the week's entries,
  * because a daily weigh-in swings by a kilo for no reason.
  */
-export function weeklySeries(measurements: BodyMeasurement[], key: MeasureKey): { week: string; value: number }[] {
+export function weeklySeries(points: Point[]): { week: string; value: number }[] {
   const weeks = new Map<string, number[]>();
-  for (const entry of measurements) {
-    const value = entry[key];
-    if (typeof value !== 'number') continue;
-    const week = weekStart(entry.date);
-    weeks.set(week, [...(weeks.get(week) ?? []), value]);
+  for (const point of points) {
+    const week = weekStart(point.date);
+    weeks.set(week, [...(weeks.get(week) ?? []), point.value]);
   }
   return [...weeks.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
@@ -43,15 +97,14 @@ export function weeklySeries(measurements: BodyMeasurement[], key: MeasureKey): 
 }
 
 /** Where a measurement started, where it is now and how far the target is; null before the first entry. */
-export function measureStatus(measurements: BodyMeasurement[], key: MeasureKey, goal?: number) {
-  const taken = measurements.filter(entry => typeof entry[key] === 'number');
-  if (!taken.length) return null;
-  const first = taken[0][key]!;
-  const latest = taken[taken.length - 1][key]!;
+export function measureStatus(points: Point[], goal?: number) {
+  if (!points.length) return null;
+  const first = points[0].value;
+  const latest = points[points.length - 1].value;
   return {
     first,
     latest,
-    latestDate: taken[taken.length - 1].date,
+    latestDate: points[points.length - 1].date,
     change: round1(latest - first),
     toGoal: goal === undefined ? null : round1(goal - latest),
   };
