@@ -305,11 +305,12 @@ export function BodyMeasurements() {
             <li key={row.id} className="border-b lb-rule">
               <button type="button" onClick={() => setOpenId(id => id === row.id ? null : row.id)} aria-expanded={open}
                 className="lb-press w-full flex items-center gap-3 -mx-2 px-2 py-3 rounded text-left">
-                <span className="w-28 sm:w-40 shrink-0 min-w-0">
+                <span className="w-28 sm:w-40 md:w-auto md:flex-1 shrink-0 min-w-0">
                   <span className="block text-[15px] font-medium truncate">{row.label}</span>
                   {row.badge && <span className="block text-[12px] text-(--color-text-secondary)">{row.badge}</span>}
                 </span>
-                <MiniLine series={series} className="flex-1 min-w-0" />
+                {/* As in the İlerleme list: on a wide screen the trend keeps a fixed width. */}
+                <MiniLine series={series} className="flex-1 min-w-0 md:flex-none md:w-56" />
                 <span className="w-24 shrink-0 text-right lb-figure whitespace-nowrap">
                   <span className="text-[17px] font-semibold">{num(status.latest)}</span>
                   <span className="text-[12px] text-(--color-text-secondary) ml-0.5">{row.unit}</span>

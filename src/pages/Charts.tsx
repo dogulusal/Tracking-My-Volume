@@ -100,39 +100,68 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
   const { activePlanPrograms } = usePlans();
   const stalled = useMemo(() => embedded ? [] : stalledMovements(activePlanPrograms, state.weekLogs), [embedded, activePlanPrograms, state.weekLogs]);
   const [showAllStalled, setShowAllStalled] = useState(false);
-  // An athlete's charts sit inside the coach's page, which keeps the tabs.
-  const sideBySide = !embedded;
+  // One figure per part for its tile: the phase's share of improved
+  // comparisons across every day, this week's worked sets, the latest weight.
+  const phaseProgress = useMemo(() => {
+    let improved = 0;
+    let all = 0;
+    for (const day of programs) {
+      for (const row of day.rows) {
+        for (const cell of row.cells) {
+          if (cell.status === 'improved') improved++;
+          if (cell.status === 'improved' || cell.status === 'same' || cell.status === 'decreased') all++;
+        }
+      }
+    }
+    return all ? Math.round((improved / all) * 100) : null;
+  }, [programs]);
+  const weekSets = useMemo(() => state.weekLogs
+    .filter(log => log.weekNumber === currentWeek && !log.isHoliday)
+    .reduce((sum, log) => sum + log.exercises.reduce((count, exercise) => count + exercise.sets.filter(set => set.reps > 0).length, 0), 0),
+  [state.weekLogs, currentWeek]);
+  const measurements = state.bodyMeasurements ?? [];
+  const lastWeight = measurements.length ? measurements[measurements.length - 1].weight : null;
+  const tiles: { key: View; label: string; figure: string; note: string }[] = [
+    { key: 'progress', label: 'İlerleme', figure: phaseProgress === null ? '—' : `%${phaseProgress}`, note: 'bu faz · tüm günler' },
+    { key: 'volume', label: 'Setler', figure: String(weekSets), note: 'set bu hafta' },
+    { key: 'body', label: 'Vücut', figure: lastWeight === null ? '—' : `${String(lastWeight).replace('.', ',')} kg`, note: lastWeight === null ? 'ölçü yok' : 'son kilo' },
+  ];
 
   return (
     <PageContainer bare={embedded}>
+      {!embedded && <h1 className="a-display text-[48px] mb-4">Grafikler</h1>}
+
+      {/* The three parts one at a time, on every screen: all three at once on
+          a wide screen was confusing. Each tile names its part with one
+          figure, like the day tiles on Bugün; the picked one is outlined. */}
+      <div role="tablist" aria-label="Grafik" className="grid grid-cols-3 gap-1.5 mb-6">
+        {tiles.map(tile => {
+          const on = view === tile.key;
+          return (
+            <button key={tile.key} type="button" role="tab" aria-selected={on} onClick={() => setView(tile.key)}
+              style={on
+                ? { boxShadow: 'inset 0 0 0 1.5px var(--color-text-primary)', background: 'var(--color-bg-card)' }
+                : { background: 'color-mix(in srgb, var(--color-bg-card) 55%, transparent)' }}
+              className="lb-press min-h-[76px] xl:min-h-[96px] rounded-[14px] xl:rounded-[18px] px-1.5 py-2 flex flex-col items-center justify-center gap-0.5 text-center">
+              <span className={`text-[13px] xl:text-[16px] ${on ? 'font-semibold' : 'text-(--color-text-secondary)'}`}>{tile.label}</span>
+              <span className="lb-figure text-[22px] xl:text-[30px] font-semibold leading-none">{tile.figure}</span>
+              <span className="text-[11px] xl:text-[13px] text-(--color-text-secondary)">{tile.note}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="mb-5">
-        {!embedded && <h1 className="a-display text-[48px]">Grafikler</h1>}
-        <p className={`lb-label mt-1 ${sideBySide ? 'xl:hidden' : ''}`}>
+        <h2 className="a-display text-[30px]">{{ progress: 'İlerleme', volume: 'Bölge başına set', body: 'Vücut' }[view]}</h2>
+        <p className="lb-label mt-1">
           {view === 'progress'
             ? 'Her hareketin en ağır seti, hafta hafta. Renkler Geçmiş tablosuyla aynı.'
             : view === 'volume' ? 'Haftada bölge başına çalışılan set. Bütün günler sayılır.' : BODY_TEXT}
         </p>
       </div>
 
-      <div className={`flex gap-1 mb-5 border-b lb-rule ${sideBySide ? 'xl:hidden' : ''}`} role="tablist">
-        {([['progress', 'İlerleme'], ['volume', 'Bölge başına set'], ['body', 'Vücut']] as const).map(([key, label]) => (
-          <button key={key} type="button" role="tab" aria-selected={view === key} onClick={() => setView(key)}
-            className={`lb-press -mb-px px-3 py-2 text-sm border-b-2 ${
-              view === key ? 'font-semibold border-(--color-text-primary)' : 'font-medium border-transparent text-(--color-text-secondary) hover:text-(--color-text-primary)'
-            }`}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* On a wide screen the three parts are panels instead of tabs, each with
-          its own title so it is clear which is which: progress on the left,
-          sets per region and the stalled list on the right. On a phone the
-          tabs stay. */}
-      <div className={sideBySide ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,27rem)] xl:gap-6' : ''}>
-      {(sideBySide || view === 'progress') && (
-      <div className={`${view === 'progress' ? '' : 'hidden xl:block'} ${sideBySide ? PANEL : ''}`}>
-      {sideBySide && <ColumnHead title="İlerleme" text="Her hareketin en ağır seti, hafta hafta. Renkler Geçmiş tablosuyla aynı." />}
+      {view === 'progress' && (
+      <div>
       <div className="flex flex-wrap items-center gap-1 mb-3">
         {programs.map(p => (
           <button key={p.id} onClick={() => setProgramId(p.id)}
@@ -221,65 +250,30 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
       )}
 
       {stalled.length > 0 && (
-        <div className={sideBySide ? 'mt-10 xl:hidden' : 'mt-10'}>
-          <StalledList stalled={stalled} showAll={showAllStalled} onToggle={() => setShowAllStalled(value => !value)} heading />
+        <div className="mt-10">
+          <StalledList stalled={stalled} showAll={showAllStalled} onToggle={() => setShowAllStalled(value => !value)} />
         </div>
       )}
       </div>
       )}
-      {(sideBySide || view === 'volume') && (
-        <div className={`${view === 'volume' ? '' : 'hidden xl:block'} ${sideBySide ? PANEL : ''}`}>
-          {sideBySide && <ColumnHead title="Bölge başına set" text="Haftada bölge başına çalışılan set. Bütün günler sayılır." />}
-          <MuscleVolume />
-        </div>
-      )}
-      {/* Under both, across the page: the list runs in two columns. */}
-      {sideBySide && stalled.length > 0 && (
-        <div className={`hidden xl:block xl:col-span-2 ${PANEL}`}>
-          <ColumnHead title="Yerinde sayanlar" text={`En iyi set ${STALL_WEEKS} haftadan uzun süredir aşılmadı · bütün günler`} />
-          <StalledList stalled={stalled} showAll={showAllStalled} onToggle={() => setShowAllStalled(value => !value)} twoColumns />
-        </div>
-      )}
-      {(sideBySide || view === 'body') && (
-        <div className={`${view === 'body' ? '' : 'hidden xl:block'} ${sideBySide ? `xl:col-span-2 ${PANEL}` : ''}`}>
-          {sideBySide && <ColumnHead title="Vücut" text={BODY_TEXT} />}
-          <BodyMeasurements />
-        </div>
-      )}
-      </div>
+      {view === 'volume' && <MuscleVolume />}
+      {view === 'body' && <BodyMeasurements />}
     </PageContainer>
   );
 }
 
 const BODY_TEXT = 'Kilo ve ölçüler, haftalık ortalama. Hedefe ne kaldığı.';
 
-// A part of the page on a wide screen: a filled surface with its own title.
-const PANEL = 'xl:rounded-[22px] xl:bg-(--color-bg-card) xl:p-6';
-
-/** A part's own title, shown only when the parts stand side by side. */
-function ColumnHead({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="hidden xl:block mb-5">
-      <h2 className="a-display text-[30px]">{title}</h2>
-      <p className="lb-label mt-1">{text}</p>
-    </div>
-  );
-}
-
 /** Movements whose best set has not been beaten for a while, worst first. */
-function StalledList({ stalled, showAll, onToggle, heading = false, twoColumns = false }: {
-  stalled: ReturnType<typeof stalledMovements>; showAll: boolean; onToggle: () => void; heading?: boolean; twoColumns?: boolean;
+function StalledList({ stalled, showAll, onToggle }: {
+  stalled: ReturnType<typeof stalledMovements>; showAll: boolean; onToggle: () => void;
 }) {
   return (
     <section>
-      {heading && (
-        <>
-          <h2 className="a-display text-[28px]">Yerinde sayanlar</h2>
-          <p className="lb-label mt-1">En iyi set {STALL_WEEKS} haftadan uzun süredir aşılmadı · bütün günler</p>
-        </>
-      )}
-      <ul className={`${heading ? 'mt-2' : ''} ${twoColumns ? 'grid grid-cols-2 gap-x-12' : ''}`}>
-        {(showAll ? stalled : stalled.slice(0, twoColumns ? 6 : 5)).map(({ key, name, stall }) => (
+      <h2 className="a-display text-[28px]">Yerinde sayanlar</h2>
+      <p className="lb-label mt-1">En iyi set {STALL_WEEKS} haftadan uzun süredir aşılmadı · bütün günler</p>
+      <ul className="mt-2">
+        {(showAll ? stalled : stalled.slice(0, 5)).map(({ key, name, stall }) => (
           <li key={key} className="flex items-baseline gap-3 py-2.5 border-b lb-rule">
             <span className="flex-1 min-w-0 text-[16px] truncate">{name}</span>
             <span className="lb-figure text-[18px] text-(--color-text-secondary)">{formatSet(stall.best)}</span>
@@ -287,7 +281,7 @@ function StalledList({ stalled, showAll, onToggle, heading = false, twoColumns =
           </li>
         ))}
       </ul>
-      {stalled.length > (twoColumns ? 6 : 5) && (
+      {stalled.length > 5 && (
         <button onClick={onToggle} className="mt-1 h-11 text-[15px] text-(--color-text-secondary)">
           {showAll ? 'Daha az göster' : `Tümünü göster (${stalled.length})`}
         </button>
