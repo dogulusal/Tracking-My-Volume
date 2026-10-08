@@ -70,28 +70,34 @@ export function MeasurementSheet({ isOpen, onClose, initial }: { isOpen: boolean
   const all = ctx?.state.bodyMeasurements ?? [];
   const last = all[all.length - 1];
   const profile = ctx?.state.bodyProfile;
+  // "Ölçü gir" on a day already measured opens that day: a second entry
+  // would otherwise replace the first and drop what was not typed again.
+  const opened = initial ?? all.find(entry => entry.date === localDay());
   // The first measurement asks for sex and height; afterwards they are changed from the panel.
   const askProfile = profile === undefined;
   const [sex, setSex] = useState<SexChoice>(profile?.sex ?? null);
   const [height, setHeight] = useState('');
-  const [date, setDate] = useState(initial?.date ?? localDay());
+  const [date, setDate] = useState(opened?.date ?? localDay());
   const [values, setValues] = useState<Partial<Record<MeasureKey, string>>>(() => Object.fromEntries(
-    MEASURES.flatMap(({ key }) => typeof initial?.[key] === 'number' ? [[key, num(initial[key]!)]] : []),
+    MEASURES.flatMap(({ key }) => typeof opened?.[key] === 'number' ? [[key, num(opened[key]!)]] : []),
   ));
   const { first, other } = formMeasures(sex === 'male' || sex === 'female' ? sex : undefined);
-  const [showOther, setShowOther] = useState(() => other.some(key => typeof initial?.[key] === 'number'));
+  const [showOther, setShowOther] = useState(() => other.some(key => typeof opened?.[key] === 'number'));
   const weight = parse(values.weight ?? '');
 
   const save = () => {
     if (!ctx || weight === undefined || !date) return;
-    const entry: BodyMeasurement = { date, weight };
+    // Moved onto a day that has its own entry: what is typed is added to it,
+    // what is left blank keeps that day's value.
+    const existing = date !== opened?.date ? all.find(item => item.date === date) : undefined;
+    const entry: BodyMeasurement = { ...existing, date, weight };
     for (const { key } of MEASURES) {
       const value = parse(values[key] ?? '');
       if (key !== 'weight' && value !== undefined) entry[key] = value;
     }
     if (askProfile) ctx.dispatch({ type: 'SET_BODY_PROFILE', payload: profileOf(sex, height) });
     // A day moved to another date is not left behind on the old one.
-    if (initial && initial.date !== date) ctx.dispatch({ type: 'DELETE_MEASUREMENT', payload: initial.date });
+    if (opened && opened.date !== date) ctx.dispatch({ type: 'DELETE_MEASUREMENT', payload: opened.date });
     ctx.dispatch({ type: 'SAVE_MEASUREMENT', payload: entry });
     onClose();
   };
@@ -113,7 +119,7 @@ export function MeasurementSheet({ isOpen, onClose, initial }: { isOpen: boolean
   };
 
   return (
-    <BottomSheet isOpen={isOpen} onClose={onClose} title={initial ? 'Ölçüyü düzenle' : 'Ölçü gir'}>
+    <BottomSheet isOpen={isOpen} onClose={onClose} title={opened ? 'Ölçüyü düzenle' : 'Ölçü gir'}>
       <div className="flex flex-col gap-3 pb-2">
         {askProfile && (
           <div className="pb-3 border-b border-(--color-border)">
@@ -137,8 +143,8 @@ export function MeasurementSheet({ isOpen, onClose, initial }: { isOpen: boolean
           className="mt-1 h-14 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[17px] font-semibold disabled:opacity-40">
           Kaydet
         </button>
-        {initial && (
-          <button onClick={() => { ctx?.dispatch({ type: 'DELETE_MEASUREMENT', payload: initial.date }); onClose(); }}
+        {opened && (
+          <button onClick={() => { ctx?.dispatch({ type: 'DELETE_MEASUREMENT', payload: opened.date }); onClose(); }}
             className="h-12 text-[15px] text-(--lb-drop)">Bu kaydı sil</button>
         )}
       </div>
@@ -379,6 +385,7 @@ export function BodyMeasurements() {
   const [goalFor, setGoalFor] = useState<Row | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>('weight');
+  const [allRecords, setAllRecords] = useState(false);
   if (!ctx) return null;
   const measurements = ctx.state.bodyMeasurements ?? [];
   const goals = ctx.state.bodyGoals ?? {};
@@ -478,7 +485,7 @@ export function BodyMeasurements() {
         <section className="mt-6">
           <h3 className="lb-label">Kayıtlar</h3>
           <ul>
-            {[...measurements].reverse().slice(0, 8).map(entry => (
+            {[...measurements].reverse().slice(0, allRecords ? undefined : 8).map(entry => (
               <li key={entry.date}>
                 <button disabled={readOnly} onClick={() => setEditing(entry)}
                   className="w-full flex items-baseline gap-3 py-2.5 border-b lb-rule text-left">
@@ -491,6 +498,11 @@ export function BodyMeasurements() {
               </li>
             ))}
           </ul>
+          {measurements.length > 8 && (
+            <button onClick={() => setAllRecords(value => !value)} className="mt-1 h-11 text-[15px] text-(--color-text-secondary)">
+              {allRecords ? 'Daha az göster' : `Tümünü göster (${measurements.length})`}
+            </button>
+          )}
         </section>
       )}
       {entryOpen && <MeasurementSheet isOpen onClose={() => setEntryOpen(false)} />}
