@@ -109,6 +109,8 @@ export function WorkoutEntry() {
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [completedSets, setCompletedSets] = useState<Record<string, boolean>>({});
+  // "Kaydet ve çık" with sets not done yet: asks whether to keep them.
+  const [askNotDone, setAskNotDone] = useState(false);
   // When the first and the latest set were finished, for the workout's length.
   const [times, setTimes] = useState<{ startedAt?: string; finishedAt?: string }>({});
   const [draftStatus, setDraftStatus] = useState<'idle' | 'saved' | 'error'>('idle');
@@ -494,7 +496,18 @@ export function WorkoutEntry() {
     setIsDirty(true);
   }, [exerciseLogs]);
 
-  const handleSave = () => {
+  // A set counts as done once ticked here or when the saved record has it
+  // already (a workout opened again shows its sets unticked); the rest are
+  // only last week's numbers, put in to be beaten.
+  const isRecorded = (exerciseId: string, index: number) => !!completedSets[`${exerciseId}:${index}`]
+    || !!existingLog?.exercises.find(item => item.exerciseId === exerciseId)?.sets[index];
+  const notDone = isHoliday ? [] : exerciseLogs.flatMap(item => {
+    const count = item.sets.filter((_, index) => !isRecorded(item.exerciseId, index)).length;
+    return count ? [{ name: item.exerciseName, count }] : [];
+  });
+
+  /** `onlyDone`: sets not done are left out (see notDone). */
+  const handleSave = (onlyDone = false) => {
     if (!programId) return;
     if (program) {
       const recorded = new Set((allLogs ?? []).flatMap(log => log.exercises.map(exercise => exercise.exerciseId)));
@@ -507,11 +520,19 @@ export function WorkoutEntry() {
       }
     }
 
+    // The program above still takes every set: leaving sets out of this
+    // record is not a change to the day. A movement with none done is left
+    // out, so opening the workout again brings it back to be done then.
+    const kept = onlyDone
+      ? exerciseLogs
+        .map(item => ({ ...item, sets: item.sets.filter((_, index) => isRecorded(item.exerciseId, index)) }))
+        .filter(item => item.sets.length || item.note?.trim() || existingLog?.exercises.some(saved => saved.exerciseId === item.exerciseId))
+      : exerciseLogs;
     saveWorkout({
       weekNumber,
       programId,
       date,
-      exercises: exerciseLogs.map(({ note, ...exercise }) => note?.trim() ? { ...exercise, note: note.trim() } : exercise),
+      exercises: kept.map(({ note, ...exercise }) => note?.trim() ? { ...exercise, note: note.trim() } : exercise),
       notes,
       isHoliday,
       offDay: !isHoliday && offDay,
@@ -943,7 +964,7 @@ export function WorkoutEntry() {
           <p className="a-display text-[56px]">Tatil</p>
           <p className="mt-2 text-[16px] text-(--color-text-secondary)">Bu gün tatil olarak işaretli; setler gizli.</p>
           <button onClick={() => { setIsHoliday(false); setIsDirty(true); }} className="mt-6 h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium">Tatili kaldır</button>
-          <button onClick={handleSave} className="mt-2 h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Kaydet</button>
+          <button onClick={() => handleSave()} className="mt-2 h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Kaydet</button>
         </div>
       ) : exerciseLogs.length === 0 ? (
         <div className="flex-1 flex flex-col justify-center px-6 pb-8">
@@ -977,7 +998,7 @@ export function WorkoutEntry() {
               </ul>
             </div>
           )}
-          <button onClick={handleSave} className="mt-8 h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Kaydet</button>
+          <button onClick={() => handleSave()} className="mt-8 h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold">Kaydet</button>
           {moreFor !== null && exerciseLogs[moreFor] && (
             <button onClick={() => oneMoreSet(moreFor)} className="mt-2 h-14 rounded-[16px] bg-(--color-bg-card) text-[16px] font-medium truncate px-4">
               {exerciseLogs[moreFor].exerciseName}: bir set daha
@@ -1271,7 +1292,8 @@ export function WorkoutEntry() {
           <div className="mt-4 flex flex-col gap-2">
             <button onClick={() => { setScreen('set'); setAddOpen(true); }} className="h-[52px] rounded-2xl bg-(--color-bg-input) text-[16px] font-medium">Hareket ekle</button>
             <button onClick={() => setDaySettingsOpen(true)} className="h-[52px] rounded-2xl bg-(--color-bg-input) text-[16px] font-medium">Gün ayarları ve antrenman notu</button>
-            <button onClick={handleSave} className="h-14 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[17px] font-semibold">Antrenmanı kaydet ve çık</button>
+            <button onClick={() => { if (notDone.length) { setScreen('set'); setAskNotDone(true); } else handleSave(); }}
+              className="h-14 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[17px] font-semibold">Antrenmanı kaydet ve çık</button>
           </div>
         </Sheet>
       )}
@@ -1498,6 +1520,21 @@ export function WorkoutEntry() {
             <textarea value={notes} onChange={e => { setNotes(e.target.value); setIsDirty(true); }} rows={3} placeholder="Bugün uykusuzdum…"
               className="mt-1 w-full px-4 py-3 rounded-2xl bg-(--color-bg-input) text-[16px] resize-none focus:outline-none placeholder:text-(--color-text-secondary)" />
           </label>
+        </Sheet>
+      )}
+
+      {/* Leaving before every set is done: the sets not ticked hold last
+          week's numbers, and saving them would record work not done. */}
+      {askNotDone && (
+        <Sheet title={`${notDone.reduce((sum, item) => sum + item.count, 0)} set yapılmadı`} onClose={() => setAskNotDone(false)}>
+          <p className="text-[15px] leading-snug text-(--color-text-secondary)">{notDone.map(item => `${item.name} ${item.count}`).join(' · ')}</p>
+          <p className="mt-2 text-[16px] leading-snug">
+            Bunlarda geçen haftanın rakamları duruyor. Kaydetmezsen bu antrenmanı sonra açıp yapabilir ya da ekleyebilirsin.
+          </p>
+          <div className="mt-4 flex flex-col gap-2">
+            <button onClick={() => handleSave(true)} className="h-14 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[17px] font-semibold">Yalnız yapılanları kaydet</button>
+            <button onClick={() => handleSave()} className="h-[52px] rounded-2xl bg-(--color-bg-input) text-[16px] font-medium">Hepsini yapılmış say</button>
+          </div>
         </Sheet>
       )}
 
