@@ -77,7 +77,15 @@ function getIntensityScoreValue(intensity: string): number {
   return legacyIntensityScore[intensity] ?? 0;
 }
 
-export function WorkoutDetailModal({
+/**
+ * Mounted only while open, so an edit started in one cell and closed
+ * without saving never opens in the next cell, to be saved there.
+ */
+export function WorkoutDetailModal(props: WorkoutDetailModalProps) {
+  return props.isOpen ? <DetailSheet {...props} /> : null;
+}
+
+function DetailSheet({
   isOpen,
   onClose,
   exerciseName,
@@ -100,8 +108,6 @@ export function WorkoutDetailModal({
   const [isEditing, setIsEditing] = useState(false);
   const [editingNotes, setEditingNotes] = useState('');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
-
-  if (!isOpen) return null;
 
   const getDelta = (curr: number, prev: number): { value: number; icon: string; color: string } => {
     const diff = curr - prev;
