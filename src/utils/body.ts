@@ -112,10 +112,11 @@ export function measureStatus(points: Point[], goal?: number) {
 
 /**
  * The Bugün reminder: only for someone who has measured before (it is never
- * pushed on a person who does not use it) and not in the last seven days.
+ * pushed on a person who does not use it), once a calendar week — the weeks
+ * the charts average — or once a day if they chose daily.
  */
-export function measurementDue(measurements: BodyMeasurement[] | undefined, today: string): boolean {
+export function measurementDue(measurements: BodyMeasurement[] | undefined, today: string, daily = false): boolean {
   if (!measurements?.length) return false;
   const last = measurements[measurements.length - 1].date;
-  return Date.parse(`${today}T00:00:00Z`) - Date.parse(`${last}T00:00:00Z`) >= 7 * 86_400_000;
+  return daily ? last < today : weekStart(last) < weekStart(today);
 }

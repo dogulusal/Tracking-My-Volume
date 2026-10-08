@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { useContext, useState } from 'react';
+import { AppContext } from '@/context/AppContext';
 import { toggleTheme, isDarkMode } from '@/utils/theme';
 import { useCloudSync } from '@/hooks/useCloudSync';
 import { CloudSyncModal } from '@/components/shared/CloudSyncModal';
@@ -23,6 +24,8 @@ export function Header() {
   const [tourOpen, setTourOpen] = useState(false);
   const { configured, userEmail, syncStatus } = useCloudSync();
   const { isCoach, attentionCount } = useCoach();
+  const app = useContext(AppContext);
+  const dailyMeasure = app?.state.measureReminder === 'daily';
 
   const handleToggle = () => {
     toggleTheme();
@@ -83,6 +86,12 @@ export function Header() {
                 <button onClick={handleToggle} className="px-3 min-h-12 rounded-xl text-left text-[16px] flex items-center justify-between">
                   {dark ? 'Açık temaya geç' : 'Koyu temaya geç'}
                   <Icon name={dark ? 'sun' : 'moon'} className="w-5 h-5 text-(--color-text-secondary)" />
+                </button>
+                {/* How often Bugün offers the body measurement (only to someone who measures). */}
+                <button onClick={() => app?.dispatch({ type: 'SET_MEASURE_REMINDER', payload: dailyMeasure ? 'weekly' : 'daily' })}
+                  className="px-3 min-h-12 rounded-xl text-left text-[16px] flex items-center justify-between gap-2">
+                  Ölçü hatırlatması
+                  <span className="text-[14px] text-(--color-text-secondary)">{dailyMeasure ? 'Günlük' : 'Haftalık'}</span>
                 </button>
                 <Link to="/antrenorum" onClick={() => setSettingsOpen(false)} className="px-3 min-h-12 rounded-xl text-[16px] flex items-center">Antrenörüm</Link>
                 {/* On the phone the coach's tab bar has Antrenör where the Sheet was;

@@ -60,6 +60,7 @@ export function Dashboard() {
     try { return localStorage.getItem(staleKey) === '1'; } catch { return false; }
   });
   const staleWeek = staleWeekAge(weekLogs, currentWeek, new Date());
+  const staleName = staleWeek ? programs.find(program => program.id === staleWeek.programId)?.name : undefined;
   const keepWeek = () => {
     setStaleDismissed(true);
     try { localStorage.setItem(staleKey, '1'); } catch { /* a per-device nicety only */ }
@@ -73,20 +74,23 @@ export function Dashboard() {
     setDoneDismissedWeek(currentWeek);
     try { localStorage.setItem(WEEK_DONE_KEY, String(currentWeek)); } catch { /* a per-device nicety only */ }
   };
-  // The weekly measurement, offered only to someone who measures; "Sonra"
-  // leaves it until next calendar week (on this phone).
+  // The measurement, offered only to someone who measures: each calendar week,
+  // or each day if chosen in the menu. "Sonra" leaves it until the next one
+  // (on this phone).
   const [measureLater, setMeasureLater] = useState(() => {
     try { return localStorage.getItem(MEASURE_LATER_KEY) ?? ''; } catch { return ''; }
   });
   const [measureOpen, setMeasureOpen] = useState(false);
   const today = localDay();
   const measurements = ctx?.state.bodyMeasurements;
-  const offerMeasure = measurementDue(measurements, today) && measureLater !== weekStart(today);
+  const dailyMeasure = ctx?.state.measureReminder === 'daily';
+  const measurePeriod = dailyMeasure ? today : weekStart(today);
+  const offerMeasure = measurementDue(measurements, today, dailyMeasure) && measureLater !== measurePeriod;
   const lastMeasured = measurements?.length ? measurements[measurements.length - 1].date : null;
   const measureAgo = lastMeasured ? Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${lastMeasured}T00:00:00Z`)) / 86_400_000) : 0;
   const laterMeasure = () => {
-    setMeasureLater(weekStart(today));
-    try { localStorage.setItem(MEASURE_LATER_KEY, weekStart(today)); } catch { /* a per-device nicety only */ }
+    setMeasureLater(measurePeriod);
+    try { localStorage.setItem(MEASURE_LATER_KEY, measurePeriod); } catch { /* a per-device nicety only */ }
   };
   const now = new Date();
   const weekday = weekdayFormat.format(now);
@@ -160,9 +164,10 @@ export function Dashboard() {
 
       {staleWeek !== null && !weekDone && !staleDismissed && (
         <section className="mt-5 a-card px-4 py-3.5" style={{ boxShadow: 'inset 0 0 0 1.5px var(--color-text-primary)' }}>
-          <p className="text-[18px] font-semibold">Yeni hafta başladı mı?</p>
+          <p className="text-[18px] font-semibold">Yeni haftaya geçme zamanı</p>
           <p className="mt-1 text-[15px] leading-snug text-(--color-text-secondary)">
-            Bu haftanın ilk antrenmanı {staleWeek} gün önceydi. Yeni haftaya geçmezsen bu haftanın kayıtlarının üstüne yazarsın.
+            {staleName ? `Son ${staleName} antrenmanın` : 'Bu haftanın ilk antrenmanı'} {staleWeek.days} gün önceydi; bir haftayı geçti.
+            Yeni haftaya geç, geçen haftanın rakamlarını geçmeye çalış. Aynı haftada kalırsan bu haftanın kayıtlarının üstüne yazarsın.
           </p>
           <div className="mt-3 flex gap-2">
             <button onClick={() => setConfirmNewWeek(true)} className="flex-1 h-12 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[16px] font-semibold">Yeni haftaya geç</button>
@@ -230,8 +235,10 @@ export function Dashboard() {
           never pushes the workout down. */}
       {offerMeasure && (
         <section className="mt-5 a-card px-4 py-3.5">
-          <p className="text-[16px] font-semibold">Haftalık ölçü</p>
-          <p className="mt-0.5 text-[15px] leading-snug text-(--color-text-secondary)">Son ölçün {measureAgo} gün önceydi. Kilonu gir, Grafikler → Vücut'ta seyrini gör.</p>
+          <p className="text-[16px] font-semibold">{dailyMeasure ? 'Günlük ölçü' : 'Haftalık ölçü'}</p>
+          <p className="mt-0.5 text-[15px] leading-snug text-(--color-text-secondary)">
+            {dailyMeasure ? 'Bugün' : 'Bu hafta'} henüz ölçü girmedin; son ölçün {measureAgo === 1 ? 'dündü' : `${measureAgo} gün önceydi`}. Grafikler → Vücut'ta seyrini görürsün.
+          </p>
           <div className="mt-3 flex gap-2">
             <button onClick={() => setMeasureOpen(true)} className="flex-1 h-11 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[15px] font-semibold">Ölçü gir</button>
             <button onClick={laterMeasure} className="h-11 px-4 rounded-2xl bg-(--color-bg-input) text-[15px] font-medium">Sonra</button>

@@ -47,8 +47,10 @@ test('an earlier week, a holiday or an empty record is never questioned', () => 
   assert.equal(staleRecordAge(undefined, 7, today), null);
 });
 
-test('the week is questioned 6 days after its first workout', () => {
-  assert.equal(staleWeekAge([log(7, '2026-10-04'), log(7, '2026-10-08')], 7, today), 6);
-  assert.equal(staleWeekAge([log(7, '2026-10-05')], 7, today), null);
+test('the week is questioned once a day has gone more than a week without being trained again', () => {
+  const day = (weekNumber, date, programId) => ({ ...log(weekNumber, date), programId });
+  // Today is the 10th: the 2nd is 8 days ago, the 3rd only 7 — a normal weekly repeat.
+  assert.deepEqual(staleWeekAge([day(7, '2026-10-02', 'upper'), day(7, '2026-10-08', 'lower')], 7, today), { days: 8, programId: 'upper' });
+  assert.equal(staleWeekAge([day(7, '2026-10-03', 'upper')], 7, today), null);
   assert.equal(staleWeekAge([log(6, '2026-09-01')], 7, today), null);
 });

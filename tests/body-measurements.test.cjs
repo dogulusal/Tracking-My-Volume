@@ -46,11 +46,21 @@ test('start, latest and the way left to the goal', () => {
   assert.equal(measureStatus(pointsOf(entries, 'arm')), null);
 });
 
-test('the reminder is only for someone who measures, a week after the last time', () => {
+test('the reminder is only for someone who measures: each new calendar week, or each day if chosen', () => {
   assert.equal(measurementDue(undefined, '2026-10-08'), false);
   assert.equal(measurementDue([], '2026-10-08'), false);
-  assert.equal(measurementDue([{ date: '2026-10-02', weight: 81 }], '2026-10-08'), false);
-  assert.equal(measurementDue([{ date: '2026-10-01', weight: 81 }], '2026-10-08'), true);
+  // Thursday the 8th: measured on Monday this week, nothing to ask; on Sunday, a new week has begun.
+  assert.equal(measurementDue([{ date: '2026-10-05', weight: 81 }], '2026-10-08'), false);
+  assert.equal(measurementDue([{ date: '2026-10-04', weight: 81 }], '2026-10-08'), true);
+  // Daily: anything before today.
+  assert.equal(measurementDue([{ date: '2026-10-08', weight: 81 }], '2026-10-08', true), false);
+  assert.equal(measurementDue([{ date: '2026-10-07', weight: 81 }], '2026-10-08', true), true);
+});
+
+test('the reminder is weekly unless daily is chosen, weekly stored as nothing', () => {
+  const daily = appReducer({ ...initialState }, { type: 'SET_MEASURE_REMINDER', payload: 'daily' });
+  assert.equal(daily.measureReminder, 'daily');
+  assert.equal('measureReminder' in appReducer(daily, { type: 'SET_MEASURE_REMINDER', payload: 'weekly' }), false);
 });
 
 test('saving a day again replaces it, entries stay in date order, goals can be removed', () => {

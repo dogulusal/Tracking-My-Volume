@@ -13,7 +13,10 @@ export function daysSince(date: string, today: Date): number | null {
 // The week only moves on when the person says so. Someone who forgets would
 // open next week's workout on top of this week's record and overwrite it.
 export const STALE_DAY_DAYS = 5;
-export const STALE_WEEK_DAYS = 6;
+// Bugün asks only once a day of the week has gone a whole week without being
+// trained again (the 8th day): a weekly plan repeats a day after 7, so asking
+// earlier only interrupts a normal week.
+export const STALE_WEEK_DAYS = 8;
 
 /**
  * Opening a day that already has a record this week, made this many days
@@ -27,17 +30,18 @@ export function staleRecordAge(log: WeekLog | undefined, currentWeek: number, to
 }
 
 /**
- * Days since the current week's first workout, when that is long enough to
- * ask whether a new week has started; null otherwise.
+ * The current week's first workout, when it was long enough ago to ask
+ * whether a new week has started: its day and how many days ago; null
+ * otherwise.
  */
-export function staleWeekAge(logs: WeekLog[], currentWeek: number, today: Date): number | null {
-  const ages = logs
-    .filter(log => log.weekNumber === currentWeek && !log.isHoliday && log.exercises.length > 0)
-    .map(log => daysSince(log.date, today))
-    .filter((age): age is number => age !== null);
-  if (!ages.length) return null;
-  const oldest = Math.max(...ages);
-  return oldest >= STALE_WEEK_DAYS ? oldest : null;
+export function staleWeekAge(logs: WeekLog[], currentWeek: number, today: Date): { days: number; programId: string } | null {
+  let oldest: { days: number; programId: string } | null = null;
+  for (const log of logs) {
+    if (log.weekNumber !== currentWeek || log.isHoliday || log.exercises.length === 0) continue;
+    const days = daysSince(log.date, today);
+    if (days !== null && (!oldest || days > oldest.days)) oldest = { days, programId: log.programId };
+  }
+  return oldest && oldest.days >= STALE_WEEK_DAYS ? oldest : null;
 }
 
 /** Consecutive weeks before this one with at least one logged workout. */

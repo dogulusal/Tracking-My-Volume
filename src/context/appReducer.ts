@@ -313,6 +313,12 @@ function reduceData(state: AppState, action: AppAction): AppState {
       return { ...state, bodyGoals: action.payload.value === null ? rest : { ...rest, [action.payload.key]: action.payload.value } };
     }
 
+    case 'SET_MEASURE_REMINDER': {
+      // Weekly is the default, stored as the field's absence.
+      const { measureReminder: _previous, ...rest } = state;
+      return action.payload === 'daily' ? { ...rest, measureReminder: 'daily' } : rest;
+    }
+
     case 'SET_BODY_PROFILE':
       return { ...state, bodyProfile: action.payload };
 
