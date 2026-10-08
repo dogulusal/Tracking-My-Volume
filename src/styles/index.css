@@ -190,16 +190,18 @@ input[type="number"]::-webkit-outer-spin-button {
   --lb-drop-fill: rgb(255 123 110 / 0.14);
   --lb-ref-fill: rgb(125 176 255 / 0.14);
   --lb-press: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
-  /* A colour per muscle region (Setler). Away from the gain green, the drop
-     red and the reference blue, which keep their meaning everywhere. */
-  --mg-chest: #2dd4bf;
-  --mg-back: #a78bfa;
-  --mg-shoulders: #facc15;
-  --mg-biceps: #f472b6;
-  --mg-triceps: #38bdf8;
-  --mg-legs: #fb923c;
-  --mg-calves: #a3e635;
-  --mg-core: #e879f9;
+  /* A colour per muscle region (Setler): the lightness of the gain, drop
+     and reference colours (OKLCH L .77) and a little less colour (C .11),
+     so they sit with them and those stay the loudest; hues kept away from
+     theirs (154, 27, 259) so a slice never reads as gain or drop. */
+  --mg-legs: #e8a36a;
+  --mg-shoulders: #cfb15d;
+  --mg-calves: #abbf6c;
+  --mg-chest: #4dcbc4;
+  --mg-triceps: #5bc3e9;
+  --mg-back: #b3a8f6;
+  --mg-core: #d49de0;
+  --mg-biceps: #ea97bc;
   color: var(--color-text-primary);
 }
 
@@ -210,14 +212,16 @@ input[type="number"]::-webkit-outer-spin-button {
   --lb-gain-fill: #dcefe2;
   --lb-drop-fill: #f8dedb;
   --lb-ref-fill: #dfe8fb;
-  --mg-chest: #0d9488;
-  --mg-back: #7c3aed;
-  --mg-shoulders: #ca8a04;
-  --mg-biceps: #db2777;
-  --mg-triceps: #0284c7;
-  --mg-legs: #ea580c;
-  --mg-calves: #65a30d;
-  --mg-core: #c026d3;
+  /* The same hues darker for the light ground (L .64, C .12): about 3:1
+     against it, the least a slice needs; lower turned them muddy. */
+  --mg-legs: #c17938;
+  --mg-shoulders: #a88822;
+  --mg-calves: #83963a;
+  --mg-chest: #009892;
+  --mg-triceps: #089ac3;
+  --mg-back: #8c7ed0;
+  --mg-core: #ac73b9;
+  --mg-biceps: #c36c94;
 }
 
 /* Figures and titles: condensed, so a number can be big without wrapping;
