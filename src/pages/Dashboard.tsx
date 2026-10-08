@@ -6,8 +6,11 @@ import { Modal } from '@/components/shared/Modal';
 import { staleWeekAge } from '@/utils/weekAdvance';
 import { possessive, useCoach } from '@/coach/store';
 import { dayNotesOn } from '@/coach/comments';
+import { localDay, measurementDue, weekStart } from '@/utils/body';
+import { MeasurementSheet } from '@/components/shared/BodyMeasurements';
 
 const WEEK_DONE_KEY = 'tmv-hafta-bitti-sonra';
+const MEASURE_LATER_KEY = 'tmv-olcu-sonra';
 const weekdayFormat = new Intl.DateTimeFormat('tr-TR', { weekday: 'long' });
 const dayMonthFormat = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long' });
 
@@ -69,6 +72,21 @@ export function Dashboard() {
   const laterNewWeek = () => {
     setDoneDismissedWeek(currentWeek);
     try { localStorage.setItem(WEEK_DONE_KEY, String(currentWeek)); } catch { /* a per-device nicety only */ }
+  };
+  // The weekly measurement, offered only to someone who measures; "Sonra"
+  // leaves it until next calendar week (on this phone).
+  const [measureLater, setMeasureLater] = useState(() => {
+    try { return localStorage.getItem(MEASURE_LATER_KEY) ?? ''; } catch { return ''; }
+  });
+  const [measureOpen, setMeasureOpen] = useState(false);
+  const today = localDay();
+  const measurements = ctx?.state.bodyMeasurements;
+  const offerMeasure = measurementDue(measurements, today) && measureLater !== weekStart(today);
+  const lastMeasured = measurements?.length ? measurements[measurements.length - 1].date : null;
+  const measureAgo = lastMeasured ? Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${lastMeasured}T00:00:00Z`)) / 86_400_000) : 0;
+  const laterMeasure = () => {
+    setMeasureLater(weekStart(today));
+    try { localStorage.setItem(MEASURE_LATER_KEY, weekStart(today)); } catch { /* a per-device nicety only */ }
   };
   const now = new Date();
   const weekday = weekdayFormat.format(now);
@@ -173,6 +191,7 @@ export function Dashboard() {
       </div>
       <p className="mt-1.5 xl:mt-2.5 text-[12px] xl:text-[14px] text-(--color-text-secondary)">Yeşil rakam: geçen haftayı geçtiğin hareket sayısı</p>
 
+
       </div>
 
       {/* On a wide screen what the next workout has to beat sits beside the
@@ -207,6 +226,19 @@ export function Dashboard() {
       </div>
 
       <div className="lg:col-start-1 lg:row-start-2">
+      {/* Under Başla on a phone, under the week on a wide screen: the reminder
+          never pushes the workout down. */}
+      {offerMeasure && (
+        <section className="mt-5 a-card px-4 py-3.5">
+          <p className="text-[16px] font-semibold">Haftalık ölçü</p>
+          <p className="mt-0.5 text-[15px] leading-snug text-(--color-text-secondary)">Son ölçün {measureAgo} gün önceydi. Kilonu gir, Grafikler → Vücut'ta seyrini gör.</p>
+          <div className="mt-3 flex gap-2">
+            <button onClick={() => setMeasureOpen(true)} className="flex-1 h-11 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[15px] font-semibold">Ölçü gir</button>
+            <button onClick={laterMeasure} className="h-11 px-4 rounded-2xl bg-(--color-bg-input) text-[15px] font-medium">Sonra</button>
+          </div>
+        </section>
+      )}
+      {measureOpen && <MeasurementSheet isOpen onClose={() => setMeasureOpen(false)} />}
       {!announceDone && (
         <button onClick={() => setConfirmNewWeek(true)} className="a-btn-line mt-8 w-full h-14 xl:h-16 rounded-[16px] xl:rounded-[18px] text-[16px] xl:text-[18px]">
           Yeni haftaya geç

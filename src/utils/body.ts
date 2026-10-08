@@ -11,6 +11,12 @@ export const MEASURES: { key: MeasureKey; label: string; unit: string }[] = [
 ];
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
+const pad2 = (value: number) => String(value).padStart(2, '0');
+
+/** Today on the person's own calendar: a weigh-in at 01:00 belongs to today, not to UTC's yesterday. */
+export function localDay(now = new Date()): string {
+  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+}
 
 /** Monday of the date's calendar week, YYYY-MM-DD. */
 export function weekStart(date: string): string {

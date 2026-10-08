@@ -3,14 +3,13 @@ import { AppContext } from '@/context/AppContext';
 import { useReadOnly } from '@/context/ReadOnly';
 import { BottomSheet } from '@/components/shared/BottomSheet';
 import { useWidth } from '@/components/shared/ExerciseTrend';
-import { MEASURES, measureStatus, weeklySeries } from '@/utils/body';
+import { MEASURES, localDay, measureStatus, weeklySeries } from '@/utils/body';
 import type { BodyMeasurement, MeasureKey } from '@/types';
 
 const dayMonth = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 const shortDate = (date: string) => dayMonth.format(new Date(`${date.slice(0, 10)}T00:00:00Z`));
 const num = (value: number) => String(Math.round(value * 10) / 10).replace('.', ',');
 const signed = (value: number) => value === 0 ? '±0' : `${value > 0 ? '+' : '−'}${num(Math.abs(value))}`;
-const today = () => new Date().toISOString().slice(0, 10);
 // Typed with a comma or a dot; blank is "not measured", never zero.
 const parse = (raw: string) => {
   const value = Number(raw.replace(',', '.').trim());
@@ -23,7 +22,7 @@ export function MeasurementSheet({ isOpen, onClose, initial }: { isOpen: boolean
   const ctx = useContext(AppContext);
   const all = ctx?.state.bodyMeasurements ?? [];
   const last = all[all.length - 1];
-  const [date, setDate] = useState(initial?.date ?? today());
+  const [date, setDate] = useState(initial?.date ?? localDay());
   const [values, setValues] = useState<Partial<Record<MeasureKey, string>>>(() => Object.fromEntries(
     MEASURES.flatMap(({ key }) => typeof initial?.[key] === 'number' ? [[key, num(initial[key]!)]] : []),
   ));
@@ -47,7 +46,7 @@ export function MeasurementSheet({ isOpen, onClose, initial }: { isOpen: boolean
       <div className="flex flex-col gap-3 pb-2">
         <label className="flex items-center justify-between gap-3 text-[15px]">
           Tarih
-          <input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)}
+          <input type="date" value={date} max={localDay()} onChange={e => setDate(e.target.value)}
             className="h-11 rounded-xl bg-(--color-bg-input) px-3 text-[16px]" />
         </label>
         {MEASURES.map(({ key, label, unit }) => (
