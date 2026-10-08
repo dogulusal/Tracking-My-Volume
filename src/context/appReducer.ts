@@ -288,6 +288,20 @@ function reduceData(state: AppState, action: AppAction): AppState {
       return action.payload ? { ...rest, hideRemovedExercises: true } : rest;
     }
 
+    case 'SAVE_MEASUREMENT': {
+      // One entry per day: saving a day again replaces it.
+      const others = (state.bodyMeasurements ?? []).filter(entry => entry.date !== action.payload.date);
+      return { ...state, bodyMeasurements: [...others, action.payload].sort((a, b) => a.date.localeCompare(b.date)) };
+    }
+
+    case 'DELETE_MEASUREMENT':
+      return { ...state, bodyMeasurements: (state.bodyMeasurements ?? []).filter(entry => entry.date !== action.payload) };
+
+    case 'SET_BODY_GOAL': {
+      const { [action.payload.key]: _previous, ...rest } = state.bodyGoals ?? {};
+      return { ...state, bodyGoals: action.payload.value === null ? rest : { ...rest, [action.payload.key]: action.payload.value } };
+    }
+
     case 'IMPORT_DATA':
       return { ...action.payload };
 

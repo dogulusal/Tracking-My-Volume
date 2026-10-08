@@ -61,3 +61,12 @@ test('outside workouts the side edited last wins', () => {
   assert.equal(mergeStates(phone, laptop, '2026-09-27T18:00:00Z', '2026-09-27T12:00:00Z').currentWeek, 6);
   assert.equal(mergeStates(phone, laptop, '2026-09-27T11:00:00Z', '2026-09-27T12:00:00Z').currentWeek, 5);
 });
+
+test('body measurements from both devices are kept, day by day', () => {
+  const phone = { ...initialState, weekLogs: [], bodyMeasurements: [{ date: '2026-10-06', weight: 81 }, { date: '2026-10-08', weight: 80.4 }] };
+  const laptop = { ...initialState, weekLogs: [], bodyMeasurements: [{ date: '2026-10-01', weight: 81.6 }, { date: '2026-10-08', weight: 80.9 }] };
+  const merged = mergeStates(phone, laptop, '2026-10-08T18:00:00Z', '2026-10-08T12:00:00Z');
+  // The same day on both sides keeps the side edited last.
+  assert.deepEqual(merged.bodyMeasurements.map(entry => `${entry.date} ${entry.weight}`), ['2026-10-01 81.6', '2026-10-06 81', '2026-10-08 80.4']);
+  assert.equal('bodyMeasurements' in mergeStates({ ...initialState, weekLogs: [] }, { ...initialState, weekLogs: [] }, '2026-10-08T18:00:00Z', '2026-10-08T12:00:00Z'), false);
+});

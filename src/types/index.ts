@@ -87,6 +87,21 @@ export interface WeekLog {
   updatedAt: string;
 }
 
+// ─── Body Measurements ────────────────────────────────
+
+export type MeasureKey = 'weight' | 'waist' | 'chest' | 'arm' | 'hips' | 'bodyFat';
+
+/** One day's measurements: weight always, the rest only when they were taken. */
+export interface BodyMeasurement {
+  date: string; // YYYY-MM-DD
+  weight: number; // kg
+  waist?: number; // cm
+  chest?: number; // cm
+  arm?: number; // cm
+  hips?: number; // cm
+  bodyFat?: number; // %
+}
+
 // ─── Phase Definitions ────────────────────────────────
 
 export interface PhaseDefinition {
@@ -140,6 +155,10 @@ export interface AppState {
   // Program updates from a coach already applied here, by id: each one is
   // applied once, whichever device gets it first.
   appliedCoachUpdates?: string[];
+  // Body measurements, oldest first, one entry per day; absent before the first.
+  bodyMeasurements?: BodyMeasurement[];
+  // A target per measurement; a measurement without one is absent.
+  bodyGoals?: Partial<Record<MeasureKey, number>>;
 }
 
 /** Program changes a coach sent, as the person's own app applies them. */
@@ -176,6 +195,9 @@ export type AppAction =
   | { type: 'SET_EXERCISE_SETTINGS'; payload: { key: string; settings: ExerciseSettings } }
   | { type: 'SET_HIDE_REMOVED_EXERCISES'; payload: boolean }
   | { type: 'APPLY_COACH_UPDATE'; payload: CoachUpdatePayload }
+  | { type: 'SAVE_MEASUREMENT'; payload: BodyMeasurement }
+  | { type: 'DELETE_MEASUREMENT'; payload: string }
+  | { type: 'SET_BODY_GOAL'; payload: { key: MeasureKey; value: number | null } }
   | { type: 'IMPORT_DATA'; payload: AppState }
   | { type: 'RESET_DATA' };
 
@@ -202,6 +224,8 @@ export interface ExportData {
   statusColors?: AppState['statusColors'];
   cellColorOverrides?: AppState['cellColorOverrides'];
   appliedCoachUpdates?: string[];
+  bodyMeasurements?: AppState['bodyMeasurements'];
+  bodyGoals?: AppState['bodyGoals'];
 }
 
 /** Non-secret preferences only. Google credentials never enter synced state. */

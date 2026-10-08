@@ -38,6 +38,8 @@ export function useExportImport() {
     statusColors: state.statusColors,
     cellColorOverrides: state.cellColorOverrides,
     appliedCoachUpdates: state.appliedCoachUpdates,
+    bodyMeasurements: state.bodyMeasurements,
+    bodyGoals: state.bodyGoals,
   });
 
   const downloadExport = (exportData: ExportData, filename: string) => {

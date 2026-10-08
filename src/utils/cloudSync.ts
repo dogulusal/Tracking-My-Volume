@@ -48,5 +48,10 @@ export function mergeStates(local: AppState, cloud: AppState, localEditAt: strin
     const kept = logs.get(logKey(log));
     if (!kept || editedAt(log) > editedAt(kept)) logs.set(logKey(log), log);
   }
-  return { ...base, weekLogs: [...logs.values()] };
+  // Measurements likewise, per day: a weight taken offline is not lost to a
+  // newer save from another device. The same day on both sides keeps base's.
+  const days = new Map((base.bodyMeasurements ?? []).map(entry => [entry.date, entry]));
+  for (const entry of other.bodyMeasurements ?? []) if (!days.has(entry.date)) days.set(entry.date, entry);
+  const bodyMeasurements = [...days.values()].sort((a, b) => a.date.localeCompare(b.date));
+  return { ...base, weekLogs: [...logs.values()], ...(bodyMeasurements.length ? { bodyMeasurements } : {}) };
 }
