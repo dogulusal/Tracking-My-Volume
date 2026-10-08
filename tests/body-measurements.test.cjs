@@ -19,7 +19,7 @@ function loadTS(relativePath) {
   return module.exports;
 }
 
-const { weekStart, pointsOf, weeklySeries, weekOffsets, seriesChange, chartScale, measureStatus, measurementDue, navyBodyFat, estimatedBodyFat, formMeasures } = loadTS('src/utils/body.ts');
+const { weekStart, pointsOf, dayOffsets, seriesChange, chartScale, measureStatus, measurementDue, navyBodyFat, estimatedBodyFat, formMeasures } = loadTS('src/utils/body.ts');
 const { appReducer, initialState } = loadTS('src/context/appReducer.ts');
 
 test('weeks start on Monday', () => {
@@ -28,15 +28,15 @@ test('weeks start on Monday', () => {
   assert.equal(weekStart('2026-10-11'), '2026-10-05'); // Sunday
 });
 
-test('the chart takes each week’s mean, and a measurement left blank is not a zero', () => {
+test('every entry is its own point, as typed, and a measurement left blank is not a zero', () => {
   const entries = [
     { date: '2026-09-29', weight: 82, waist: 86 },
     { date: '2026-10-01', weight: 81 },
     { date: '2026-10-06', weight: 80.4 },
   ];
-  assert.deepEqual(weeklySeries(pointsOf(entries, 'weight')), [{ week: '2026-09-28', value: 81.5 }, { week: '2026-10-05', value: 80.4 }]);
-  assert.deepEqual(weeklySeries(pointsOf(entries, 'waist')), [{ week: '2026-09-28', value: 86 }]);
-  assert.deepEqual(weeklySeries(pointsOf(entries, 'arm')), []);
+  assert.deepEqual(pointsOf(entries, 'weight'), [{ date: '2026-09-29', value: 82 }, { date: '2026-10-01', value: 81 }, { date: '2026-10-06', value: 80.4 }]);
+  assert.deepEqual(pointsOf(entries, 'waist'), [{ date: '2026-09-29', value: 86 }]);
+  assert.deepEqual(pointsOf(entries, 'arm'), []);
 });
 
 test('start, latest and the way left to the goal', () => {
@@ -46,11 +46,12 @@ test('start, latest and the way left to the goal', () => {
   assert.equal(measureStatus(pointsOf(entries, 'arm')), null);
 });
 
-test('the change over the weeks and per week, a missed week counted as a week', () => {
-  const series = [{ week: '2026-08-17', value: 84.6 }, { week: '2026-08-24', value: 84.1 }, { week: '2026-09-14', value: 82.6 }, { week: '2026-09-28', value: 81.8 }];
-  assert.deepEqual(weekOffsets(series), [0, 1, 4, 6]);
-  assert.deepEqual(seriesChange(series), { change: -2.8, weeks: 6, perWeek: -0.5 });
-  assert.deepEqual(seriesChange([{ week: '2026-09-28', value: 81.8 }]), { change: 0, weeks: 0, perWeek: null });
+test('the change from the first entry to the latest, and per week by the days between', () => {
+  const points = [{ date: '2026-08-17', value: 84.6 }, { date: '2026-08-24', value: 84.1 }, { date: '2026-09-14', value: 82.6 }, { date: '2026-09-28', value: 81.8 }];
+  assert.deepEqual(dayOffsets(points), [0, 7, 28, 42]);
+  assert.deepEqual(seriesChange(points), { change: -2.8, days: 42, weeks: 6, perWeek: -0.5 });
+  // Within a week there is no rate.
+  assert.deepEqual(seriesChange([{ date: '2026-09-28', value: 82.2 }, { date: '2026-10-01', value: 81.8 }]), { change: -0.4, days: 3, weeks: 0, perWeek: null });
   assert.equal(seriesChange([]), null);
 });
 

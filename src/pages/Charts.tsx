@@ -262,7 +262,7 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
   );
 }
 
-const BODY_TEXT = 'Kilo ve ölçüler, haftalık ortalama. Hedefe ne kaldığı.';
+const BODY_TEXT = 'Kilo ve ölçüler, girdiğin her ölçü bir nokta. Hedefe ne kaldığı.';
 
 /** Movements whose best set has not been beaten for a while, worst first. */
 function StalledList({ stalled, showAll, onToggle }: {

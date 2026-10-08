@@ -46,7 +46,11 @@ export function weekStart(date: string): string {
 
 export type Point = { date: string; value: number };
 
-/** A measurement's entries, oldest first; a day it was not taken is left out. */
+/**
+ * A measurement's entries, oldest first; a day it was not taken is left out.
+ * The charts draw every one as entered, so the figure on the chart is the
+ * figure typed and the same one shown everywhere else.
+ */
 export function pointsOf(measurements: BodyMeasurement[], key: MeasureKey): Point[] {
   return measurements.flatMap(entry => typeof entry[key] === 'number' ? [{ date: entry.date, value: entry[key]! }] : []);
 }
@@ -81,38 +85,24 @@ export function estimatedBodyFat(measurements: BodyMeasurement[], profile: BodyP
   });
 }
 
-/**
- * A measurement week by week, oldest first: the mean of the week's entries,
- * because a daily weigh-in swings by a kilo for no reason.
- */
-export function weeklySeries(points: Point[]): { week: string; value: number }[] {
-  const weeks = new Map<string, number[]>();
-  for (const point of points) {
-    const week = weekStart(point.date);
-    weeks.set(week, [...(weeks.get(week) ?? []), point.value]);
-  }
-  return [...weeks.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([week, values]) => ({ week, value: round1(values.reduce((sum, value) => sum + value, 0) / values.length) }));
-}
-
 const DAY_MS = 24 * 60 * 60 * 1000;
-const weeksBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / (7 * DAY_MS));
+const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to.slice(0, 10)}T00:00:00Z`) - Date.parse(`${from.slice(0, 10)}T00:00:00Z`)) / DAY_MS);
 
-/** The week's distance from the series' first week, in weeks, for a chart that keeps a missed week as a gap. */
-export function weekOffsets(series: { week: string }[]): number[] {
-  return series.map(point => weeksBetween(series[0].week, point.week));
+/** Each entry's distance from the first, in days, for a chart that spaces entries by time. */
+export function dayOffsets(points: { date: string }[]): number[] {
+  return points.map(point => daysBetween(points[0].date, point.date));
 }
 
 /**
- * How a weekly series moved from its first week to its last: in all, over
- * how many weeks and per week on average (null within a single week).
+ * How a measurement moved from its first entry to its latest: in all, over
+ * how many days and weeks, and per week on average (null within a week,
+ * where a rate says nothing).
  */
-export function seriesChange(series: { week: string; value: number }[]) {
-  if (!series.length) return null;
-  const change = round1(series[series.length - 1].value - series[0].value);
-  const weeks = weeksBetween(series[0].week, series[series.length - 1].week);
-  return { change, weeks, perWeek: weeks ? round1(change / weeks) : null };
+export function seriesChange(points: Point[]) {
+  if (!points.length) return null;
+  const change = round1(points[points.length - 1].value - points[0].value);
+  const days = daysBetween(points[0].date, points[points.length - 1].date);
+  return { change, days, weeks: Math.round(days / 7), perWeek: days >= 7 ? round1(change / (days / 7)) : null };
 }
 
 /** The narrowest span a body chart shows, in the measurement's unit. */
