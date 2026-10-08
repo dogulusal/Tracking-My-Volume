@@ -152,7 +152,8 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
       </div>
 
       <div className="mb-5">
-        <h2 className="a-display text-[30px]">{{ progress: 'İlerleme', volume: 'Bölge başına set', body: 'Vücut' }[view]}</h2>
+        {/* Says what the part shows; the tile above already names it. */}
+        <h2 className="a-display text-[30px]">{{ progress: 'Hareketlerin seyri', volume: 'Bölge başına set', body: 'Kilo ve ölçüler' }[view]}</h2>
         <p className="lb-label mt-1">
           {view === 'progress'
             ? 'Her hareketin en ağır seti, hafta hafta. Renkler Geçmiş tablosuyla aynı.'
@@ -262,7 +263,7 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
   );
 }
 
-const BODY_TEXT = 'Kilo ve ölçüler, haftalık ortalama. Hedefe ne kaldığı.';
+const BODY_TEXT = 'Haftalık ortalama, hedefe ne kaldığı.';
 
 /** Movements whose best set has not been beaten for a while, worst first. */
 function StalledList({ stalled, showAll, onToggle }: {
