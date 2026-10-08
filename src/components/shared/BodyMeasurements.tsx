@@ -1,15 +1,18 @@
-import { useContext, useState } from 'react';
+import { useContext, useState, type PointerEvent } from 'react';
 import { AppContext } from '@/context/AppContext';
 import { useReadOnly } from '@/context/ReadOnly';
 import { BottomSheet } from '@/components/shared/BottomSheet';
 import { useWidth } from '@/components/shared/ExerciseTrend';
-import { MEASURES, estimatedBodyFat, formMeasures, localDay, measureStatus, pointsOf, weeklySeries, type Point } from '@/utils/body';
+import { MEASURES, MIN_SPAN, chartScale, estimatedBodyFat, formMeasures, localDay, measureStatus, pointsOf, seriesChange, weekOffsets, weeklySeries, type Point } from '@/utils/body';
 import type { BodyMeasurement, BodyProfile, MeasureKey } from '@/types';
 
 const dayMonth = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 const shortDate = (date: string) => dayMonth.format(new Date(`${date.slice(0, 10)}T00:00:00Z`));
 const num = (value: number) => String(Math.round(value * 10) / 10).replace('.', ',');
 const signed = (value: number) => value === 0 ? '±0' : `${value > 0 ? '+' : '−'}${num(Math.abs(value))}`;
+// The chart's values keep their tenth, so a column of them reads evenly: 83,0 beside 82,6.
+const tenth = (value: number) => value.toFixed(1).replace('.', ',');
+const withUnit = (figure: string, unit: string) => unit === '%' ? `${figure}%` : `${figure} ${unit}`;
 // Typed with a comma or a dot; blank is "not measured", never zero.
 const parse = (raw: string) => {
   const value = Number(raw.replace(',', '.').trim());
@@ -180,63 +183,165 @@ function GoalSheet({ goalKey, label, unit, onClose }: { goalKey: MeasureKey; lab
   );
 }
 
-/** The trend at a glance, as in the İlerleme list: no axes, the latest dot larger. */
-function MiniLine({ series, className = '' }: { series: { value: number }[]; className?: string }) {
+/**
+ * The trend at a glance, as in the İlerleme list: no axes, the latest dot
+ * larger. Never narrower than MIN_SPAN, so half a centimetre does not look
+ * like four.
+ */
+function MiniLine({ series, className = '' }: { series: { week: string; value: number }[]; className?: string }) {
   const [ref, width] = useWidth<HTMLSpanElement>();
   const height = 28;
-  const min = Math.min(...series.map(point => point.value));
-  const max = Math.max(...series.map(point => point.value));
-  const y = (value: number) => max === min ? height / 2 : 4 + (1 - (value - min) / (max - min)) * (height - 8);
-  const x = (index: number) => series.length > 1 ? 3 + (index / (series.length - 1)) * (width - 6) : width / 2;
+  const values = series.map(point => point.value);
+  const widen = Math.max(0, MIN_SPAN - (Math.max(...values) - Math.min(...values))) / 2;
+  const min = Math.min(...values) - widen;
+  const max = Math.max(...values) + widen;
+  const offsets = weekOffsets(series);
+  const last = offsets[offsets.length - 1] || 1;
+  const y = (value: number) => 4 + (1 - (value - min) / (max - min)) * (height - 8);
+  const x = (index: number) => series.length > 1 ? 3 + (offsets[index] / last) * (width - 6) : width / 2;
   return (
     <span ref={ref} className={`block ${className}`} style={{ height }} aria-hidden="true">
       {width > 0 && series.length > 0 && (
         <svg width={width} height={height} className="block overflow-visible">
           <polyline fill="none" points={series.map((point, index) => `${x(index)},${y(point.value)}`).join(' ')}
             style={{ stroke: 'var(--color-text-secondary)' }} strokeOpacity="0.7" strokeWidth="1.25" strokeLinejoin="round" />
-          <circle cx={x(series.length - 1)} cy={y(series[series.length - 1].value)} r="3" style={{ fill: 'var(--color-text-primary)' }} />
+          <circle cx={x(series.length - 1)} cy={y(values[values.length - 1])} r="3" style={{ fill: 'var(--color-text-primary)' }} />
         </svg>
       )}
     </span>
   );
 }
 
-const HEIGHT = 120;
-const PAD = { top: 14, right: 12, bottom: 22, left: 40 };
+const PAD = { top: 26, right: 4, bottom: 40, left: 34 };
+// Taller on a wide screen, where a wide and low chart flattens the change.
+const heightFor = (width: number) => width >= 700 ? 300 : 230;
+// Room kept between the axis and the first and last weeks, for their labels.
+const INSET = 16;
+// The width a value and a date need; closer ones are left unwritten.
+const VALUE_GAP = 34;
+const DATE_GAP = 40;
 
-/** A measurement week by week, with the target as a dashed line. */
-function BodyChart({ series, goal, label }: { series: { week: string; value: number }[]; goal?: number; label: string }) {
+/**
+ * Where a week's value is written: above a peak, below a dip, and on a slope
+ * on the side the line leaves free.
+ */
+function labelPlace(values: number[], index: number) {
+  const value = values[index];
+  const prev = values[index - 1] ?? value;
+  const next = values[index + 1] ?? value;
+  if (value >= prev && value >= next) return { dx: 0, dy: -11, anchor: 'middle' as const };
+  if (value <= prev && value <= next) return { dx: 0, dy: 18, anchor: 'middle' as const };
+  return prev > value ? { dx: 7, dy: -8, anchor: 'start' as const } : { dx: -7, dy: -8, anchor: 'end' as const };
+}
+
+/** The weeks given room for a label, the latest, the first, the highest and the lowest first. */
+function labelled(xs: number[], values: number[], gap: number): Set<number> {
+  const last = xs.length - 1;
+  const order = [last, 0, values.indexOf(Math.max(...values)), values.indexOf(Math.min(...values))];
+  for (let index = last - 1; index > 0; index--) order.push(index);
+  const picked = new Set<number>();
+  for (const index of order) if ([...picked].every(other => Math.abs(xs[index] - xs[other]) >= gap)) picked.add(index);
+  return picked;
+}
+
+/**
+ * A measurement week by week, full size: a gridline per unit or round step
+ * with its value, each week's value written by its dot, the target as a
+ * dashed line. Tapping a week tells it and its change from the week before.
+ */
+function BodyChart({ series, goal, label, unit }: { series: { week: string; value: number }[]; goal?: number; label: string; unit: string }) {
   const [ref, width] = useWidth<HTMLDivElement>();
-  const values = [...series.map(point => point.value), ...(goal === undefined ? [] : [goal])];
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const pad = (max - min) * 0.15 || 1;
-  const y = (value: number) => PAD.top + (1 - (value - (min - pad)) / (max - min + 2 * pad)) * (HEIGHT - PAD.top - PAD.bottom);
-  const step = series.length > 1 ? (width - PAD.left - PAD.right) / (series.length - 1) : 0;
-  const x = (index: number) => PAD.left + step * index;
+  const [active, setActive] = useState<number | null>(null);
+  const values = series.map(point => point.value);
+  // The target joins the scale while the weeks still fill most of it; a far
+  // one is only written above the chart.
+  const span = Math.max(Math.max(...values) - Math.min(...values), MIN_SPAN);
+  const goalShown = goal !== undefined && Math.max(0, Math.min(...values) - goal, goal - Math.max(...values)) <= span * 1.5;
+  const { lo, hi, ticks } = chartScale(goalShown ? [...values, goal] : values);
+  const height = heightFor(width);
+  const plotBottom = height - PAD.bottom;
+  const y = (value: number) => plotBottom - ((value - lo) / (hi - lo)) * (plotBottom - PAD.top);
+  const offsets = weekOffsets(series);
+  const lastOffset = offsets[offsets.length - 1] || 1;
+  const xs = offsets.map(offset => PAD.left + INSET + (offset / lastOffset) * Math.max(0, width - PAD.left - PAD.right - 2 * INSET));
+  const valueLabels = labelled(xs, values, VALUE_GAP);
+  const dateLabels = labelled(xs, offsets, DATE_GAP);
+  const shown = active ?? series.length - 1;
+  const fromPrev = shown > 0 ? Math.round((values[shown] - values[shown - 1]) * 10) / 10 : null;
+
+  const pick = (event: PointerEvent<SVGSVGElement>) => {
+    const left = event.currentTarget.getBoundingClientRect().left;
+    const at = event.clientX - left;
+    setActive(xs.reduce((best, x, index) => Math.abs(x - at) < Math.abs(xs[best] - at) ? index : best, 0));
+  };
+
   return (
-    <div ref={ref} className="mt-2">
-      {width > 0 && (
-        <svg width={width} height={HEIGHT} role="img" aria-label={`${label}: haftalık ortalama`} className="block">
-          {goal !== undefined && (
-            <g>
-              <line x1={PAD.left} x2={width - PAD.right} y1={y(goal)} y2={y(goal)} style={{ stroke: 'var(--lb-gain)' }} strokeDasharray="4 4" />
-              <text x={PAD.left - 6} y={y(goal) + 3.5} textAnchor="end" className="lb-figure" fontSize="10" style={{ fill: 'var(--lb-gain)' }}>{num(goal)}</text>
-            </g>
-          )}
-          {[series[0], series[series.length - 1]].map((point, i) => (
-            <text key={i} x={x(i ? series.length - 1 : 0)} y={HEIGHT - 6} textAnchor={i ? 'end' : 'start'} className="lb-figure" fontSize="10"
-              style={{ fill: 'var(--color-text-secondary)' }}>{shortDate(point.week)} haftası</text>
-          ))}
-          <polyline fill="none" points={series.map((point, index) => `${x(index)},${y(point.value)}`).join(' ')}
-            style={{ stroke: 'var(--color-text-secondary)' }} strokeWidth="1.5" strokeLinejoin="round" />
-          {series.map((point, index) => (
-            <circle key={point.week} cx={x(index)} cy={y(point.value)} r={index === series.length - 1 ? 4.5 : 3}
-              style={{ fill: 'var(--color-text-primary)', stroke: 'var(--color-bg-primary)' }} strokeWidth="2" />
-          ))}
-        </svg>
-      )}
+    <div className="mt-4">
+      <p className="lb-label">
+        <span className="text-(--color-text-primary)">{shortDate(series[shown].week)} haftası</span>
+        {' · '}<span className="lb-figure text-(--color-text-primary) font-semibold">{withUnit(tenth(values[shown]), unit)}</span>
+        {fromPrev !== null && <> · önceki ölçülen haftaya göre <span className="lb-figure">{signed(fromPrev)}</span></>}
+      </p>
+      <div ref={ref} className="mt-1">
+        {width > 0 && (
+          <svg width={width} height={height} role="img" aria-label={`${label}: haftalık ortalama`} className="block select-none"
+            style={{ touchAction: 'pan-y' }} onPointerMove={pick} onPointerDown={pick}
+            onPointerLeave={event => { if (event.pointerType === 'mouse') setActive(null); }}>
+            <text x={PAD.left - 8} y={PAD.top - 12} textAnchor="end" fontSize="10" style={{ fill: 'var(--color-text-secondary)' }}>{unit}</text>
+            {ticks.map(tick => (
+              <g key={tick}>
+                <line x1={PAD.left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} style={{ stroke: 'var(--lb-rule)' }} />
+                {!(goalShown && Math.abs(y(tick) - y(goal)) < 11) && (
+                  <text x={PAD.left - 8} y={y(tick) + 3.5} textAnchor="end" className="lb-figure" fontSize="11"
+                    style={{ fill: 'var(--color-text-secondary)' }}>{num(tick)}</text>
+                )}
+              </g>
+            ))}
+            {goalShown && (
+              <g>
+                <line x1={PAD.left} x2={width - PAD.right} y1={y(goal)} y2={y(goal)} style={{ stroke: 'var(--lb-gain)' }} strokeWidth="1.5" strokeDasharray="5 4" />
+                <text x={PAD.left - 8} y={y(goal) + 3.5} textAnchor="end" className="lb-figure" fontSize="11" fontWeight="600"
+                  style={{ fill: 'var(--lb-gain)' }}>{num(goal)}</text>
+              </g>
+            )}
+            <line x1={xs[shown]} x2={xs[shown]} y1={PAD.top - 6} y2={plotBottom} style={{ stroke: 'var(--lb-rule-strong)' }} />
+            {series.slice(1).map((point, i) => (
+              // Solid across a week without a measurement: the waist taken every
+              // other week is not a broken line; the gap shows in the spacing.
+              <line key={point.week} x1={xs[i]} y1={y(values[i])} x2={xs[i + 1]} y2={y(values[i + 1])}
+                style={{ stroke: 'var(--color-text-primary)' }} strokeOpacity="0.75" strokeWidth="2" strokeLinecap="round" />
+            ))}
+            {series.map((point, index) => (
+              <circle key={point.week} cx={xs[index]} cy={y(point.value)} r={index === shown ? 5.5 : 3.5}
+                style={{ fill: 'var(--color-text-primary)', stroke: 'var(--color-bg-primary)' }} strokeWidth="2" />
+            ))}
+            {series.map((point, index) => {
+              if (!valueLabels.has(index) && index !== shown) return null;
+              const { dx, dy, anchor } = labelPlace(values, index);
+              return (
+                <text key={point.week} x={xs[index] + dx} y={y(point.value) + dy} textAnchor={anchor} className="lb-figure"
+                  fontSize="12" fontWeight={index === shown ? 700 : 500}
+                  style={{ fill: index === shown ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>{tenth(point.value)}</text>
+              );
+            })}
+            {series.map((point, index) => dateLabels.has(index) && (
+              <text key={point.week} x={xs[index]} y={height - 6} textAnchor="middle" className="lb-figure" fontSize="10"
+                style={{ fill: index === shown ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>{shortDate(point.week)}</text>
+            ))}
+          </svg>
+        )}
+      </div>
     </div>
+  );
+}
+
+/** One figure of the result above the chart. */
+function Stat({ figure, note, color }: { figure: string; note: string; color?: string }) {
+  return (
+    <span className="block min-w-0">
+      <span className="block lb-figure text-[20px] font-semibold leading-tight whitespace-nowrap" style={{ color }}>{figure}</span>
+      <span className="block text-[12px] leading-snug text-(--color-text-secondary)">{note}</span>
+    </span>
   );
 }
 
@@ -298,6 +403,8 @@ export function BodyMeasurements() {
           const goal = row.goalKey ? goals[row.goalKey] : undefined;
           const status = measureStatus(row.points, goal)!;
           const series = weeklySeries(row.points);
+          // From week to week, as the chart: a daily weigh-in's swing is left out.
+          const trend = seriesChange(series)!;
           const open = openId === row.id;
           const reached = goal !== undefined && status.toGoal !== null
             && (status.toGoal === 0 || (goal !== status.first && Math.sign(status.toGoal) !== Math.sign(goal - status.first)));
@@ -314,23 +421,28 @@ export function BodyMeasurements() {
                 <span className="w-24 shrink-0 text-right lb-figure whitespace-nowrap">
                   <span className="text-[17px] font-semibold">{num(status.latest)}</span>
                   <span className="text-[12px] text-(--color-text-secondary) ml-0.5">{row.unit}</span>
-                  <span className="block text-[12px] text-(--color-text-secondary)">{signed(status.change)}</span>
+                  <span className="block text-[12px] text-(--color-text-secondary)">{signed(trend.change)}</span>
                 </span>
                 <span aria-hidden="true" className={`w-3 shrink-0 text-(--color-text-secondary) transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
               </button>
               {open && (
                 <div className="lb-settle pb-5">
-                  <p className="lb-label">Başlangıç {num(status.first)} → şimdi {num(status.latest)} ({signed(status.change)}) · son {shortDate(status.latestDate)}</p>
-                  {goal !== undefined ? (
-                    <button disabled={readOnly} onClick={() => setGoalFor(row)} className="mt-1 text-[15px] text-left" style={{ color: 'var(--lb-gain)' }}>
-                      Hedef {num(goal)} {row.unit} · {reached ? 'hedefe ulaşıldı' : `${num(Math.abs(status.toGoal!))} ${row.unit} kaldı`}
-                    </button>
-                  ) : !readOnly && row.goalKey && (
-                    <button onClick={() => setGoalFor(row)} className="mt-1 text-[15px] text-(--color-text-secondary) underline underline-offset-4">Hedef belirle</button>
-                  )}
-                  {row.note && <p className="mt-1 text-[13px] leading-snug text-(--color-text-secondary)">{row.note}</p>}
-                  {series.length > 1 ? <BodyChart series={series} goal={goal} label={row.label} />
-                    : <p className="mt-2 text-[13px] text-(--color-text-secondary)">Grafik ikinci haftanın ölçüsüyle çizilir.</p>}
+                  {/* The result first, in figures: how much, how fast, how far the target is. */}
+                  <div className="grid grid-cols-3 gap-3 max-w-xl">
+                    {series.length > 1 && <Stat figure={withUnit(signed(trend.change), row.unit)} note={`${trend.weeks} haftada`} />}
+                    {series.length > 1 && <Stat figure={trend.perWeek === null ? '—' : withUnit(signed(trend.perWeek), row.unit)} note="haftada ortalama" />}
+                    {goal !== undefined ? (
+                      <button disabled={readOnly} onClick={() => setGoalFor(row)} className="text-left min-w-0">
+                        <Stat color="var(--lb-gain)" figure={reached ? 'Ulaşıldı' : withUnit(num(Math.abs(status.toGoal!)), row.unit)}
+                          note={reached ? `hedef ${num(goal)}` : `kaldı · hedef ${num(goal)}`} />
+                      </button>
+                    ) : !readOnly && row.goalKey && (
+                      <button onClick={() => setGoalFor(row)} className="self-start min-h-11 text-left text-[15px] text-(--color-text-secondary) underline underline-offset-4">Hedef belirle</button>
+                    )}
+                  </div>
+                  {row.note && <p className="mt-3 text-[13px] leading-snug text-(--color-text-secondary)">{row.note}</p>}
+                  {series.length > 1 ? <BodyChart series={series} goal={goal} label={row.label} unit={row.unit} />
+                    : <p className="mt-3 text-[13px] text-(--color-text-secondary)">Grafik ikinci haftanın ölçüsüyle çizilir.</p>}
                 </div>
               )}
             </li>

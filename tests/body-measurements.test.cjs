@@ -19,7 +19,7 @@ function loadTS(relativePath) {
   return module.exports;
 }
 
-const { weekStart, pointsOf, weeklySeries, measureStatus, measurementDue, navyBodyFat, estimatedBodyFat, formMeasures } = loadTS('src/utils/body.ts');
+const { weekStart, pointsOf, weeklySeries, weekOffsets, seriesChange, chartScale, measureStatus, measurementDue, navyBodyFat, estimatedBodyFat, formMeasures } = loadTS('src/utils/body.ts');
 const { appReducer, initialState } = loadTS('src/context/appReducer.ts');
 
 test('weeks start on Monday', () => {
@@ -44,6 +44,25 @@ test('start, latest and the way left to the goal', () => {
   assert.deepEqual(measureStatus(pointsOf(entries, 'weight'), 78), { first: 84, latest: 81, latestDate: '2026-10-06', change: -3, toGoal: -3 });
   assert.deepEqual(measureStatus(pointsOf(entries, 'waist')), { first: 88, latest: 88, latestDate: '2026-09-20', change: 0, toGoal: null });
   assert.equal(measureStatus(pointsOf(entries, 'arm')), null);
+});
+
+test('the change over the weeks and per week, a missed week counted as a week', () => {
+  const series = [{ week: '2026-08-17', value: 84.6 }, { week: '2026-08-24', value: 84.1 }, { week: '2026-09-14', value: 82.6 }, { week: '2026-09-28', value: 81.8 }];
+  assert.deepEqual(weekOffsets(series), [0, 1, 4, 6]);
+  assert.deepEqual(seriesChange(series), { change: -2.8, weeks: 6, perWeek: -0.5 });
+  assert.deepEqual(seriesChange([{ week: '2026-09-28', value: 81.8 }]), { change: 0, weeks: 0, perWeek: null });
+  assert.equal(seriesChange([]), null);
+});
+
+test('the chart scale has whole-unit gridlines and is never narrower than two units', () => {
+  // A few kilos: a gridline per kilo.
+  assert.deepEqual(chartScale([84.6, 83, 81.8]), { lo: 81, hi: 85, ticks: [81, 82, 83, 84, 85] });
+  // The target below widens it, still a kilo apart.
+  assert.deepEqual(chartScale([84.6, 81.8, 79]).ticks, [79, 80, 81, 82, 83, 84, 85]);
+  // Half a centimetre does not fill the chart.
+  assert.deepEqual(chartScale([39.5, 39]), { lo: 38, hi: 41, ticks: [38, 39, 40, 41] });
+  // Twenty kilos: five apart.
+  assert.deepEqual(chartScale([100, 80]).ticks, [80, 85, 90, 95, 100]);
 });
 
 test('the reminder is only for someone who measures: each new calendar week, or each day if chosen', () => {

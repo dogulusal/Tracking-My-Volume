@@ -96,6 +96,48 @@ export function weeklySeries(points: Point[]): { week: string; value: number }[]
     .map(([week, values]) => ({ week, value: round1(values.reduce((sum, value) => sum + value, 0) / values.length) }));
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const weeksBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / (7 * DAY_MS));
+
+/** The week's distance from the series' first week, in weeks, for a chart that keeps a missed week as a gap. */
+export function weekOffsets(series: { week: string }[]): number[] {
+  return series.map(point => weeksBetween(series[0].week, point.week));
+}
+
+/**
+ * How a weekly series moved from its first week to its last: in all, over
+ * how many weeks and per week on average (null within a single week).
+ */
+export function seriesChange(series: { week: string; value: number }[]) {
+  if (!series.length) return null;
+  const change = round1(series[series.length - 1].value - series[0].value);
+  const weeks = weeksBetween(series[0].week, series[series.length - 1].week);
+  return { change, weeks, perWeek: weeks ? round1(change / weeks) : null };
+}
+
+/** The narrowest span a body chart shows, in the measurement's unit. */
+export const MIN_SPAN = 2;
+const STEPS = [1, 2, 5, 10, 20, 50];
+
+/**
+ * A body chart's scale: whole-unit gridlines, at most six spaces between
+ * them, and never narrower than MIN_SPAN, so half a centimetre does not fill
+ * the chart the way four do.
+ */
+export function chartScale(values: number[]): { lo: number; hi: number; ticks: number[] } {
+  let min = Math.min(...values);
+  let max = Math.max(...values);
+  if (max - min < MIN_SPAN) {
+    const mid = (min + max) / 2;
+    min = mid - MIN_SPAN / 2;
+    max = mid + MIN_SPAN / 2;
+  }
+  const step = STEPS.find(candidate => (max - min) / candidate <= 6) ?? STEPS[STEPS.length - 1];
+  const lo = Math.floor(min / step) * step;
+  const hi = Math.ceil(max / step) * step;
+  return { lo, hi, ticks: Array.from({ length: Math.round((hi - lo) / step) + 1 }, (_, i) => lo + i * step) };
+}
+
 /** Where a measurement started, where it is now and how far the target is; null before the first entry. */
 export function measureStatus(points: Point[], goal?: number) {
   if (!points.length) return null;
