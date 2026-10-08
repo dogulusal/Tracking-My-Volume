@@ -31,9 +31,21 @@ const log = (programId, weekNumber, exercises, extra = {}) => ({
 test('each movement is compared with the same day last time, as History colours it', () => {
   const previous = log('push', 1, [ex('bp', 'Bench Press', [set(60, 8)]), ex('fly', 'Pec Fly', [set(40, 12)]), ex('dip', 'Dips', [set(0, 10)])]);
   const today = log('push', 2, [ex('bp', 'Bench Press', [set(60, 9)]), ex('fly', 'Pec Fly', [set(40, 12)]), ex('dip', 'Dips', [set(0, 8)])]);
-  const summary = summarizeWorkout(today, previous, { weekLogs: [previous] });
+  const summary = summarizeWorkout(today, 0, { weekLogs: [previous] });
   assert.deepEqual(summary.lines.map(line => line.status), ['improved', 'same', 'decreased']);
   assert.deepEqual(summary.counts, { improved: 1, same: 1, decreased: 1 });
+});
+
+test('a movement back after a skipped week is compared with its last record, as in History', () => {
+  const week1 = log('push', 1, [ex('bp', 'Bench Press', [set(60, 8)]), ex('fly', 'Pec Fly', [set(40, 12)])]);
+  const week2 = log('push', 2, [ex('fly', 'Pec Fly', [set(40, 12)])]);
+  const hard = log('push', 3, [ex('bp', 'Bench Press', [set(50, 6)])], { offDay: true });
+  const today = log('push', 4, [ex('bp', 'Bench Press', [set(60, 9)])]);
+  // Week 2 skipped it and week 3 was a hard day: measured against week 1.
+  assert.equal(summarizeWorkout(today, 0, { weekLogs: [week1, week2, hard] }).lines[0].status, 'improved');
+  // A phase that starts after week 1: only the hard day is left, and it counts.
+  assert.equal(summarizeWorkout(today, 2, { weekLogs: [week1, week2, hard] }).lines[0].status, 'improved');
+  assert.equal(summarizeWorkout(log('push', 4, [ex('bp', 'Bench Press', [set(50, 6)])]), 2, { weekLogs: [week1, week2, hard] }).lines[0].status, 'same');
 });
 
 test('sets are counted per muscle group like the charts: worked sets only', () => {
@@ -41,7 +53,7 @@ test('sets are counted per muscle group like the charts: worked sets only', () =
     ex('bp', 'Bench Press', [set(60, 8), set(60, 8), set(60, 0)]),
     ex('tri', 'Triceps Pushdown', [set(30, 12)]),
   ]);
-  const summary = summarizeWorkout(today, null, { weekLogs: [] });
+  const summary = summarizeWorkout(today, 0, { weekLogs: [] });
   assert.equal(summary.sets, 3);
   assert.deepEqual(summary.groups, [{ group: 'Göğüs', sets: 2 }, { group: 'Triceps', sets: 1 }]);
   assert.deepEqual(summary.lines.map(line => line.status), ['new', 'new']);
@@ -51,36 +63,36 @@ test('a record is an estimated 1RM above every earlier session of the movement, 
   const upper = log('upper', 1, [ex('bp-u', 'Bench Press', [set(80, 5)])]);
   const push = log('push', 1, [ex('bp', 'Bench Press', [set(70, 8)])], { date: '2026-01-03' });
   const today = log('push', 2, [ex('bp', 'Bench Press', [set(75, 8)])]);
-  const summary = summarizeWorkout(today, push, { weekLogs: [upper, push] });
+  const summary = summarizeWorkout(today, 0, { weekLogs: [upper, push] });
   // 75 × (1 + 8/30) = 95 beats Upper's 80 × (1 + 5/30) = 93.
   assert.deepEqual(summary.lines[0].record, { oneRM: 95, previous: 93 });
 
   const weaker = log('push', 2, [ex('bp', 'Bench Press', [set(72.5, 7)])]);
-  assert.equal(summarizeWorkout(weaker, push, { weekLogs: [upper, push] }).lines[0].record, null);
+  assert.equal(summarizeWorkout(weaker, 0, { weekLogs: [upper, push] }).lines[0].record, null);
 });
 
 test('the first time a movement is done is not a record', () => {
   const today = log('push', 0, [ex('bp', 'Bench Press', [set(60, 8)])]);
-  assert.equal(summarizeWorkout(today, null, { weekLogs: [] }).lines[0].record, null);
+  assert.equal(summarizeWorkout(today, 0, { weekLogs: [] }).lines[0].record, null);
 });
 
 test('reps left in reserve count toward the estimate', () => {
   const before = log('push', 1, [ex('bp', 'Bench Press', [set(60, 8, 'failure')])]);
   const today = log('push', 2, [ex('bp', 'Bench Press', [set(60, 8, 'rir2')])]);
-  assert.ok(summarizeWorkout(today, before, { weekLogs: [before] }).lines[0].record);
+  assert.ok(summarizeWorkout(today, 0, { weekLogs: [before] }).lines[0].record);
 });
 
 test('a movement stuck for four weeks or more is flagged, counting this workout', () => {
   const weeks = [0, 1, 2, 3].map(week => log('pull', week, [ex('row', 'Seated Row', [set(50, 10)])]));
   const today = log('pull', 4, [ex('row', 'Seated Row', [set(50, 10)])]);
-  assert.equal(summarizeWorkout(today, weeks[3], { weekLogs: weeks }).lines[0].stallWeeks, 4);
+  assert.equal(summarizeWorkout(today, 0, { weekLogs: weeks }).lines[0].stallWeeks, 4);
   const better = log('pull', 4, [ex('row', 'Seated Row', [set(52.5, 8)])]);
-  assert.equal(summarizeWorkout(better, weeks[3], { weekLogs: weeks }).lines[0].stallWeeks, null);
+  assert.equal(summarizeWorkout(better, 0, { weekLogs: weeks }).lines[0].stallWeeks, null);
 });
 
 test('the length runs from the first finished set to the last, shown from a minute to five hours', () => {
   const timed = (startedAt, finishedAt) => summarizeWorkout(
-    log('push', 0, [ex('bp', 'Bench Press', [set(60, 8)])], { startedAt, finishedAt }), null, { weekLogs: [] }).minutes;
+    log('push', 0, [ex('bp', 'Bench Press', [set(60, 8)])], { startedAt, finishedAt }), 0, { weekLogs: [] }).minutes;
   assert.equal(timed('2026-10-08T10:00:00.000Z', '2026-10-08T11:04:40.000Z'), 65);
   assert.equal(timed('2026-10-08T10:00:00.000Z', '2026-10-08T10:00:00.000Z'), null);
   // A set added to the saved workout the next day.

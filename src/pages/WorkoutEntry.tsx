@@ -892,7 +892,7 @@ export function WorkoutEntry() {
     ? summarizeWorkout({
       id: existingLog?.id ?? '', weekNumber, programId: program.id, date, exercises: exerciseLogs, notes, isHoliday, offDay,
       startedAt: times.startedAt, finishedAt: times.finishedAt, updatedAt: '',
-    }, previousLog, { weekLogs: allLogs ?? [], muscleGroups: ctx?.state.muscleGroups })
+    }, phase?.startWeek ?? 0, { weekLogs: allLogs ?? [], muscleGroups: ctx?.state.muscleGroups })
     : null;
 
   const segments = (

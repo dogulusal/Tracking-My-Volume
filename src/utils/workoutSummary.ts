@@ -34,12 +34,28 @@ const oneRMOf = (set: SetLog) => estimate1RM(set.weight, capacity(set));
 const topOneRM = (sets: SetLog[]) => sets.reduce((top, set) => set.reps > 0 ? Math.max(top, oneRMOf(set)) : top, 0);
 
 /**
+ * What a movement is measured against, found as History finds it (its
+ * historyGrid): the nearest earlier week of the same day in the phase that
+ * has the movement, passing over hard days unless only those are left. A
+ * week the movement was skipped is passed over, so it is not taken as new.
+ */
+function previousSetsOf(logs: WeekLog[], log: WeekLog, exerciseId: string, phaseStart: number): SetLog[] | undefined {
+  const earlier = logs
+    .filter(item => item.programId === log.programId && item.weekNumber < log.weekNumber && item.weekNumber >= phaseStart
+      && item.exercises.some(exercise => exercise.exerciseId === exerciseId))
+    .sort((a, b) => b.weekNumber - a.weekNumber);
+  const chosen = earlier.find(item => !item.offDay) ?? earlier[0];
+  return chosen?.exercises.find(exercise => exercise.exerciseId === exerciseId)?.sets;
+}
+
+/**
  * What the workout just saved did, for the screen shown after Kaydet. Sets are
  * the only amount shown: the app dropped kg × reps "volume" on purpose.
+ * `phaseStart` is the first week of the workout's phase.
  */
 export function summarizeWorkout(
   log: WeekLog,
-  previousLog: WeekLog | null,
+  phaseStart: number,
   state: Pick<AppState, 'weekLogs' | 'muscleGroups'>,
 ): WorkoutSummary {
   // The record as it stands after this save, for the stuck count.
@@ -53,7 +69,7 @@ export function summarizeWorkout(
     const worked = exercise.sets.filter(set => set.reps > 0);
     if (!worked.length) continue;
     const key = exerciseKey(exercise.exerciseName);
-    const previousSets = previousLog?.exercises.find(item => item.exerciseId === exercise.exerciseId)?.sets;
+    const previousSets = previousSetsOf(state.weekLogs, log, exercise.exerciseId, phaseStart);
     const earlier = sessionsBefore(movementSessions(state.weekLogs, key), log);
     const previousTop = Math.max(0, ...earlier.map(session => topOneRM(session.exercise.sets)));
     const oneRM = topOneRM(worked);
