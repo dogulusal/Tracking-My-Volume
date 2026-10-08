@@ -128,6 +128,16 @@ test('the form offers what each sex mostly follows first, and never withholds th
   }
 });
 
+test('deleting a day leaves a mark for the other devices; saving the day again takes it away', () => {
+  const saved = appReducer({ ...initialState }, { type: 'SAVE_MEASUREMENT', payload: { date: '2026-10-08', weight: 80 } });
+  const deleted = appReducer(saved, { type: 'DELETE_MEASUREMENT', payload: '2026-10-08' });
+  assert.deepEqual(deleted.bodyMeasurements, []);
+  assert.ok(deleted.deletedMeasurements['2026-10-08']);
+  const again = appReducer(deleted, { type: 'SAVE_MEASUREMENT', payload: { date: '2026-10-08', weight: 79.8 } });
+  assert.deepEqual(again.deletedMeasurements, {});
+  assert.equal(again.bodyMeasurements[0].weight, 79.8);
+});
+
 test('the profile is kept as given, an empty one meaning asked and left blank', () => {
   let state = appReducer({ ...initialState }, { type: 'SET_BODY_PROFILE', payload: {} });
   assert.deepEqual(state.bodyProfile, {});

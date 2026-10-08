@@ -71,6 +71,31 @@ test('body measurements from both devices are kept, day by day', () => {
   assert.equal('bodyMeasurements' in mergeStates({ ...initialState, weekLogs: [] }, { ...initialState, weekLogs: [] }, '2026-10-08T18:00:00Z', '2026-10-08T12:00:00Z'), false);
 });
 
+test('a day corrected on one device keeps the correction, whichever device was edited last', () => {
+  const phone = { ...initialState, weekLogs: [], bodyMeasurements: [{ date: '2026-10-08', weight: 80.4, updatedAt: '2026-10-08T20:00:00Z' }] };
+  const laptop = { ...initialState, weekLogs: [], currentWeek: 9, bodyMeasurements: [{ date: '2026-10-08', weight: 84.0, updatedAt: '2026-10-08T08:00:00Z' }] };
+  // The laptop changed something else later, so its side is the base.
+  const merged = mergeStates(phone, laptop, '2026-10-08T20:00:00Z', '2026-10-08T21:00:00Z');
+  assert.equal(merged.currentWeek, 9);
+  assert.deepEqual(merged.bodyMeasurements.map(entry => entry.weight), [80.4]);
+});
+
+test('a day deleted on one device stays deleted, unless saved again after', () => {
+  const phone = { ...initialState, weekLogs: [], bodyMeasurements: [{ date: '2026-10-01', weight: 81 }], deletedMeasurements: { '2026-10-08': '2026-10-08T20:00:00Z' } };
+  const laptop = { ...initialState, weekLogs: [], bodyMeasurements: [{ date: '2026-10-01', weight: 81 }, { date: '2026-10-08', weight: 90 }] };
+  const merged = mergeStates(phone, laptop, '2026-10-08T20:00:00Z', '2026-10-08T21:00:00Z');
+  assert.deepEqual(merged.bodyMeasurements.map(entry => entry.date), ['2026-10-01']);
+  assert.deepEqual(merged.deletedMeasurements, { '2026-10-08': '2026-10-08T20:00:00Z' });
+
+  const savedAgain = { ...laptop, bodyMeasurements: [{ date: '2026-10-08', weight: 80.2, updatedAt: '2026-10-08T22:00:00Z' }] };
+  assert.deepEqual(mergeStates(phone, savedAgain, '2026-10-08T20:00:00Z', '2026-10-08T22:00:00Z').bodyMeasurements.map(entry => `${entry.date} ${entry.weight}`),
+    ['2026-10-01 81', '2026-10-08 80.2']);
+
+  // Every day deleted: the list is empty, not left as the base had it.
+  const allGone = { ...initialState, weekLogs: [], deletedMeasurements: { '2026-10-01': '2026-10-08T20:00:00Z', '2026-10-08': '2026-10-08T20:00:00Z' } };
+  assert.deepEqual(mergeStates(laptop, allGone, '2026-10-08T21:00:00Z', '2026-10-08T20:00:00Z').bodyMeasurements, []);
+});
+
 // The calls writeOverRead makes, over one stored row, as Supabase answers them.
 function cloudRow(initial) {
   const store = { row: initial };

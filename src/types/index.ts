@@ -109,6 +109,8 @@ export interface BodyMeasurement {
   thigh?: number; // cm
   calf?: number; // cm
   bodyFat?: number; // %, as measured (scale, caliper)
+  // When the day was last saved (ISO): of two devices' copies the later wins.
+  updatedAt?: string;
 }
 
 /**
@@ -176,6 +178,9 @@ export interface AppState {
   appliedCoachUpdates?: string[];
   // Body measurements, oldest first, one entry per day; absent before the first.
   bodyMeasurements?: BodyMeasurement[];
+  // Days deleted and when (ISO), so another device's copy of a deleted day
+  // does not bring it back when the two are merged.
+  deletedMeasurements?: Record<string, string>;
   // A target per measurement; a measurement without one is absent.
   bodyGoals?: Partial<Record<MeasureKey, number>>;
   // Absent until the first measurement asks for it.

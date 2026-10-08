@@ -90,7 +90,7 @@ export function MeasurementSheet({ isOpen, onClose, initial }: { isOpen: boolean
     // Moved onto a day that has its own entry: what is typed is added to it,
     // what is left blank keeps that day's value.
     const existing = date !== opened?.date ? all.find(item => item.date === date) : undefined;
-    const entry: BodyMeasurement = { ...existing, date, weight };
+    const entry: BodyMeasurement = { ...existing, date, weight, updatedAt: new Date().toISOString() };
     for (const { key } of MEASURES) {
       const value = parse(values[key] ?? '');
       if (key !== 'weight' && value !== undefined) entry[key] = value;

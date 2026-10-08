@@ -300,13 +300,22 @@ function reduceData(state: AppState, action: AppAction): AppState {
     }
 
     case 'SAVE_MEASUREMENT': {
-      // One entry per day: saving a day again replaces it.
+      // One entry per day: saving a day again replaces it, and undoes its deletion.
       const others = (state.bodyMeasurements ?? []).filter(entry => entry.date !== action.payload.date);
-      return { ...state, bodyMeasurements: [...others, action.payload].sort((a, b) => a.date.localeCompare(b.date)) };
+      const { [action.payload.date]: _undone, ...deleted } = state.deletedMeasurements ?? {};
+      return {
+        ...state,
+        bodyMeasurements: [...others, action.payload].sort((a, b) => a.date.localeCompare(b.date)),
+        ...(state.deletedMeasurements && { deletedMeasurements: deleted }),
+      };
     }
 
     case 'DELETE_MEASUREMENT':
-      return { ...state, bodyMeasurements: (state.bodyMeasurements ?? []).filter(entry => entry.date !== action.payload) };
+      return {
+        ...state,
+        bodyMeasurements: (state.bodyMeasurements ?? []).filter(entry => entry.date !== action.payload),
+        deletedMeasurements: { ...state.deletedMeasurements, [action.payload]: new Date().toISOString() },
+      };
 
     case 'SET_BODY_GOAL': {
       const { [action.payload.key]: _previous, ...rest } = state.bodyGoals ?? {};

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AppState, WeekLog } from '@/types';
+import type { AppState, BodyMeasurement, WeekLog } from '@/types';
 
 export type CloudWrite = 'written' | 'conflict' | { error: string };
 
@@ -50,6 +50,7 @@ export function planSync(meta: SyncMeta | null, userId: string, cloudUpdatedAt: 
   return 'merge';
 }
 
+const savedAt = (entry: BodyMeasurement) => Date.parse(entry.updatedAt ?? '') || 0;
 const logKey = (log: WeekLog) => `${log.programId}\u0000${log.weekNumber}`;
 const editedAt = (log: WeekLog) => Date.parse(log.updatedAt) || 0;
 
@@ -68,10 +69,28 @@ export function mergeStates(local: AppState, cloud: AppState, localEditAt: strin
     const kept = logs.get(logKey(log));
     if (!kept || editedAt(log) > editedAt(kept)) logs.set(logKey(log), log);
   }
-  // Measurements likewise, per day: a weight taken offline is not lost to a
-  // newer save from another device. The same day on both sides keeps base's.
+  // Measurements per day, by their own save times, not by which device was
+  // edited last: a weight taken offline is not lost, a day corrected on one
+  // device keeps the correction, and a day deleted stays deleted unless it
+  // was saved again after. Days from before save times keep base's copy.
+  const deleted: Record<string, string> = {};
+  for (const source of [other.deletedMeasurements, base.deletedMeasurements]) {
+    for (const [date, at] of Object.entries(source ?? {})) if (!deleted[date] || Date.parse(at) > Date.parse(deleted[date])) deleted[date] = at;
+  }
   const days = new Map((base.bodyMeasurements ?? []).map(entry => [entry.date, entry]));
-  for (const entry of other.bodyMeasurements ?? []) if (!days.has(entry.date)) days.set(entry.date, entry);
+  for (const entry of other.bodyMeasurements ?? []) {
+    const kept = days.get(entry.date);
+    if (!kept || savedAt(entry) > savedAt(kept)) days.set(entry.date, entry);
+  }
+  for (const [date, at] of Object.entries(deleted)) {
+    const kept = days.get(date);
+    if (kept && Date.parse(at) >= savedAt(kept)) days.delete(date);
+  }
   const bodyMeasurements = [...days.values()].sort((a, b) => a.date.localeCompare(b.date));
-  return { ...base, weekLogs: [...logs.values()], ...(bodyMeasurements.length ? { bodyMeasurements } : {}) };
+  return {
+    ...base,
+    weekLogs: [...logs.values()],
+    ...((bodyMeasurements.length || base.bodyMeasurements) && { bodyMeasurements }),
+    ...(Object.keys(deleted).length && { deletedMeasurements: deleted }),
+  };
 }
