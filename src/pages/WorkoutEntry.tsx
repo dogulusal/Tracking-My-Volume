@@ -16,6 +16,8 @@ import { exerciseKey } from '@/utils/muscleGroups';
 import { movementSessions, sessionsBefore, type MovementSession } from '@/utils/movements';
 import { STALL_WEEKS, bestSet, nextTarget, previousRecord, progressionRule, stallOf, type ProgressionRule, type Stall, type Target } from '@/utils/progression';
 import { weekName } from '@/utils/phases';
+import { summarizeWorkout } from '@/utils/workoutSummary';
+import { WorkoutSummaryCard } from '@/components/shared/WorkoutSummaryCard';
 import type { SetLog, Intensity, ExerciseLog } from '@/types';
 import { dayNotesOn, useComments } from '@/coach/comments';
 
@@ -104,6 +106,8 @@ export function WorkoutEntry() {
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [completedSets, setCompletedSets] = useState<Record<string, boolean>>({});
+  // When the first and the latest set were finished, for the workout's length.
+  const [times, setTimes] = useState<{ startedAt?: string; finishedAt?: string }>({});
   const [draftStatus, setDraftStatus] = useState<'idle' | 'saved' | 'error'>('idle');
   const [restDurationSec, setRestDurationSec] = useState<number>(() => {
     const saved = localStorage.getItem(REST_TIMER_KEY);
@@ -230,6 +234,7 @@ export function WorkoutEntry() {
           offDay?: boolean;
           savedAt?: string;
           completedSets?: Record<string, boolean>;
+          times?: { startedAt?: string; finishedAt?: string };
         };
         const draftIsStale =
           existingLog?.updatedAt != null &&
@@ -242,6 +247,7 @@ export function WorkoutEntry() {
             sets: Array.from({ length: ex.defaultSets }, () => ({ weight: ex.defaultWeight, reps: ex.defaultReps, intensity: 'failure' as Intensity })),
           })));
           if (draft.completedSets && typeof draft.completedSets === 'object') setCompletedSets(draft.completedSets);
+          if (draft.times && typeof draft.times === 'object') setTimes(draft.times);
           if (typeof draft.notes === 'string') setNotes(draft.notes);
           if (typeof draft.date === 'string') setDate(draft.date);
           if (typeof draft.isHoliday === 'boolean') setIsHoliday(draft.isHoliday);
@@ -265,6 +271,7 @@ export function WorkoutEntry() {
       setDate(existingLog.date);
       setIsHoliday(existingLog.isHoliday || false);
       setOffDay(existingLog.offDay || false);
+      setTimes({ startedAt: existingLog.startedAt, finishedAt: existingLog.finishedAt });
       return;
     }
 
@@ -307,11 +314,11 @@ export function WorkoutEntry() {
     try {
       localStorage.setItem(
         draftKey,
-        JSON.stringify({ exerciseLogs, notes, date, isHoliday, offDay, completedSets, savedAt: new Date().toISOString() })
+        JSON.stringify({ exerciseLogs, notes, date, isHoliday, offDay, completedSets, times, savedAt: new Date().toISOString() })
       );
       setDraftStatus('saved');
     } catch { setDraftStatus('error'); }
-  }, [exerciseLogs, notes, date, isHoliday, offDay, isDirty, draftKey, completedSets]);
+  }, [exerciseLogs, notes, date, isHoliday, offDay, isDirty, draftKey, completedSets, times]);
 
   useEffect(() => {
     localStorage.setItem(REST_TIMER_KEY, String(restDurationSec));
@@ -497,6 +504,8 @@ export function WorkoutEntry() {
       notes,
       isHoliday,
       offDay: !isHoliday && offDay,
+      startedAt: times.startedAt,
+      finishedAt: times.finishedAt,
       updatedAt: new Date().toISOString(),
     });
     localStorage.removeItem(draftKey);
@@ -794,6 +803,8 @@ export function WorkoutEntry() {
     const key = `${exerciseLogs[current.ex].exerciseId}:${current.set}`;
     const done = { ...completedSets, [key]: true };
     setCompletedSets(done);
+    const now = new Date().toISOString();
+    setTimes(prev => ({ startedAt: prev.startedAt ?? now, finishedAt: now }));
     setIsDirty(true);
     const next = nextOpenSet(current.ex, current.set, done);
     setFocus(next);
@@ -861,6 +872,13 @@ export function WorkoutEntry() {
   const restShown = timerActive || timerJustFinished;
   const onSetScreen = !isHoliday && exerciseLogs.length > 0 && !!exercise && !!set && !!current;
   const restFraction = timerActive && timerTotalRef.current > 0 ? 1 - timerRemainingSec / timerTotalRef.current : 1;
+  // Every set done: the workout as Kaydet would store it, summed up.
+  const doneSummary = !isHoliday && exerciseLogs.length > 0 && !(exercise && set && current)
+    ? summarizeWorkout({
+      id: existingLog?.id ?? '', weekNumber, programId: program.id, date, exercises: exerciseLogs, notes, isHoliday, offDay,
+      startedAt: times.startedAt, finishedAt: times.finishedAt, updatedAt: '',
+    }, previousLog, { weekLogs: allLogs ?? [], muscleGroups: ctx?.state.muscleGroups })
+    : null;
 
   const segments = (
     <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.max(1, exerciseLogs.length)}, minmax(0, 1fr))` }}>
@@ -926,10 +944,13 @@ export function WorkoutEntry() {
         <div className="my-auto flex flex-col">
           <p className="text-center text-[16px] text-(--color-text-secondary)">{program.name} · {nameOfWeek(weekNumber)}</p>
           <p className="a-display text-center text-[72px] mt-1">Tamam</p>
-          <p className="text-center text-[17px] text-(--color-text-secondary)">{doneCount} / {setCount} set işaretlendi</p>
+          <p className="text-center text-[17px] text-(--color-text-secondary)">
+            {doneCount} / {setCount} set işaretlendi{doneSummary?.minutes ? ` · ${doneSummary.minutes} dk` : ''}
+          </p>
+          {doneSummary && <WorkoutSummaryCard summary={doneSummary} />}
           {/* The point of the app, in the person's own numbers: what next week has to beat. */}
           {nextWeekTargets.length > 0 && (
-            <div className="mt-6 a-card px-4 py-3">
+            <div className={`${doneSummary ? 'mt-3' : 'mt-6'} a-card px-4 py-3`}>
               <p className="text-[14px] text-(--color-text-secondary)">Gelecek {program.name} antrenmanında seni bunlar bekliyor</p>
               <ul className="mt-1">
                 {nextWeekTargets.map(target => (

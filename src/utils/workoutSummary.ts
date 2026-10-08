@@ -26,6 +26,8 @@ export interface WorkoutSummary {
   counts: { improved: number; same: number; decreased: number };
 }
 
+const MAX_SPAN_MS = 5 * 60 * 60_000;
+
 // The estimate counts the reps left in reserve: 8 reps with two in the tank
 // is a stronger set than 8 to failure, as everywhere else in the app.
 const oneRMOf = (set: SetLog) => estimate1RM(set.weight, capacity(set));
@@ -67,8 +69,10 @@ export function summarizeWorkout(
     groupSets.set(group, (groupSets.get(group) ?? 0) + worked.length);
   }
 
+  // A set added to a saved workout days later would stretch the span; a
+  // length no session takes is not shown.
   const span = log.startedAt && log.finishedAt ? Date.parse(log.finishedAt) - Date.parse(log.startedAt) : NaN;
-  const minutes = Number.isFinite(span) && span >= 60_000 ? Math.round(span / 60_000) : null;
+  const minutes = Number.isFinite(span) && span >= 60_000 && span <= MAX_SPAN_MS ? Math.round(span / 60_000) : null;
   const order: string[] = [...MUSCLE_GROUPS, UNASSIGNED];
   return {
     minutes,

@@ -78,10 +78,12 @@ test('a movement stuck for four weeks or more is flagged, counting this workout'
   assert.equal(summarizeWorkout(better, weeks[3], { weekLogs: weeks }).lines[0].stallWeeks, null);
 });
 
-test('the length runs from the first finished set to the last, shown from a minute up', () => {
+test('the length runs from the first finished set to the last, shown from a minute to five hours', () => {
   const timed = (startedAt, finishedAt) => summarizeWorkout(
     log('push', 0, [ex('bp', 'Bench Press', [set(60, 8)])], { startedAt, finishedAt }), null, { weekLogs: [] }).minutes;
   assert.equal(timed('2026-10-08T10:00:00.000Z', '2026-10-08T11:04:40.000Z'), 65);
   assert.equal(timed('2026-10-08T10:00:00.000Z', '2026-10-08T10:00:00.000Z'), null);
+  // A set added to the saved workout the next day.
+  assert.equal(timed('2026-10-08T10:00:00.000Z', '2026-10-09T09:00:00.000Z'), null);
   assert.equal(timed(undefined, undefined), null);
 });
