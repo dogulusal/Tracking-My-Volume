@@ -96,8 +96,13 @@ export function MuscleVolume() {
               {mode === 'block' ? `${index === periods.length - 1 ? 'Son ' : ''}${period.weeks.length} hafta · ` : ''}{period.title}
               {inProgress ? ' · bu hafta devam ediyor' : ''}
             </p>
+            {/* While the period runs, a part of it against a whole one would
+                always look like a drop: the earlier total is given instead. */}
             {previous && previousPeriod && (
-              <p className="lb-label mt-1.5">{mode === 'block' ? 'Önceki 4 hafta' : previousPeriod.title} ile fark {signed(current.sets - previous.sets)} set</p>
+              <p className="lb-label mt-1.5">
+                {mode === 'block' ? 'Önceki 4 hafta' : previousPeriod.title}
+                {inProgress ? ` toplam ${previous.sets} set` : ` ile fark ${signed(current.sets - previous.sets)} set`}
+              </p>
             )}
           </div>
           <div className="flex gap-1 shrink-0">
@@ -137,7 +142,9 @@ export function MuscleVolume() {
                   <span className="lb-figure text-sm text-right whitespace-nowrap">
                     {row.now.sets}<span className="text-xs text-(--color-text-secondary)"> set</span>
                   </span>
-                  <span className="lb-figure w-8 text-xs text-right text-(--color-text-secondary)">{row.before ? signed(row.now.sets - row.before.sets) : ''}</span>
+                  <span className={`lb-figure ${inProgress ? 'w-14' : 'w-8'} text-xs text-right text-(--color-text-secondary) whitespace-nowrap`}>
+                    {!row.before ? '' : inProgress ? `geçen ${row.before.sets}` : signed(row.now.sets - row.before.sets)}
+                  </span>
                 </button>
               </li>
             ))}
