@@ -69,6 +69,9 @@ export interface ExerciseSettings {
   region?: string;
   // A web link showing how the movement is done (utils/videoLink).
   videoUrl?: string;
+  // The bar it is done with, kg: the set screen then says which plates go on
+  // each side. Absent for anything not done with a bar.
+  barKg?: number;
 }
 
 export interface WeekLog {

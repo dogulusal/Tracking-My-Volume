@@ -20,6 +20,7 @@ import { summarizeWorkout } from '@/utils/workoutSummary';
 import { WorkoutSummaryCard } from '@/components/shared/WorkoutSummaryCard';
 import { MuscleMap } from '@/components/shared/MuscleMap';
 import { videoLink } from '@/utils/videoLink';
+import { BARS, platesPerSide } from '@/utils/plates';
 import type { SetLog, Intensity, ExerciseLog } from '@/types';
 import { dayNotesOn, useComments } from '@/coach/comments';
 
@@ -852,6 +853,8 @@ export function WorkoutEntry() {
   const info = exercise ? movementInfo.get(exercise.exerciseId) : undefined;
   const pinned = key ? exerciseSettings?.[key]?.note : undefined;
   const video = key ? exerciseSettings?.[key]?.videoUrl : undefined;
+  const barKg = key ? exerciseSettings?.[key]?.barKg : undefined;
+  const loading = barKg && set && set.weight > 0 ? platesPerSide(set.weight, barKg) : null;
   const weightUp = info?.target && info.target.reps === null ? info.target : null;
   const step = info?.rule.step ?? 2.5;
   const comparison = set ? compareToPrevious(set, prevSet) : null;
@@ -1059,6 +1062,14 @@ export function WorkoutEntry() {
                   className={`lb-figure flex-1 min-w-0 bg-transparent text-center ${guidanceShown ? 'text-[68px]! [@media(max-height:700px)]:text-[48px]!' : 'text-[84px]! [@media(max-height:700px)]:text-[52px]!'} leading-none font-bold focus:outline-none placeholder:text-(--color-border)`} />
                 {roundButton('Kiloyu artır', () => handleSetFieldChange(current.ex, current.set, 'weight', String(roundWeight(set.weight + step))), true)}
               </div>
+              {/* Only for a movement set to a bar in its ⋯ sheet. */}
+              {barKg && set.weight > 0 && (
+                <span className="mt-1 lb-figure text-[15px] text-(--color-text-secondary)">
+                  {loading
+                    ? `Her yana: ${loading.plates.join(' + ')}${loading.missing ? ` · ${loading.missing} kg plakayla tamamlanmaz` : ''}`
+                    : `Yalnız bar: ${barKg} kg`}
+                </span>
+              )}
             </div>
             <div className="flex flex-col items-center">
               <span className="text-[14px] text-(--color-text-secondary)">tekrar</span>
@@ -1371,6 +1382,22 @@ export function WorkoutEntry() {
                 <span className="text-(--color-text-secondary)">Ekle</span>
               </button>
             )}
+          </div>
+
+          <div className="mt-4">
+            <span className="text-[14px] text-(--color-text-secondary)">Bar · seçilirse set ekranı her yana takılacak plakaları söyler</span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {[undefined, ...BARS].map(bar => {
+                const on = barKg === bar;
+                return (
+                  <button key={bar ?? 'none'} aria-pressed={on}
+                    onClick={() => ctx?.dispatch({ type: 'SET_EXERCISE_SETTINGS', payload: { key, settings: { barKg: bar } } })}
+                    className={`h-11 px-3.5 rounded-full text-[15px] ${on ? 'bg-(--color-text-primary) text-(--color-bg-primary) font-semibold' : 'bg-(--color-bg-input)'}`}>
+                    {bar ? `${bar} kg bar` : 'Bar yok'}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {info?.rule && (
