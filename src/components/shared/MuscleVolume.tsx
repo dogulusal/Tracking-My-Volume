@@ -3,7 +3,7 @@ import { AppContext } from '@/context/AppContext';
 import { useReadOnly } from '@/context/ReadOnly';
 import { BottomSheet } from '@/components/shared/BottomSheet';
 import {
-  MUSCLE_GROUPS, UNASSIGNED, exerciseKey, groupOf, loggedExercises, muscleVolume, recentBlocks, suggestedGroup, weeklyPeriods,
+  MUSCLE_GROUPS, UNASSIGNED, type GroupOrUnassigned, exerciseKey, groupOf, loggedExercises, muscleVolume, recentBlocks, suggestedGroup, weeklyPeriods,
 } from '@/utils/muscleGroups';
 
 type Mode = 'week' | 'block';
@@ -11,6 +11,12 @@ const MODE_KEY = 'volume-period-mode';
 const nf = new Intl.NumberFormat('tr-TR');
 
 const signed = (value: number) => value === 0 ? '±0' : `${value > 0 ? '+' : '−'}${nf.format(Math.abs(value))}`;
+
+const GROUP_INK: Record<GroupOrUnassigned, string> = {
+  'Göğüs': 'var(--mg-chest)', 'Sırt': 'var(--mg-back)', 'Omuz': 'var(--mg-shoulders)', 'Biceps': 'var(--mg-biceps)',
+  'Triceps': 'var(--mg-triceps)', 'Bacak': 'var(--mg-legs)', 'Baldır': 'var(--mg-calves)', 'Karın': 'var(--mg-core)',
+  [UNASSIGNED]: 'var(--color-text-secondary)',
+};
 
 /**
  * Working sets per muscle group, week by week or in four-week blocks, across
@@ -58,10 +64,8 @@ export function MuscleVolume() {
     .sort((a, b) => b.now.sets - a.now.sets);
   const exercises = loggedExercises(state);
   const unassigned = exercises.filter(item => groupOf(item.name, state.muscleGroups) === UNASSIGNED);
-  // Monochrome on purpose: colour in this app means gain, drop or a first
-  // record. Shades step from the largest group to the smallest, in the same
-  // order as the list and clockwise round the ring.
-  const shadeOf = (rank: number) => 1 - rank * (0.8 / Math.max(1, ranked.length - 1));
+  // Each region keeps its own colour in every period, so a slice is known by
+  // its colour; the list runs largest first, clockwise round the ring.
   const focused = ranked.find(row => row.group === focus && row.now.sets > 0) ?? null;
 
   // A container: the ring sits beside its list only when this block itself
@@ -107,7 +111,7 @@ export function MuscleVolume() {
         {/* The period as a ring: its total in the middle, each region a slice.
             Tapping a region (in the ring or the list) names it in the middle. */}
         <div className="mt-5 grid gap-5 @xl:grid-cols-[15rem_minmax(0,1fr)] @xl:items-center @xl:gap-10">
-          <Ring slices={ranked.map((row, rank) => ({ key: row.group, value: row.now.sets, shade: shadeOf(rank) }))}
+          <Ring slices={ranked.map(row => ({ key: row.group, value: row.now.sets, color: GROUP_INK[row.group] }))}
             focus={focused?.group ?? null} onFocus={key => setFocus(value => value === key ? null : key)}
             center={focused ? (
               <>
@@ -122,13 +126,13 @@ export function MuscleVolume() {
               </>
             )} />
           <ul className="flex flex-col sm:max-w-sm">
-            {ranked.map((row, rank) => (
+            {ranked.map(row => (
               <li key={row.group}>
                 <button type="button" onClick={() => setFocus(value => value === row.group ? null : row.group)} aria-pressed={focus === row.group}
                   className="lb-press w-full min-h-10 -mx-2 px-2 rounded-lg flex items-center gap-3 text-left"
                   style={focus === row.group ? { background: 'color-mix(in srgb, var(--color-text-primary) 8%, transparent)' } : undefined}>
                   <span aria-hidden="true" className="w-3 h-3 rounded-full shrink-0"
-                    style={{ background: 'var(--color-text-primary)', opacity: row.now.sets ? shadeOf(rank) : 0.12 }} />
+                    style={{ background: GROUP_INK[row.group], opacity: row.now.sets ? 1 : 0.25 }} />
                   <span className={`flex-1 min-w-0 truncate text-sm ${row.group === UNASSIGNED ? 'text-(--color-text-secondary)' : 'font-medium'}`}>{row.group}</span>
                   <span className="lb-figure text-sm text-right whitespace-nowrap">
                     {row.now.sets}<span className="text-xs text-(--color-text-secondary)"> set</span>
@@ -181,11 +185,11 @@ export function MuscleVolume() {
 
 /**
  * A ring of slices drawn as dashed circles, starting at twelve o'clock and
- * going clockwise, with a small gap between slices. The focused slice is full
- * strength and the rest fade back.
+ * going clockwise, with a small gap between slices. The focused slice keeps
+ * its colour and the rest fade back.
  */
 function Ring({ slices, focus, onFocus, center }: {
-  slices: { key: string; value: number; shade: number }[];
+  slices: { key: string; value: number; color: string }[];
   focus: string | null;
   onFocus: (key: string) => void;
   center: React.ReactNode;
@@ -211,8 +215,8 @@ function Ring({ slices, focus, onFocus, center }: {
           offset += length;
           return (
             <circle key={slice.key} cx={size / 2} cy={size / 2} r={radius} fill="none"
-              stroke="var(--color-text-primary)" strokeWidth={stroke} strokeDasharray={dash} strokeDashoffset={at}
-              strokeOpacity={focus === null ? slice.shade : focus === slice.key ? 1 : 0.1}
+              stroke={slice.color} strokeWidth={stroke} strokeDasharray={dash} strokeDashoffset={at}
+              strokeOpacity={focus === null || focus === slice.key ? 1 : 0.15}
               onClick={() => onFocus(slice.key)} className="cursor-pointer transition-[stroke-opacity] duration-200" />
           );
         })}

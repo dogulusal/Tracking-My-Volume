@@ -190,6 +190,16 @@ input[type="number"]::-webkit-outer-spin-button {
   --lb-drop-fill: rgb(255 123 110 / 0.14);
   --lb-ref-fill: rgb(125 176 255 / 0.14);
   --lb-press: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  /* A colour per muscle region (Setler). Away from the gain green, the drop
+     red and the reference blue, which keep their meaning everywhere. */
+  --mg-chest: #2dd4bf;
+  --mg-back: #a78bfa;
+  --mg-shoulders: #facc15;
+  --mg-biceps: #f472b6;
+  --mg-triceps: #38bdf8;
+  --mg-legs: #fb923c;
+  --mg-calves: #a3e635;
+  --mg-core: #e879f9;
   color: var(--color-text-primary);
 }
 
@@ -200,6 +210,14 @@ input[type="number"]::-webkit-outer-spin-button {
   --lb-gain-fill: #dcefe2;
   --lb-drop-fill: #f8dedb;
   --lb-ref-fill: #dfe8fb;
+  --mg-chest: #0d9488;
+  --mg-back: #7c3aed;
+  --mg-shoulders: #ca8a04;
+  --mg-biceps: #db2777;
+  --mg-triceps: #0284c7;
+  --mg-legs: #ea580c;
+  --mg-calves: #65a30d;
+  --mg-core: #c026d3;
 }
 
 /* Figures and titles: condensed, so a number can be big without wrapping;
