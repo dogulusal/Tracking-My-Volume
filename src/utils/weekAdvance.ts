@@ -11,8 +11,11 @@ export function daysSince(date: string, today: Date): number | null {
 }
 
 // The week only moves on when the person says so. Someone who forgets would
-// open next week's workout on top of this week's record and overwrite it.
-export const STALE_DAY_DAYS = 5;
+// open next week's workout on top of this week's record and overwrite it:
+// asked when a day is opened a whole week after its record (it repeats
+// after 7), not earlier, which only interrupted. 7, not Bugün's 8: on the
+// 7th day Bugün has not asked yet, and this is the last guard.
+export const STALE_DAY_DAYS = 7;
 // Bugün asks only once a day of the week has gone a whole week without being
 // trained again (the 8th day): a weekly plan repeats a day after 7, so asking
 // earlier only interrupts a normal week.

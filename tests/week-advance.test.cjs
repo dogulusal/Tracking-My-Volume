@@ -35,9 +35,10 @@ test('days are counted by calendar day, for plain and ISO dates', () => {
   assert.equal(daysSince('not a date', today), null);
 });
 
-test('a record this week from 5+ days ago is probably a new workout', () => {
-  assert.equal(staleRecordAge(log(7, '2026-10-05'), 7, today), 5);
-  assert.equal(staleRecordAge(log(7, '2026-10-06'), 7, today), null);
+test('a record this week from a week ago or more is probably a new workout', () => {
+  assert.equal(staleRecordAge(log(7, '2026-10-03'), 7, today), 7);
+  assert.equal(staleRecordAge(log(7, '2026-10-04'), 7, today), null);
+  assert.equal(staleRecordAge(log(7, '2026-10-05'), 7, today), null);
 });
 
 test('an earlier week, a holiday or an empty record is never questioned', () => {
