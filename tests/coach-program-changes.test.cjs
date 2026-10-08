@@ -71,3 +71,11 @@ test('a new day, a renamed day and a new order', () => {
 test('nothing changed, nothing to say', () => {
   assert.deepEqual(describeProgramChanges(base, base), []);
 });
+
+test('a video added, changed or removed is said once per movement', () => {
+  const video = (key, videoUrl) => ({ type: 'SET_EXERCISE_SETTINGS', payload: { key, settings: { videoUrl } } });
+  const withVideo = apply(base, video('bench press', 'https://youtu.be/a'), video('squat', 'https://youtu.be/s'));
+  assert.deepEqual(describeProgramChanges(base, withVideo), ['Bench Press: video eklendi', 'Squat: video eklendi']);
+  const changed = apply(withVideo, video('bench press', 'https://youtu.be/b'), video('squat', ''));
+  assert.deepEqual(describeProgramChanges(withVideo, changed), ['Bench Press: video değişti', 'Squat: video kaldırıldı']);
+});

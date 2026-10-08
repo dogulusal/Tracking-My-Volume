@@ -135,3 +135,19 @@ test("one coach cannot change another coach's plan", () => {
   ], other);
   assert.deepEqual(coachPlanOf(after, ahmet.id), plan);
 });
+
+test("a coach can send a technique video for a movement of their days, and nothing else of the movement's settings", () => {
+  const withPlan = send(athlete, 'u1', newPlanActions(athlete, ahmet, template, ids, now));
+  const settings = (key, values) => ({ type: 'SET_EXERCISE_SETTINGS', payload: { key, settings: values } });
+  const after = send(withPlan, 'u2', [
+    // Squat is in the coach's day: the link goes in, the seat note sent with it does not.
+    settings('squat', { videoUrl: 'https://youtu.be/squat', note: 'koltuk 9' }),
+    // Bench Press is only in the person's own day.
+    settings('bench press', { videoUrl: 'https://youtu.be/bench' }),
+    settings('squat', { repTop: 20 }),
+  ]);
+  assert.deepEqual(after.exerciseSettings, { squat: { videoUrl: 'https://youtu.be/squat' } });
+  // Only web links.
+  const scripted = send(withPlan, 'u3', [settings('squat', { videoUrl: 'javascript:alert(1)' })]);
+  assert.equal(scripted.exerciseSettings, undefined);
+});

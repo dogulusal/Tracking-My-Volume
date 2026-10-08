@@ -8,6 +8,8 @@ import { MOVEMENT_LIBRARY } from '@/data/movementLibrary';
 import { moveItem } from '@/utils/reorder';
 import type { ExerciseDefinition } from '@/types';
 import { onlyFirstPhase } from '@/utils/phases';
+import { exerciseKey } from '@/utils/muscleGroups';
+import { videoLink } from '@/utils/videoLink';
 
 function generateId(name: string): string {
   return name
@@ -45,6 +47,12 @@ export function ProgramEditor({ programId, exit, newOrder }: {
     existingProgram?.exercises || []
   );
   const [order, setOrder] = useState(existingProgram?.order || (newOrder ?? programs.length + 1));
+  // Video links as typed, by exercise id; a movement not in here keeps its
+  // link. Saved as the movement's setting (the same on every day), so a
+  // coach's link reaches the athlete with the update.
+  const [videos, setVideos] = useState<Record<string, string>>({});
+  const videoOf = (name: string) => ctx.state.exerciseSettings?.[exerciseKey(name)]?.videoUrl ?? '';
+  const badVideo = (id: string) => videos[id] !== undefined && videoLink(videos[id]) === null;
   const loadedEditorKey = useRef<string | null>(null);
 
   useEffect(() => {
@@ -55,6 +63,7 @@ export function ProgramEditor({ programId, exit, newOrder }: {
     setName(existingProgram?.name ?? '');
     setExercises(existingProgram?.exercises ?? []);
     setOrder(existingProgram?.order ?? newOrder ?? programs.length + 1);
+    setVideos({});
   }, [id, week, existingProgram, programs.length]);
 
   const addExercise = () => {
@@ -87,7 +96,7 @@ export function ProgramEditor({ programId, exit, newOrder }: {
   };
 
   const handleSave = () => {
-    if (!name.trim()) return;
+    if (!name.trim() || exercises.some(exercise => badVideo(exercise.id))) return;
 
     const finalExercises = exercises.map(e => ({
       ...e,
@@ -107,6 +116,15 @@ export function ProgramEditor({ programId, exit, newOrder }: {
     } else {
       addProgram({ name, order, exercises: finalExercises });
     }
+    exercises.forEach((exercise, index) => {
+      const typed = videos[exercise.id];
+      const movement = finalExercises[index].name.trim();
+      if (typed === undefined || !movement) return;
+      const link = videoLink(typed);
+      if (link !== null && link !== videoOf(movement)) {
+        ctx.dispatch({ type: 'SET_EXERCISE_SETTINGS', payload: { key: exerciseKey(movement), settings: { videoUrl: link } } });
+      }
+    });
     navigate(exitTo);
   };
 
@@ -164,6 +182,14 @@ export function ProgramEditor({ programId, exit, newOrder }: {
                 <NumberInput value={exercise.defaultReps} onValueChange={value => updateExercise(idx, 'defaultReps', value)} min={0} className={numberClass} />
               </label>
             </div>
+            {(videos[exercise.id] !== undefined || videoOf(exercise.name)) && (
+              <label className="mt-2 ml-8 block text-[12px] text-(--color-text-secondary)">Video linki · nasıl yapıldığını gösteren
+                <input type="url" inputMode="url" value={videos[exercise.id] ?? videoOf(exercise.name)} placeholder="youtube.com/…"
+                  onChange={e => setVideos(prev => ({ ...prev, [exercise.id]: e.target.value }))}
+                  className="mt-1 w-full h-12 px-3 rounded-xl bg-(--color-bg-input) text-[16px]! text-(--color-text-primary) focus:outline-none placeholder:text-(--color-text-secondary)" />
+                {badVideo(exercise.id) && <span className="mt-1 block text-[12px]" style={{ color: 'var(--lb-drop)' }}>Bir web adresi yaz (https://…).</span>}
+              </label>
+            )}
             <div className="mt-1 ml-8 flex items-center gap-1">
               <button onClick={() => moveExercise(idx, -1)} disabled={idx === 0} aria-label={`${exercise.name || 'Hareket'} yukarı taşı`}
                 className="h-11 px-3 text-[15px] text-(--color-text-secondary) disabled:opacity-30">Yukarı</button>
@@ -171,6 +197,9 @@ export function ProgramEditor({ programId, exit, newOrder }: {
                 className="h-11 px-3 text-[15px] text-(--color-text-secondary) disabled:opacity-30">Aşağı</button>
               {!exercise.isActive && (
                 <button onClick={() => updateExercise(idx, 'isActive', true)} className="h-11 px-3 text-[15px]">Geri al</button>
+              )}
+              {videos[exercise.id] === undefined && !videoOf(exercise.name) && (
+                <button onClick={() => setVideos(prev => ({ ...prev, [exercise.id]: '' }))} className="h-11 px-3 text-[15px] text-(--color-text-secondary)">+ Video</button>
               )}
               <button onClick={() => removeExercise(idx)} aria-label={`${exercise.name || 'Hareket'} sil`}
                 className="ml-auto h-11 min-w-11 px-3 text-[15px]" style={{ color: 'var(--lb-drop)' }}>Sil</button>
@@ -181,7 +210,7 @@ export function ProgramEditor({ programId, exit, newOrder }: {
       <button onClick={addExercise} className="mt-2 w-full h-14 rounded-2xl bg-(--color-bg-card) text-[16px] font-medium">Hareket ekle</button>
 
       <div className="mt-8 flex flex-col gap-2">
-        <button onClick={handleSave} disabled={!name.trim()}
+        <button onClick={handleSave} disabled={!name.trim() || exercises.some(exercise => badVideo(exercise.id))}
           className="h-16 rounded-[18px] bg-(--color-text-primary) text-(--color-bg-primary) text-[19px] font-semibold disabled:opacity-40">Kaydet</button>
         <button onClick={() => navigate(exitTo)} className="h-12 rounded-2xl text-[16px] text-(--color-text-secondary)">Vazgeç</button>
       </div>

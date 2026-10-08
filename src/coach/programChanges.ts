@@ -1,5 +1,6 @@
 import type { AppState, ExerciseDefinition, Program } from '@/types';
 import { programVersionAt } from '@/utils/programVersions';
+import { exerciseKey } from '@/utils/muscleGroups';
 
 /** The plan's days this week; the plan in use when no id is given. */
 const planDays = (state: AppState, planId?: string): Program[] => {
@@ -56,6 +57,16 @@ export function describeProgramChanges(before: AppState, after: AppState, planId
   }
   for (const day of old) {
     if (!now.some(item => item.id === day.id)) lines.push(`Plandan çıktı: ${day.name}`);
+  }
+  // A video belongs to the movement, not the day: said once per movement.
+  const seen = new Set<string>();
+  for (const exercise of now.flatMap(day => active(day.exercises))) {
+    const key = exerciseKey(exercise.name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const was = before.exerciseSettings?.[key]?.videoUrl;
+    const is = after.exerciseSettings?.[key]?.videoUrl;
+    if (was !== is) lines.push(`${exercise.name}: ${!was ? 'video eklendi' : !is ? 'video kaldırıldı' : 'video değişti'}`);
   }
   return lines;
 }

@@ -3,6 +3,8 @@ import type { AppState, AppAction, CoachUpdatePayload } from '@/types';
 import { CURRENT_DATA_VERSION } from '@/data/migrations';
 import { normalizeGoogleSettings } from '@/utils/googleSheetsSettings';
 import { syncWeekLogFromProgramEdit } from '@/utils/exerciseSync';
+import { exerciseKey } from '@/utils/muscleGroups';
+import { videoLink } from '@/utils/videoLink';
 
 export const initialState: AppState = {
   dataVersion: CURRENT_DATA_VERSION,
@@ -69,6 +71,15 @@ export function applyCoachUpdate(state: AppState, update: CoachUpdatePayload): A
       // No syncCurrentLog: a coach's change never rewrites a workout already logged.
       if (!owned.has(action.payload.id)) continue;
       next = appReducer(next, { type: 'UPDATE_PROGRAM', atWeek: week, payload: action.payload });
+    } else if (action.type === 'SET_EXERCISE_SETTINGS') {
+      // Only a technique video, a web link, for a movement of the coach's days:
+      // the person's own settings (seat note, rule, bar) stay theirs.
+      const link = action.payload.settings?.videoUrl;
+      if (typeof link !== 'string' || videoLink(link) !== link) continue;
+      const coached = scope.programs.some(program => owned.has(program.id)
+        && program.exercises.some(exercise => exercise.isActive && exerciseKey(exercise.name) === action.payload.key));
+      if (!coached) continue;
+      next = appReducer(next, { type: 'SET_EXERCISE_SETTINGS', payload: { key: action.payload.key, settings: { videoUrl: link } } });
     }
   }
 
