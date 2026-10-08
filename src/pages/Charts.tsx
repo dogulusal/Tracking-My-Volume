@@ -2,6 +2,7 @@ import { useContext, useEffect, useMemo, useState } from 'react';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { STATUS_INK, Sparkline, TrendChart, kg, phaseChange, repsLabel, topSet } from '@/components/shared/ExerciseTrend';
 import { MuscleVolume } from '@/components/shared/MuscleVolume';
+import { BodyMeasurements } from '@/components/shared/BodyMeasurements';
 import { AppContext } from '@/context/AppContext';
 import { currentPhaseIndex, startedPhases } from '@/utils/phases';
 import { usePlans } from '@/hooks/usePlans';
@@ -12,7 +13,7 @@ import { buildPhaseGrid, type GridRow } from '../../supabase/functions/_shared/h
 
 const CHARTS_STATE_KEY = 'charts-page-state-v1';
 const CHARTS_VIEW_KEY = 'charts-view';
-type View = 'progress' | 'volume';
+type View = 'progress' | 'volume' | 'body';
 const COUNTED = [
   { status: 'improved', label: 'ilerleme' },
   { status: 'same', label: 'aynı' },
@@ -57,7 +58,10 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
   const { state } = ctx;
   const currentWeek = state.currentWeek;
   const [view, setViewState] = useState<View>(() => {
-    try { return localStorage.getItem(CHARTS_VIEW_KEY) === 'volume' ? 'volume' : 'progress'; } catch { return 'progress'; }
+    try {
+      const saved = localStorage.getItem(CHARTS_VIEW_KEY);
+      return saved === 'volume' || saved === 'body' ? saved : 'progress';
+    } catch { return 'progress'; }
   });
   const setView = (next: View) => {
     setViewState(next);
@@ -106,12 +110,12 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
         <p className={`lb-label mt-1 ${sideBySide ? 'xl:hidden' : ''}`}>
           {view === 'progress'
             ? 'Her hareketin en ağır seti, hafta hafta. Renkler Geçmiş tablosuyla aynı.'
-            : 'Haftada bölge başına çalışılan set. Bütün günler sayılır.'}
+            : view === 'volume' ? 'Haftada bölge başına çalışılan set. Bütün günler sayılır.' : BODY_TEXT}
         </p>
       </div>
 
       <div className={`flex gap-1 mb-5 border-b lb-rule ${sideBySide ? 'xl:hidden' : ''}`} role="tablist">
-        {([['progress', 'İlerleme'], ['volume', 'Bölge başına set']] as const).map(([key, label]) => (
+        {([['progress', 'İlerleme'], ['volume', 'Bölge başına set'], ['body', 'Vücut']] as const).map(([key, label]) => (
           <button key={key} type="button" role="tab" aria-selected={view === key} onClick={() => setView(key)}
             className={`lb-press -mb-px px-3 py-2 text-sm border-b-2 ${
               view === key ? 'font-semibold border-(--color-text-primary)' : 'font-medium border-transparent text-(--color-text-secondary) hover:text-(--color-text-primary)'
@@ -236,10 +240,18 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
           <StalledList stalled={stalled} showAll={showAllStalled} onToggle={() => setShowAllStalled(value => !value)} twoColumns />
         </div>
       )}
+      {(sideBySide || view === 'body') && (
+        <div className={`${view === 'body' ? '' : 'hidden xl:block'} ${sideBySide ? `xl:col-span-2 ${PANEL}` : ''}`}>
+          {sideBySide && <ColumnHead title="Vücut" text={BODY_TEXT} />}
+          <BodyMeasurements />
+        </div>
+      )}
       </div>
     </PageContainer>
   );
 }
+
+const BODY_TEXT = 'Kilo ve ölçüler, haftalık ortalama. Hedefe ne kaldığı.';
 
 // A part of the page on a wide screen: a filled surface with its own title.
 const PANEL = 'xl:rounded-[22px] xl:bg-(--color-bg-card) xl:p-6';

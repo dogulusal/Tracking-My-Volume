@@ -39,7 +39,7 @@ function scaleFor(points: Recorded[], top: number, bottom: number, pad: number) 
   return { min, max, span, y: (value: number) => bottom - ((value - lo) / (hi - lo)) * (bottom - top) };
 }
 
-function useWidth<T extends HTMLElement>() {
+export function useWidth<T extends HTMLElement>() {
   const ref = useRef<T>(null);
   const [width, setWidth] = useState(0);
   useLayoutEffect(() => {
