@@ -38,7 +38,14 @@ export interface ProgramUpdate {
   planId: string;
   planName: string;
   isNew: boolean;
+  /** When the athlete closed its card on Bugün; null before, absent in the demo. */
+  seenAt?: string | null;
 }
+/**
+ * Where a sent update is: sent (the athlete's app has not opened since),
+ * applied (their program has it, the card not looked at yet) or seen.
+ */
+export type UpdateStatus = 'sent' | 'applied' | 'seen';
 export interface ReceivedUpdate extends ProgramUpdate { coach: string; coachId: string; seen: boolean }
 
 export interface Invite { code: string; expiresAt: string }
@@ -98,7 +105,7 @@ const groupsOf = (invites: Record<string, Invite>, athletes: Athlete[], extra: s
 
 const toUpdate = (row: cloud.UpdateRow): ProgramUpdate => ({
   id: row.id, at: row.created_at, actions: row.actions, lines: row.lines,
-  planId: row.plan_id, planName: row.plan_name, isNew: row.is_new,
+  planId: row.plan_id, planName: row.plan_name, isNew: row.is_new, seenAt: row.seen_at,
 });
 
 const byAthlete = <T extends { athleteId: string }>(list: T[]) =>
@@ -120,6 +127,8 @@ interface CoachValue extends Omit<CoachData, 'records'> {
   attentionCount: number;
   /** The athlete's record with every update sent so far applied. */
   athleteState: (id: string) => AppState | null;
+  /** From the athlete's last synced record, not the coach's view of it (which has every update applied). */
+  updateStatus: (athleteId: string, update: ProgramUpdate) => UpdateStatus;
   /** The same, with the coach's unsent program edits on top. */
   draftState: (id: string) => AppState | null;
   draftDispatch: (athleteId: string, action: AppAction) => void;
@@ -385,6 +394,8 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       summaries,
       attentionCount: Object.values(summaries).filter(summary => needsAttention(summary)).length,
       athleteState: id => states[id] ?? null,
+      updateStatus: (athleteId, update) => update.seenAt ? 'seen'
+        : data.records[athleteId]?.appliedCoachUpdates?.includes(update.id) ? 'applied' : 'sent',
       draftState: id => drafted[id] ?? null,
       draftDispatch: (athleteId, action) => {
         // Edits only ever reach the plan the coach set up. A new day goes into

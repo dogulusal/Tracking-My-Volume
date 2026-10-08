@@ -128,6 +128,13 @@ export function AthleteProgram({ athleteId, firstName }: { athleteId: string; fi
   const inUse = current ? activePlanOf(current).plan : null;
   const usesMine = Boolean(inUse && sentPlan && inUse.id === sentPlan.id);
   const lastSent = coach.sent[athleteId]?.[coach.sent[athleteId].length - 1];
+  // Whether a sent change has reached the athlete: the view above already
+  // shows it applied, which alone does not tell.
+  const statusText = (update: NonNullable<typeof lastSent>) => ({
+    sent: `${firstName} uygulamayı henüz açmadı`,
+    applied: 'Programına işlendi, henüz bakmadı',
+    seen: `${firstName} gördü`,
+  })[coach.updateStatus(athleteId, update)];
   const week = weekName(draft.phases, draft.currentWeek, draft.currentWeek);
   const showing = mine.plan && (view === 'mine' || !own.plan) ? 'mine' : 'own';
   const tab = (active: boolean) =>
@@ -251,11 +258,12 @@ export function AthleteProgram({ athleteId, firstName }: { athleteId: string; fi
               <button onClick={() => setShowSent(value => !value)} aria-expanded={showSent} className="h-11 text-[15px] font-semibold">
                 Gönderilenler ({sent.length}) <span className="text-(--color-text-secondary) font-normal">{showSent ? '· gizle' : '· göster'}</span>
               </button>
+              {!showSent && lastSent && <p className="text-[13px] text-(--color-text-secondary)">Son gönderilen: {statusText(lastSent)}</p>}
               {showSent && (
                 <ul>
                   {sent.map(update => (
                     <li key={update.id} className="py-2.5 border-b border-(--color-bg-card) last:border-b-0">
-                      <p className="text-[13px] text-(--color-text-secondary)">{sentDate.format(new Date(update.at))}</p>
+                      <p className="text-[13px] text-(--color-text-secondary)">{sentDate.format(new Date(update.at))} · {statusText(update)}</p>
                       <ul className="mt-0.5 text-[15px] leading-snug">{update.lines.map(line => <li key={line}>{line}</li>)}</ul>
                     </li>
                   ))}
