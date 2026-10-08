@@ -245,9 +245,20 @@ function labelled(xs: number[], values: number[], gap: number): Set<number> {
 }
 
 /**
+ * A move's colour against the target, as gain and drop are coloured
+ * elsewhere: green toward it, red away; none without a target or a move.
+ */
+function goalInk(from: number, to: number, goal?: number) {
+  if (goal === undefined || Math.abs(to - from) < 0.05) return undefined;
+  return Math.sign(to - from) === Math.sign(goal - from) ? 'var(--lb-gain)' : 'var(--lb-drop)';
+}
+
+/**
  * A measurement week by week, full size: a gridline per unit or round step
  * with its value, each week's value written by its dot, the target as a
- * dashed line. Tapping a week tells it and its change from the week before.
+ * dashed line. With a target each dot is green or red for the week's move
+ * toward or away from it. Tapping a week tells it and its change from the
+ * week before.
  */
 function BodyChart({ series, goal, label, unit }: { series: { week: string; value: number }[]; goal?: number; label: string; unit: string }) {
   const [ref, width] = useWidth<HTMLDivElement>();
@@ -280,7 +291,8 @@ function BodyChart({ series, goal, label, unit }: { series: { week: string; valu
       <p className="lb-label">
         <span className="text-(--color-text-primary)">{shortDate(series[shown].week)} haftası</span>
         {' · '}<span className="lb-figure text-(--color-text-primary) font-semibold">{withUnit(tenth(values[shown]), unit)}</span>
-        {fromPrev !== null && <> · önceki ölçülen haftaya göre <span className="lb-figure">{signed(fromPrev)}</span></>}
+        {fromPrev !== null && <> · önceki ölçülen haftaya göre <span className="lb-figure font-semibold"
+          style={{ color: goalInk(values[shown - 1], values[shown], goal) }}>{signed(fromPrev)}</span></>}
       </p>
       <div ref={ref} className="mt-1">
         {width > 0 && (
@@ -309,11 +321,12 @@ function BodyChart({ series, goal, label, unit }: { series: { week: string; valu
               // Solid across a week without a measurement: the waist taken every
               // other week is not a broken line; the gap shows in the spacing.
               <line key={point.week} x1={xs[i]} y1={y(values[i])} x2={xs[i + 1]} y2={y(values[i + 1])}
-                style={{ stroke: 'var(--color-text-primary)' }} strokeOpacity="0.75" strokeWidth="2" strokeLinecap="round" />
+                style={{ stroke: 'var(--color-text-secondary)' }} strokeOpacity="0.8" strokeWidth="2" strokeLinecap="round" />
             ))}
             {series.map((point, index) => (
               <circle key={point.week} cx={xs[index]} cy={y(point.value)} r={index === shown ? 5.5 : 3.5}
-                style={{ fill: 'var(--color-text-primary)', stroke: 'var(--color-bg-primary)' }} strokeWidth="2" />
+                style={{ fill: (index > 0 && goalInk(values[index - 1], point.value, goal)) || 'var(--color-text-primary)', stroke: 'var(--color-bg-primary)' }}
+                strokeWidth="2" />
             ))}
             {series.map((point, index) => {
               if (!valueLabels.has(index) && index !== shown) return null;
@@ -331,6 +344,12 @@ function BodyChart({ series, goal, label, unit }: { series: { week: string; valu
           </svg>
         )}
       </div>
+      {goal !== undefined && (
+        <p className="lb-label mt-1 flex gap-4">
+          <span className="flex items-center gap-1.5"><span aria-hidden="true" className="w-2 h-2 rounded-full" style={{ background: 'var(--lb-gain)' }} />hedefe yaklaştı</span>
+          <span className="flex items-center gap-1.5"><span aria-hidden="true" className="w-2 h-2 rounded-full" style={{ background: 'var(--lb-drop)' }} />uzaklaştı</span>
+        </p>
+      )}
     </div>
   );
 }
@@ -405,6 +424,7 @@ export function BodyMeasurements() {
           const series = weeklySeries(row.points);
           // From week to week, as the chart: a daily weigh-in's swing is left out.
           const trend = seriesChange(series)!;
+          const trendInk = goalInk(series[0].value, series[series.length - 1].value, goal);
           const open = openId === row.id;
           const reached = goal !== undefined && status.toGoal !== null
             && (status.toGoal === 0 || (goal !== status.first && Math.sign(status.toGoal) !== Math.sign(goal - status.first)));
@@ -429,8 +449,8 @@ export function BodyMeasurements() {
                 <div className="lb-settle pb-5">
                   {/* The result first, in figures: how much, how fast, how far the target is. */}
                   <div className="grid grid-cols-3 gap-3 max-w-xl">
-                    {series.length > 1 && <Stat figure={withUnit(signed(trend.change), row.unit)} note={`${trend.weeks} haftada`} />}
-                    {series.length > 1 && <Stat figure={trend.perWeek === null ? '—' : withUnit(signed(trend.perWeek), row.unit)} note="haftada ortalama" />}
+                    {series.length > 1 && <Stat color={trendInk} figure={withUnit(signed(trend.change), row.unit)} note={`${trend.weeks} haftada`} />}
+                    {series.length > 1 && <Stat color={trendInk} figure={trend.perWeek === null ? '—' : withUnit(signed(trend.perWeek), row.unit)} note="haftada ortalama" />}
                     {goal !== undefined ? (
                       <button disabled={readOnly} onClick={() => setGoalFor(row)} className="text-left min-w-0">
                         <Stat color="var(--lb-gain)" figure={reached ? 'Ulaşıldı' : withUnit(num(Math.abs(status.toGoal!)), row.unit)}

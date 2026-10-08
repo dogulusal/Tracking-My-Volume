@@ -61,6 +61,8 @@ test('the chart scale has whole-unit gridlines and is never narrower than two un
   assert.deepEqual(chartScale([84.6, 81.8, 79]).ticks, [79, 80, 81, 82, 83, 84, 85]);
   // Half a centimetre does not fill the chart.
   assert.deepEqual(chartScale([39.5, 39]), { lo: 38, hi: 41, ticks: [38, 39, 40, 41] });
+  // A target a few kilos below the weeks: still a kilo apart.
+  assert.deepEqual(chartScale([86.5, 82.7, 80]).ticks, [80, 81, 82, 83, 84, 85, 86, 87]);
   // Twenty kilos: five apart.
   assert.deepEqual(chartScale([100, 80]).ticks, [80, 85, 90, 95, 100]);
 });

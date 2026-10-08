@@ -120,9 +120,9 @@ export const MIN_SPAN = 2;
 const STEPS = [1, 2, 5, 10, 20, 50];
 
 /**
- * A body chart's scale: whole-unit gridlines, at most six spaces between
- * them, and never narrower than MIN_SPAN, so half a centimetre does not fill
- * the chart the way four do.
+ * A body chart's scale: whole-unit gridlines, at most eight spaces between
+ * them (a kilo apart up to eight kilos), and never narrower than MIN_SPAN,
+ * so half a centimetre does not fill the chart the way four do.
  */
 export function chartScale(values: number[]): { lo: number; hi: number; ticks: number[] } {
   let min = Math.min(...values);
@@ -132,7 +132,7 @@ export function chartScale(values: number[]): { lo: number; hi: number; ticks: n
     min = mid - MIN_SPAN / 2;
     max = mid + MIN_SPAN / 2;
   }
-  const step = STEPS.find(candidate => (max - min) / candidate <= 6) ?? STEPS[STEPS.length - 1];
+  const step = STEPS.find(candidate => (max - min) / candidate <= 8) ?? STEPS[STEPS.length - 1];
   const lo = Math.floor(min / step) * step;
   const hi = Math.ceil(max / step) * step;
   return { lo, hi, ticks: Array.from({ length: Math.round((hi - lo) / step) + 1 }, (_, i) => lo + i * step) };
