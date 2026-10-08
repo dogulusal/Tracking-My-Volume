@@ -19,7 +19,7 @@ function loadTS(relativePath) {
   return module.exports;
 }
 
-const { planSync, mergeStates } = loadTS('src/utils/cloudSync.ts');
+const { planSync, mergeStates, writeOverRead } = loadTS('src/utils/cloudSync.ts');
 const { initialState } = loadTS('src/context/appReducer.ts');
 
 const log = (programId, weekNumber, updatedAt, weight = 50) => ({
@@ -69,4 +69,53 @@ test('body measurements from both devices are kept, day by day', () => {
   // The same day on both sides keeps the side edited last.
   assert.deepEqual(merged.bodyMeasurements.map(entry => `${entry.date} ${entry.weight}`), ['2026-10-01 81.6', '2026-10-06 81', '2026-10-08 80.4']);
   assert.equal('bodyMeasurements' in mergeStates({ ...initialState, weekLogs: [] }, { ...initialState, weekLogs: [] }, '2026-10-08T18:00:00Z', '2026-10-08T12:00:00Z'), false);
+});
+
+// The calls writeOverRead makes, over one stored row, as Supabase answers them.
+function cloudRow(initial) {
+  const store = { row: initial };
+  const client = {
+    from: () => ({
+      update(values) {
+        const filters = {};
+        const query = {
+          eq(column, value) { filters[column] = value; return query; },
+          async select() {
+            const row = store.row;
+            if (!row || row.user_id !== filters.user_id || row.updated_at !== filters.updated_at) return { data: [], error: null };
+            store.row = { ...row, ...values };
+            return { data: [{ user_id: row.user_id }], error: null };
+          },
+        };
+        return query;
+      },
+      insert(values) {
+        return {
+          async select() {
+            if (store.row) return { data: null, error: { code: '23505', message: 'duplicate key value' } };
+            store.row = values;
+            return { data: [{ user_id: values.user_id }], error: null };
+          },
+        };
+      },
+    }),
+  };
+  return { store, client };
+}
+
+test('two devices that read the same copy cannot both write: the second is told to read again', async () => {
+  const { store, client } = cloudRow({ user_id: 'me', data: { weekLogs: [] }, updated_at: '2026-10-08T10:00:00+00:00' });
+  const phone = { ...initialState, weekLogs: [log('upper', 5, '2026-10-08T10:01:00Z')] };
+  const laptop = { ...initialState, weekLogs: [log('lower', 5, '2026-10-08T10:01:00Z')] };
+  assert.equal(await writeOverRead(client, 'me', phone, '2026-10-08T10:02:00.000Z', '2026-10-08T10:00:00+00:00'), 'written');
+  assert.equal(await writeOverRead(client, 'me', laptop, '2026-10-08T10:02:01.000Z', '2026-10-08T10:00:00+00:00'), 'conflict');
+  // The phone's workout is still there for the laptop to merge with.
+  assert.equal(store.row.data.weekLogs[0].programId, 'upper');
+  assert.equal(await writeOverRead(client, 'me', laptop, '2026-10-08T10:02:02.000Z', '2026-10-08T10:02:00.000Z'), 'written');
+});
+
+test('with no row read the row is created; one another device created meanwhile is a conflict', async () => {
+  const empty = cloudRow(null);
+  assert.equal(await writeOverRead(empty.client, 'me', initialState, '2026-10-08T10:00:00.000Z', null), 'written');
+  assert.equal(await writeOverRead(empty.client, 'me', initialState, '2026-10-08T10:00:01.000Z', null), 'conflict');
 });

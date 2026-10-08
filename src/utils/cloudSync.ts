@@ -1,4 +1,24 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppState, WeekLog } from '@/types';
+
+export type CloudWrite = 'written' | 'conflict' | { error: string };
+
+/**
+ * Saves `data` over the cloud copy read at `readAt` and over no other: two
+ * devices that read the same copy no longer both write, the second silently
+ * replacing the first's workout. If another save came in between, nothing is
+ * written ('conflict'); the caller reads again and merges. With no row read
+ * the row is created, and one created meanwhile is a conflict too.
+ */
+export async function writeOverRead(client: SupabaseClient, userId: string, data: AppState, now: string, readAt: string | null): Promise<CloudWrite> {
+  const table = client.from('user_states');
+  const { data: rows, error } = readAt
+    ? await table.update({ data, updated_at: now }).eq('user_id', userId).eq('updated_at', readAt).select('user_id')
+    : await table.insert({ user_id: userId, data, updated_at: now }).select('user_id');
+  // 23505: the row another device created after this one found none.
+  if (error) return error.code === '23505' ? 'conflict' : { error: error.message };
+  return rows?.length ? 'written' : 'conflict';
+}
 
 /**
  * What this device knows about its last round trip with the cloud. It lives in

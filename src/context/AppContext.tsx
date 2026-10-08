@@ -5,7 +5,7 @@ import { appReducer, initialState } from './appReducer';
 import { applyMigrations, CURRENT_DATA_VERSION } from '@/data/migrations';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { authRedirectUrl } from '@/utils/authRedirect';
-import { mergeStates, planSync, type SyncMeta } from '@/utils/cloudSync';
+import { mergeStates, planSync, writeOverRead, type CloudWrite, type SyncMeta } from '@/utils/cloudSync';
 
 const STORAGE_KEY = 'workout-tracker';
 const LOCAL_OWNER_KEY = 'workout-tracker-owner';
@@ -184,59 +184,83 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const syncOnce = useCallback(async (current: User): Promise<SyncResult> => {
     const client = supabase!;
-    const revisionAtStart = localRevisionRef.current;
-    setSyncStatus('syncing');
-    const { data, error } = await client
-      .from('user_states')
-      .select('data, updated_at')
-      .eq('user_id', current.id)
-      .maybeSingle();
-    if (error) return syncFailed(current.id, error.message);
+    // Set when a write found the row changed since it was read: the next
+    // round reads again and merges what the other device saved.
+    let missedAt: string | null | undefined;
+    for (let round = 0; round < 3; round++) {
+      const revisionAtStart = localRevisionRef.current;
+      setSyncStatus('syncing');
+      const { data, error } = await client
+        .from('user_states')
+        .select('data, updated_at')
+        .eq('user_id', current.id)
+        .maybeSingle();
+      if (error) return syncFailed(current.id, error.message);
 
-    const rawCloudState: unknown = data?.data;
-    const cloudState = isLikelyAppState(rawCloudState) ? applyMigrations(rawCloudState) : null;
-    const remoteAt: string | null = data?.updated_at ?? null;
-    const meta = readSyncMeta();
-    const plan = planSync(meta, current.id, remoteAt, Boolean(cloudState));
+      const rawCloudState: unknown = data?.data;
+      const cloudState = isLikelyAppState(rawCloudState) ? applyMigrations(rawCloudState) : null;
+      const remoteAt: string | null = data?.updated_at ?? null;
+      const meta = readSyncMeta();
+      const plan = planSync(meta, current.id, remoteAt, Boolean(cloudState));
 
-    if (plan === 'adopt') {
-      // A read started before a local edit must never undo that edit.
-      if (revisionAtStart !== localRevisionRef.current) return { ok: false, message: 'Yerel değişiklikler korunuyor.' };
-      if (cloudState) {
-        if (JSON.stringify(cloudState) !== JSON.stringify(latestRef.current.state)) {
-          applyRemote({ type: 'IMPORT_DATA', payload: cloudState });
+      if (plan === 'adopt') {
+        // A read started before a local edit must never undo that edit.
+        if (revisionAtStart !== localRevisionRef.current) return { ok: false, message: 'Yerel değişiklikler korunuyor.' };
+        if (cloudState) {
+          if (JSON.stringify(cloudState) !== JSON.stringify(latestRef.current.state)) {
+            applyRemote({ type: 'IMPORT_DATA', payload: cloudState });
+          }
+        } else if (localStorage.getItem(LOCAL_OWNER_KEY) !== current.id) {
+          // A new account must never inherit the previous account's local workout data.
+          if (!localStorage.getItem(LOCAL_OWNER_KEY)) {
+            localStorage.setItem(GUEST_BACKUP_KEY, JSON.stringify(latestRef.current.state));
+          }
+          applyRemote({ type: 'RESET_DATA' });
         }
-      } else if (localStorage.getItem(LOCAL_OWNER_KEY) !== current.id) {
-        // A new account must never inherit the previous account's local workout data.
-        if (!localStorage.getItem(LOCAL_OWNER_KEY)) {
-          localStorage.setItem(GUEST_BACKUP_KEY, JSON.stringify(latestRef.current.state));
-        }
-        applyRemote({ type: 'RESET_DATA' });
+        return syncSucceeded(current, remoteAt, null, 'Buluttan en güncel veri alındı.');
       }
-      return syncSucceeded(current, remoteAt, null, 'Buluttan en güncel veri alındı.');
-    }
 
-    // The copy sent must contain every edit made so far; if one has not
-    // rendered yet, the sync it scheduled will send it.
-    if (latestRef.current.revision !== localRevisionRef.current) {
-      return { ok: false, message: 'Yerel değişiklikler korunuyor.' };
-    }
-    const { revision } = latestRef.current;
-    let toSave = latestRef.current.state;
-    if (plan === 'merge' && cloudState && meta?.localEditAt) {
-      toSave = mergeStates(toSave, cloudState, meta.localEditAt, remoteAt ?? meta.localEditAt);
-      applyRemote({ type: 'IMPORT_DATA', payload: toSave });
-    }
-    const now = new Date().toISOString();
-    const { error: saveError } = await client
-      .from('user_states')
-      .upsert({ user_id: current.id, data: toSave, updated_at: now }, { onConflict: 'user_id' });
-    if (saveError) return syncFailed(current.id, saveError.message);
+      // The copy sent must contain every edit made so far; if one has not
+      // rendered yet, the sync it scheduled will send it.
+      if (latestRef.current.revision !== localRevisionRef.current) {
+        return { ok: false, message: 'Yerel değişiklikler korunuyor.' };
+      }
+      const { revision } = latestRef.current;
+      let toSave = latestRef.current.state;
+      // After a missed write the row has another device's save, if it
+      // changed: merged in even if this device thought it was in step.
+      const mergeIn = plan === 'merge' || (missedAt !== undefined && missedAt !== remoteAt && cloudState !== null);
+      if (mergeIn && cloudState) {
+        const localEditAt = meta?.localEditAt ?? new Date().toISOString();
+        toSave = mergeStates(toSave, cloudState, localEditAt, remoteAt ?? localEditAt);
+        applyRemote({ type: 'IMPORT_DATA', payload: toSave });
+      }
+      const now = new Date().toISOString();
+      // A missed write while the row did not change is no race (nothing came
+      // in between): written plainly, as before, so a sync can never be held
+      // back for good by the condition itself.
+      const plain = missedAt !== undefined && missedAt === remoteAt;
+      let written: CloudWrite;
+      if (plain) {
+        const { error: saveError } = await client
+          .from('user_states')
+          .upsert({ user_id: current.id, data: toSave, updated_at: now }, { onConflict: 'user_id' });
+        written = saveError ? { error: saveError.message } : 'written';
+      } else {
+        written = await writeOverRead(client, current.id, toSave, now, remoteAt);
+      }
+      if (written === 'conflict') {
+        missedAt = remoteAt;
+        continue;
+      }
+      if (written !== 'written') return syncFailed(current.id, written.error);
 
-    const pendingEditAt = localRevisionRef.current === revision ? null : readSyncMeta()?.localEditAt ?? now;
-    return syncSucceeded(current, now, pendingEditAt, plan === 'merge'
-      ? 'Bu cihazdaki ve buluttaki değişiklikler birleştirildi.'
-      : 'Bu cihazdaki değişiklikler buluta gönderildi.');
+      const pendingEditAt = localRevisionRef.current === revision ? null : readSyncMeta()?.localEditAt ?? now;
+      return syncSucceeded(current, now, pendingEditAt, mergeIn
+        ? 'Bu cihazdaki ve buluttaki değişiklikler birleştirildi.'
+        : 'Bu cihazdaki değişiklikler buluta gönderildi.');
+    }
+    return syncFailed(current.id, 'başka bir cihaz aynı anda kaydediyor; birazdan yeniden denenecek.');
   }, [applyRemote, syncFailed, syncSucceeded]);
 
   /** One sync at a time; a request arriving mid-sync runs once more afterwards. */
