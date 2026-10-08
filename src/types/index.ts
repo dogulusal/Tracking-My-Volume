@@ -67,6 +67,8 @@ export interface ExerciseSettings {
   // The muscle region picked by hand when the name does not tell
   // (data/muscleRegions); absent means the name decides.
   region?: string;
+  // A web link showing how the movement is done (utils/videoLink).
+  videoUrl?: string;
 }
 
 export interface WeekLog {

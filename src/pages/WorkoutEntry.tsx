@@ -18,6 +18,8 @@ import { STALL_WEEKS, bestSet, nextTarget, previousRecord, progressionRule, stal
 import { weekName } from '@/utils/phases';
 import { summarizeWorkout } from '@/utils/workoutSummary';
 import { WorkoutSummaryCard } from '@/components/shared/WorkoutSummaryCard';
+import { MuscleMap } from '@/components/shared/MuscleMap';
+import { videoLink } from '@/utils/videoLink';
 import type { SetLog, Intensity, ExerciseLog } from '@/types';
 import { dayNotesOn, useComments } from '@/coach/comments';
 
@@ -139,6 +141,7 @@ export function WorkoutEntry() {
   const [orderDiffersFromProgram, setOrderDiffersFromProgram] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [pinnedEdit, setPinnedEdit] = useState<{ key: string; text: string } | null>(null);
+  const [videoEdit, setVideoEdit] = useState<{ key: string; text: string } | null>(null);
   const editedExerciseIdsRef = useRef<Set<string>>(new Set());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerTotalRef = useRef(restDurationSec);
@@ -207,6 +210,13 @@ export function WorkoutEntry() {
     if (!pinnedEdit) return;
     ctx?.dispatch({ type: 'SET_EXERCISE_SETTINGS', payload: { key: pinnedEdit.key, settings: { note: pinnedEdit.text.trim() } } });
     setPinnedEdit(null);
+  };
+  // Like the pinned note, a setting of the movement; an empty field removes it.
+  const videoTyped = videoEdit ? videoLink(videoEdit.text) : null;
+  const saveVideo = () => {
+    if (!videoEdit || videoTyped === null) return;
+    ctx?.dispatch({ type: 'SET_EXERCISE_SETTINGS', payload: { key: videoEdit.key, settings: { videoUrl: videoTyped } } });
+    setVideoEdit(null);
   };
 
   // Populate the form exactly ONCE per program+week. `program`/`existingLog`/
@@ -841,6 +851,7 @@ export function WorkoutEntry() {
   const key = exercise ? exerciseKey(exercise.exerciseName) : '';
   const info = exercise ? movementInfo.get(exercise.exerciseId) : undefined;
   const pinned = key ? exerciseSettings?.[key]?.note : undefined;
+  const video = key ? exerciseSettings?.[key]?.videoUrl : undefined;
   const weightUp = info?.target && info.target.reps === null ? info.target : null;
   const step = info?.rule.step ?? 2.5;
   const comparison = set ? compareToPrevious(set, prevSet) : null;
@@ -990,6 +1001,12 @@ export function WorkoutEntry() {
                   <span className="font-semibold text-(--color-text-primary)">{regions[0]}</span>
                 ) : <span className="underline underline-offset-2">Çalıştırdığı bölgeyi seç</span>}
               </button>
+              {video && (
+                <a href={video} target="_blank" rel="noopener noreferrer" className="shrink-0 min-h-8 px-1 flex items-center gap-1 text-[14px] text-(--color-text-secondary)">
+                  <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z" /></svg>
+                  Video
+                </a>
+              )}
               <button onClick={() => setNoteSheetOpen(true)} className="shrink-0 -mr-1 min-h-8 px-1 flex items-center gap-1.5 text-[14px] text-(--color-text-secondary)">
                 <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
                 {exercise.note?.trim() || notes.trim() ? 'Notu düzenle' : 'Not ekle'}
@@ -1297,8 +1314,9 @@ export function WorkoutEntry() {
 
       {/* What belongs to the movement rather than the set. */}
       {exerciseSheetOpen && exercise && current && (
-        <Sheet title={exercise.exerciseName} onClose={() => { setExerciseSheetOpen(false); setPinnedEdit(null); setRuleEdit(null); }}>
-          <div>
+        <Sheet title={exercise.exerciseName} onClose={() => { setExerciseSheetOpen(false); setPinnedEdit(null); setRuleEdit(null); setVideoEdit(null); }}>
+          <MuscleMap regions={regions} />
+          <div className="mt-3">
             <span className="text-[14px] text-(--color-text-secondary)">Çalıştırdığı bölge{regions.length && !chosenRegion ? ' · adından anlaşıldı, değiştirebilirsin' : ''}</span>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {REGIONS.map(region => {
@@ -1327,6 +1345,30 @@ export function WorkoutEntry() {
             ) : (
               <button onClick={() => setPinnedEdit({ key, text: pinned ?? '' })} className="mt-1 w-full min-h-12 px-4 rounded-2xl bg-(--color-bg-input) text-left text-[16px]">
                 {pinned || <span className="text-(--color-text-secondary)">Ekle</span>}
+              </button>
+            )}
+          </div>
+
+          <div className="mt-4">
+            <span className="text-[14px] text-(--color-text-secondary)">Video · nasıl yapıldığını gösteren link</span>
+            {videoEdit?.key === key ? (
+              <>
+                <div className="mt-1 flex items-center gap-2">
+                  <input autoFocus inputMode="url" value={videoEdit.text} onChange={e => setVideoEdit({ key, text: e.target.value })}
+                    onKeyDown={e => { if (e.key === 'Enter') saveVideo(); }} placeholder="youtube.com/…" aria-label="Video linki"
+                    className="flex-1 min-w-0 px-4 h-12 rounded-2xl bg-(--color-bg-input) text-[16px] focus:outline-none placeholder:text-(--color-text-secondary)" />
+                  <button onClick={saveVideo} disabled={videoTyped === null} className="h-12 px-4 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) font-semibold disabled:opacity-40">Kaydet</button>
+                </div>
+                {videoTyped === null && <p className="mt-1 text-[13px] text-(--color-text-secondary)">Bir web adresi yaz (https://…).</p>}
+              </>
+            ) : video ? (
+              <div className="mt-1 flex gap-2">
+                <a href={video} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 min-h-12 px-4 rounded-2xl bg-(--color-bg-input) flex items-center text-[16px]">Videoyu aç ↗</a>
+                <button onClick={() => setVideoEdit({ key, text: video })} className="h-12 px-4 rounded-2xl bg-(--color-bg-input) text-[15px]">Değiştir</button>
+              </div>
+            ) : (
+              <button onClick={() => setVideoEdit({ key, text: '' })} className="mt-1 w-full min-h-12 px-4 rounded-2xl bg-(--color-bg-input) text-left text-[16px]">
+                <span className="text-(--color-text-secondary)">Ekle</span>
               </button>
             )}
           </div>
