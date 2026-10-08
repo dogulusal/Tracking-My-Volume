@@ -152,9 +152,8 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
       </div>
 
       <div className="mb-5">
-        {/* Says what the part shows; the tile above already names it. */}
-        <h2 className="a-display text-[30px]">{{ progress: 'Hareketlerin seyri', volume: 'Bölge başına set', body: 'Kilo ve ölçüler' }[view]}</h2>
-        <p className="lb-label mt-1">
+        {/* No heading: the tile above already names the part. */}
+        <p className="lb-label">
           {view === 'progress'
             ? 'Her hareketin en ağır seti, hafta hafta. Renkler Geçmiş tablosuyla aynı.'
             : view === 'volume' ? 'Haftada bölge başına çalışılan set. Bütün günler sayılır.' : BODY_TEXT}
@@ -263,7 +262,7 @@ export function Charts({ embedded = false }: { embedded?: boolean } = {}) {
   );
 }
 
-const BODY_TEXT = 'Haftalık ortalama, hedefe ne kaldığı.';
+const BODY_TEXT = 'Kilo ve ölçüler, haftalık ortalama. Hedefe ne kaldığı.';
 
 /** Movements whose best set has not been beaten for a while, worst first. */
 function StalledList({ stalled, showAll, onToggle }: {
