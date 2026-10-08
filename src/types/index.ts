@@ -80,6 +80,10 @@ export interface WeekLog {
   // Trained, but ill, short of sleep or in a rush: the next workout is
   // compared with the one before it instead.
   offDay?: boolean;
+  // When the first and the last set of the workout were finished (ISO), for
+  // its length; absent on workouts entered without the set screen.
+  startedAt?: string;
+  finishedAt?: string;
   updatedAt: string;
 }
 
