@@ -8,6 +8,7 @@ const SEES = [
   'Her setin kilosu, tekrarı ve kaç tekrar daha yapabildiğin',
   'Antrenman ve hareket notların',
   'Haftalık özetin: kaç gün gittin, nerede ilerledin',
+  'Girdiysen kilon, vücut ölçülerin, cinsiyetin ve boyun',
 ];
 const CAN_DO = [
   'Programını düzenlemek: her değişikliği Bugün\'de görürsün, geçmiş haftaların kayıtları değişmez',
