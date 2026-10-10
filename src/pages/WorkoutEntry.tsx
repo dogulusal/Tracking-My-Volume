@@ -44,15 +44,16 @@ const TONE = {
 
 // This set against the same set last time, in words: weight first, then reps.
 // Reserve alone is not called better or worse while the set is still being
-// entered — every new day starts at F.
-function compareToPrevious(set: SetLog, prev: SetLog | null): { text: string; tone: keyof typeof TONE } {
+// entered. Null when nothing differs: the fields then show last week's set
+// as it was, and saying so again is only noise.
+function compareToPrevious(set: SetLog, prev: SetLog | null): { text: string; tone: keyof typeof TONE } | null {
   if (!prev) return { text: 'İlk kayıt', tone: 'ref' };
   if (set.weight > prev.weight) return { text: `Geçen haftadan ${roundWeight(set.weight - prev.weight)} kg fazla`, tone: 'gain' };
   if (set.weight < prev.weight) return { text: `Geçen haftadan ${roundWeight(prev.weight - set.weight)} kg az`, tone: 'drop' };
   if (set.reps > prev.reps) return { text: `Geçen haftadan ${set.reps - prev.reps} tekrar fazla`, tone: 'gain' };
   if (set.reps < prev.reps) return { text: `Geçen haftadan ${prev.reps - set.reps} tekrar az`, tone: 'drop' };
   if ((RESERVE[set.intensity] ?? 0) !== (RESERVE[prev.intensity] ?? 0)) return { text: `Kilo ve tekrar aynı · geçen ${formatSetLine(prev)}`, tone: 'same' };
-  return { text: 'Geçen haftayla aynı', tone: 'same' };
+  return null;
 }
 const FIRST_HINT_KEY = 'tmv-ipucu-set';
 const REST_TIMER_KEY = 'rest-timer-default-sec';
@@ -303,13 +304,13 @@ export function WorkoutEntry() {
           return {
             exerciseId: ex.id,
             exerciseName: ex.name,
-            // Weight/reps are a useful starting point; intensity is not — it
-            // describes the set you actually performed, so it resets to F.
-            sets: Array.from({ length: ex.defaultSets }, (_, index) => ({
-              weight: (previousSets[index] ?? previousSets[previousSets.length - 1]).weight,
-              reps: (previousSets[index] ?? previousSets[previousSets.length - 1]).reps,
-              intensity: 'failure' as Intensity,
-            })),
+            // The set as it was done, reps in reserve too: the fields show
+            // last week's set exactly (75 x 7 +1), and a set finished without
+            // a change is the same set, not one taken to failure (a drop).
+            sets: Array.from({ length: ex.defaultSets }, (_, index) => {
+              const source = previousSets[index] ?? previousSets[previousSets.length - 1];
+              return { weight: source.weight, reps: source.reps, intensity: source.intensity };
+            }),
           };
         }
 
@@ -456,12 +457,8 @@ export function WorkoutEntry() {
       const updated = [...prev];
       const exercise = { ...updated[exerciseIdx] };
       const lastSet = exercise.sets[exercise.sets.length - 1];
-      // Same rule as the week prefill: carry the numbers, not the intensity.
-      exercise.sets = [...exercise.sets, {
-        weight: lastSet.weight,
-        reps: lastSet.reps,
-        intensity: 'failure' as Intensity,
-      }];
+      // Same rule as the week prefill: the last set as it is, reserve too.
+      exercise.sets = [...exercise.sets, { weight: lastSet.weight, reps: lastSet.reps, intensity: lastSet.intensity }];
       updated[exerciseIdx] = exercise;
       return updated;
     });
@@ -802,7 +799,8 @@ export function WorkoutEntry() {
       editedExerciseIdsRef.current.add(id);
       setExerciseLogs(prev => [...prev, {
         exerciseId: id, exerciseName: name,
-        sets: [{ weight: best?.weight ?? 0, reps: best?.reps ?? 0, intensity: 'failure' as Intensity }],
+        // Its last best set as it was done, reserve too, as a week starts from.
+        sets: [{ weight: best?.weight ?? 0, reps: best?.reps ?? 0, intensity: best?.intensity ?? 'failure' as Intensity }],
       }]);
       setIsDirty(true);
       setFocus({ ex: exerciseLogs.length, set: 0 });
@@ -888,6 +886,18 @@ export function WorkoutEntry() {
   const gymPlates = ctx?.state.plates ?? STANDARD_PLATES;
   const loading = barKg && set && set.weight > 0 ? platesPerSide(set.weight, barKg, gymPlates) : null;
   const weightUp = info?.target && info.target.reps === null ? info.target : null;
+  // The weight the rule says to move to, on every set of the movement not
+  // yet done; the fields show last week's, so the target needs one tap.
+  const raiseWeight = () => {
+    if (!current || !weightUp || !exercise) return;
+    const open = exercise.sets.flatMap((_, i) => completedSets[`${exercise.exerciseId}:${i}`] ? [] : [i]);
+    for (const i of open) updateSet(current.ex, i, 'weight', weightUp.weight);
+    setSetInputDrafts(prev => {
+      const next = { ...prev };
+      for (const i of open) delete next[getSetInputKey(current.ex, i, 'weight')];
+      return next;
+    });
+  };
   const step = info?.rule.step ?? 2.5;
   const comparison = set ? compareToPrevious(set, prevSet) : null;
   const chosenRegion = key ? exerciseSettings?.[key]?.region : undefined;
@@ -1040,10 +1050,16 @@ export function WorkoutEntry() {
             {(weightUp || pinned || info?.lastNote || coachComment || (doneCount === 0 && (previousNoteLog?.notes?.trim() || coachDayNotes.length > 0))) && (
               <div className="mt-1.5 space-y-0.5 text-[14px] text-(--color-text-secondary)">
                 {/* "One more rep" goes without saying; time to add weight is
-                    the one target shown nowhere else. */}
-                {weightUp && (
-                  <p>Hedef <span className="lb-figure text-[17px] font-semibold text-(--color-text-primary)">{weightUp.weight} kg</span>
-                    {' · '}{weightUp.from.reps} tekrara ulaştın</p>
+                    the one target shown nowhere else. Gone once the set is
+                    at that weight. */}
+                {weightUp && set.weight < weightUp.weight && (
+                  <div className="flex items-center gap-2">
+                    <p className="flex-1 min-w-0 leading-snug">Geçen sefer {weightUp.from.reps} tekrara ulaştın; kiloyu artırma zamanı.</p>
+                    <button onClick={raiseWeight} className="shrink-0 h-10 px-3.5 rounded-full text-[15px] font-semibold"
+                      style={{ color: 'var(--lb-gain)', background: 'var(--lb-gain-fill)' }}>
+                      <span className="lb-figure text-[17px]">{weightUp.weight}</span> kg’a çık
+                    </button>
+                  </div>
                 )}
                 {pinned && <p className="truncate">Sabit: <span className="text-(--color-text-primary)">{pinned}</span></p>}
                 {doneCount === 0 && coachDayNotes.map(note => (
