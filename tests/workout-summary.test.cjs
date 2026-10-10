@@ -34,6 +34,9 @@ test('each movement is compared with the same day last time, as History colours 
   const summary = summarizeWorkout(today, 0, { weekLogs: [previous] });
   assert.deepEqual(summary.lines.map(line => line.status), ['improved', 'same', 'decreased']);
   assert.deepEqual(summary.counts, { improved: 1, same: 1, decreased: 1 });
+  // Each movement carries today's sets and last time's, for the summary list.
+  assert.deepEqual(summary.lines[0].sets, [set(60, 9)]);
+  assert.deepEqual(summary.lines[0].previous, [set(60, 8)]);
 });
 
 test('a movement back after a skipped week is compared with its last record, as in History', () => {
@@ -57,6 +60,7 @@ test('sets are counted per muscle group like the charts: worked sets only', () =
   assert.equal(summary.sets, 3);
   assert.deepEqual(summary.groups, [{ group: 'Göğüs', sets: 2 }, { group: 'Triceps', sets: 1 }]);
   assert.deepEqual(summary.lines.map(line => line.status), ['new', 'new']);
+  assert.equal(summary.lines[0].previous, null);
 });
 
 test('a record is an estimated 1RM above every earlier session of the movement, on any day', () => {

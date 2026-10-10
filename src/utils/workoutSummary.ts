@@ -8,6 +8,9 @@ import { MUSCLE_GROUPS, UNASSIGNED, exerciseKey, groupOf } from '@/utils/muscleG
 export interface SummaryLine {
   name: string;
   best: SetLog | null;
+  /** The sets worked today, and those of the session it is measured against (null: none). */
+  sets: SetLog[];
+  previous: SetLog[] | null;
   /** Against the same day last time, as History colours the cell. */
   status: ExerciseStatus;
   /** Estimated 1RM above every earlier session of the movement, on any day. */
@@ -74,9 +77,12 @@ export function summarizeWorkout(
     const previousTop = Math.max(0, ...earlier.map(session => topOneRM(session.exercise.sets)));
     const oneRM = topOneRM(worked);
     const stall = stallOf(movementSessions(logsAfter, key));
+    const previousWorked = previousSets?.filter(set => set.reps > 0);
     lines.push({
       name: exercise.exerciseName,
       best: bestSet(worked),
+      sets: worked,
+      previous: previousWorked?.length ? previousWorked : null,
       status: calculateExerciseStatus(exercise.sets, previousSets),
       record: previousTop > 0 && oneRM > previousTop ? { oneRM, previous: previousTop } : null,
       stallWeeks: stall && stall.weeks >= STALL_WEEKS ? stall.weeks : null,
