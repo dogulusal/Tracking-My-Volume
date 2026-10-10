@@ -7,6 +7,7 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { Modal } from '@/components/shared/Modal';
 import { formatSetLine } from '../../supabase/functions/_shared/historyGrid.mjs';
 import { formatSet } from '@/utils/formatters';
+import { localDay } from '@/utils/body';
 import { moveItem } from '@/utils/reorder';
 import { addMovementsFromWorkout, syncExerciseLogs, syncProgramFromWorkout } from '@/utils/exerciseSync';
 import { searchMovements } from '@/data/movementLibrary';
@@ -103,9 +104,11 @@ export function WorkoutEntry() {
   const [isHoliday, setIsHoliday] = useState(existingLog?.isHoliday || false);
   const [offDay, setOffDay] = useState(existingLog?.offDay || false);
   const [notes, setNotes] = useState(existingLog?.notes || '');
-  const [date, setDate] = useState(
-    existingLog?.date || new Date().toISOString().split('T')[0]
-  );
+  // The person's own calendar day, not UTC's: a set at 01:00 is today.
+  const [date, setDate] = useState(existingLog?.date || localDay());
+  // A date picked in Gün ayarları is kept; otherwise a new workout is dated
+  // by its first set (see finishSet).
+  const dateChosen = useRef(false);
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [completedSets, setCompletedSets] = useState<Record<string, boolean>>({});
@@ -248,6 +251,7 @@ export function WorkoutEntry() {
           savedAt?: string;
           completedSets?: Record<string, boolean>;
           times?: { startedAt?: string; finishedAt?: string };
+          dateChosen?: boolean;
         };
         const draftIsStale =
           existingLog?.updatedAt != null &&
@@ -263,6 +267,7 @@ export function WorkoutEntry() {
           if (draft.times && typeof draft.times === 'object') setTimes(draft.times);
           if (typeof draft.notes === 'string') setNotes(draft.notes);
           if (typeof draft.date === 'string') setDate(draft.date);
+          if (draft.dateChosen === true) dateChosen.current = true;
           if (typeof draft.isHoliday === 'boolean') setIsHoliday(draft.isHoliday);
           if (typeof draft.offDay === 'boolean') setOffDay(draft.offDay);
           setIsDirty(true); // keep persisting it until the user saves
@@ -327,7 +332,7 @@ export function WorkoutEntry() {
     try {
       localStorage.setItem(
         draftKey,
-        JSON.stringify({ exerciseLogs, notes, date, isHoliday, offDay, completedSets, times, savedAt: new Date().toISOString() })
+        JSON.stringify({ exerciseLogs, notes, date, dateChosen: dateChosen.current, isHoliday, offDay, completedSets, times, savedAt: new Date().toISOString() })
       );
       setDraftStatus('saved');
     } catch { setDraftStatus('error'); }
@@ -836,6 +841,11 @@ export function WorkoutEntry() {
     const done = { ...completedSets, [key]: true };
     setCompletedSets(done);
     const now = new Date().toISOString();
+    // A new workout is dated by its first set, not by when the screen was
+    // opened: opened the evening a new week was started (or left open, or a
+    // draft from the day before) it carried that day, and Bugün then counted
+    // the week from a day nothing was trained.
+    if (!times.startedAt && !existingLog && !dateChosen.current) setDate(localDay());
     setTimes(prev => ({ startedAt: prev.startedAt ?? now, finishedAt: now }));
     setIsDirty(true);
     const next = nextOpenSet(current.ex, current.set, done);
@@ -1543,7 +1553,7 @@ export function WorkoutEntry() {
         <Sheet title="Gün ayarları" onClose={() => setDaySettingsOpen(false)}>
           <label className="flex items-center justify-between gap-3 min-h-14">
             <span className="text-[17px]">Tarih</span>
-            <input type="date" value={date} onChange={e => { setDate(e.target.value); setIsDirty(true); }}
+            <input type="date" value={date} onChange={e => { dateChosen.current = true; setDate(e.target.value); setIsDirty(true); }}
               className="lb-figure h-11 px-3 rounded-xl bg-(--color-bg-input) text-[20px]! focus:outline-none" />
           </label>
           <ToggleRow label="Tatil" checked={isHoliday} onChange={value => { setIsHoliday(value); setIsDirty(true); }} />
