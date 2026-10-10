@@ -1,5 +1,5 @@
 import { Link, Navigate } from 'react-router-dom';
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { AppContext } from '@/context/AppContext';
 import { useWeekOverview, type WeekDay } from '@/hooks/useWeekOverview';
 import { Modal } from '@/components/shared/Modal';
@@ -40,6 +40,31 @@ function DayTile({ day, isNext, week }: { day: WeekDay; isNext: boolean; week: n
   );
 }
 
+function StaleWeekDialog({ text, onNewWeek, onKeep, onClose }: { text: string; onNewWeek: () => void; onKeep: () => void; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+      <button aria-label="Kapat" className="absolute inset-0 bg-black/60 cursor-default" onClick={onClose} />
+      <div role="alertdialog" aria-modal="true" aria-labelledby="stale-week-title"
+        className="lb-settle relative w-full max-w-sm a-card px-5 pt-6 pb-4 shadow-xl">
+        <h2 id="stale-week-title" className="a-display text-[34px] leading-none">Yeni haftaya geçme zamanı</h2>
+        <p className="mt-3 text-[16px] leading-snug">{text}</p>
+        <p className="mt-2 text-[15px] leading-snug text-(--color-text-secondary)">
+          Yeni haftada geçen haftanın rakamlarını geçmeye çalışırsın; aynı haftada kalırsan bu haftanın kayıtlarının üstüne yazarsın. Geçtikten sonra geri alınmaz.
+        </p>
+        <div className="mt-5 flex flex-col gap-2">
+          <button onClick={onNewWeek} className="h-14 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[17px] font-semibold">Yeni haftaya geç</button>
+          <button onClick={onKeep} className="h-12 rounded-2xl bg-(--color-bg-input) text-[16px] font-medium">Aynı haftada kal</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Dashboard() {
   const [confirmNewWeek, setConfirmNewWeek] = useState(false);
   const coach = useCoach();
@@ -65,6 +90,8 @@ export function Dashboard() {
     setStaleDismissed(true);
     try { localStorage.setItem(staleKey, '1'); } catch { /* a per-device nicety only */ }
   };
+  // Closed without an answer: asked again on the next visit, not this one.
+  const [staleClosed, setStaleClosed] = useState(false);
   // A finished week is announced once; "Sonra" leaves it to the button at the
   // bottom of the page (remembered per week, on this phone).
   const [doneDismissedWeek, setDoneDismissedWeek] = useState(() => {
@@ -162,18 +189,15 @@ export function Dashboard() {
         </section>
       )}
 
-      {staleWeek !== null && !weekDone && !staleDismissed && (
-        <section className="mt-5 a-card px-4 py-3.5" style={{ boxShadow: 'inset 0 0 0 1.5px var(--color-text-primary)' }}>
-          <p className="text-[18px] font-semibold">Yeni haftaya geçme zamanı</p>
-          <p className="mt-1 text-[15px] leading-snug text-(--color-text-secondary)">
-            {staleName ? `Son ${staleName} antrenmanın` : 'Bu haftanın ilk antrenmanı'} {staleWeek.days} gün önceydi; bir haftayı geçti.
-            Yeni haftaya geç, geçen haftanın rakamlarını geçmeye çalış. Aynı haftada kalırsan bu haftanın kayıtlarının üstüne yazarsın.
-          </p>
-          <div className="mt-3 flex gap-2">
-            <button onClick={() => setConfirmNewWeek(true)} className="flex-1 h-12 rounded-2xl bg-(--color-text-primary) text-(--color-bg-primary) text-[16px] font-semibold">Yeni haftaya geç</button>
-            <button onClick={keepWeek} className="h-12 px-4 rounded-2xl bg-(--color-bg-input) text-[16px] font-medium">Aynı hafta</button>
-          </div>
-        </section>
+      {/* A question, not a card in the page: asked as the page opens. Being
+          the question itself, its button moves the week on without a second
+          "are you sure". */}
+      {staleWeek !== null && !weekDone && !staleDismissed && !staleClosed && (
+        <StaleWeekDialog
+          text={`${staleName ? `Son ${staleName} antrenmanın` : 'Bu haftanın ilk antrenmanı'} ${staleWeek.days} gün önceydi. Bu hafta ${weekStats.completed}/${weekStats.total} antrenman kaydedildi.`}
+          onNewWeek={() => { setStaleClosed(true); incrementWeek(); }}
+          onKeep={keepWeek}
+          onClose={() => setStaleClosed(true)} />
       )}
 
       {/* Every day of the week is in: said straight away, but the week moves on
