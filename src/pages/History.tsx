@@ -12,7 +12,6 @@ import { commentsOn, dayNotesOn, useComments } from '@/coach/comments';
 import { DayNoteSheet } from '@/coach/DayNoteSheet';
 import { buildPhaseGrid, statusFill, type GridRow } from '../../supabase/functions/_shared/historyGrid.mjs';
 import { currentPhaseIndex, startedPhases } from '@/utils/phases';
-import { trainingStreak } from '@/utils/weekAdvance';
 import type { ExerciseLog, SetLog } from '@/types';
 
 const HISTORY_STATE_KEY = 'history-page-state-v1';
@@ -25,7 +24,7 @@ export function History({ embedded = false }: { embedded?: boolean } = {}) {
   const [showPhaseSettings, setShowPhaseSettings] = useState(false);
   const navigate = useNavigate();
   const { weekLogs, currentWeek, saveWorkout } = useWeekLogs();
-  const streak = useMemo(() => trainingStreak(weekLogs, currentWeek), [weekLogs, currentWeek]);
+  const [showHelp, setShowHelp] = useState(false);
   const palette = useGridPalette();
   const isMobile = useIsMobileDevice();
   const ctx = useContext(AppContext);
@@ -175,11 +174,11 @@ export function History({ embedded = false }: { embedded?: boolean } = {}) {
     <div className={embedded ? '' : 'max-w-5xl xl:max-w-7xl mx-auto px-4 pt-2 pb-8'}>
       <div className="flex items-end justify-between gap-3 px-1">
         <div className="min-w-0">
+          {/* Only the title: the phase shows in its own buttons (and the
+              weeks in the table's head), and the line that named it, said
+              the table matched the Sheet and counted the weeks in a row was
+              found crowded. */}
           {!embedded && <h1 className="a-display text-[48px]">Geçmiş</h1>}
-          <p className="mt-1 text-[14px] text-(--color-text-secondary)">{currentPhase?.label ?? ''}{readOnly ? '' : ' · Sheet ile aynı tablo'}</p>
-          {/* The run of weeks this table is made of; moved here from Bugün,
-              where it sat oddly beside the day's workout. */}
-          {!embedded && streak > 0 && <p className="text-[14px] text-(--color-text-secondary)"><span className="lb-figure font-semibold text-(--color-text-primary)">{streak} hafta</span> üst üste antrenman</p>}
         </div>
         {!readOnly && <button onClick={() => setShowPhaseSettings(true)} className="shrink-0 h-11 px-4 rounded-full bg-(--color-bg-card) text-[15px] font-medium">Fazlar</button>}
       </div>
@@ -213,14 +212,30 @@ export function History({ embedded = false }: { embedded?: boolean } = {}) {
         </div>
       )}
 
-      <div className="mt-3 mb-2.5 px-1 flex flex-wrap gap-x-3.5 gap-y-1 text-[12px] text-(--color-text-secondary)">
+      <div className="mt-3 mb-2.5 px-1 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[12px] text-(--color-text-secondary)">
         {legend.map(item => (
           <span key={item.label} className="flex items-center gap-1.5">
             <span className="w-[11px] h-[11px] rounded-[3px]" style={{ background: item.fill, boxShadow: `inset 0 0 0 1px ${item.edge}` }} />
             {item.label}
           </span>
         ))}
+        {/* How to read a cell and what a tap does: wanted the first days,
+            clutter after, so kept behind a tap instead of under the table. */}
+        <button type="button" onClick={() => setShowHelp(open => !open)} aria-expanded={showHelp}
+          className="-my-3 h-11 px-1 flex items-center gap-1 underline underline-offset-4">
+          {showHelp ? 'Gizle' : 'Nasıl okunur?'}
+        </button>
       </div>
+      {showHelp && (
+        <div className="lb-settle mb-3 px-1 text-[13px] leading-snug text-(--color-text-secondary)">
+          <p>75 x 7 +1: 75 kg, 7 tekrar, 1 tekrar daha yapabilirdin · F: tükendin.</p>
+          <p className="mt-0.5">
+            {readOnly
+              ? `Hücreye dokun: setleri gör, yorum yaz.${comments.add ? ' Haftalık notlar satırına dokun: o antrenmana not bırak.' : ''}`
+              : 'Hücreye dokun: setleri gör ve düzelt. Hafta başlığına dokun: o haftanın antrenmanını aç.'}
+          </p>
+        </div>
+      )}
 
       {!program ? (
         <p className="text-(--color-text-secondary)">Henüz program yok.</p>
@@ -294,12 +309,6 @@ export function History({ embedded = false }: { embedded?: boolean } = {}) {
           </div>
         </div>
       )}
-      <p className="mt-2 px-1 text-[13px] text-(--color-text-secondary)">75 x 7 +1: 75 kg, 7 tekrar, 1 tekrar daha yapabilirdin · F: tükendin.</p>
-      <p className="mt-1 px-1 text-[13px] text-(--color-text-secondary)">
-        {readOnly
-          ? `Hücreye dokun: setleri gör, yorum yaz.${comments.add ? ' Haftalık notlar satırına dokun: o antrenmana not bırak.' : ''}`
-          : 'Hücreye dokun: setleri gör ve düzelt. Hafta başlığına dokun: o haftanın antrenmanını aç.'}
-      </p>
 
       {removedRows.length > 0 && !readOnly && (
         <div className="mt-6 a-card px-4 py-3">
